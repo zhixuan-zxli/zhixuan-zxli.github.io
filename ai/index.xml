@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
+	<channel>
+		<title>Ais on Zhixuan&#39;s Blog</title>
+		<link>https://example.org/ai/</link>
+		<description>Recent content in Ais on Zhixuan&#39;s Blog</description>
+		<generator>Hugo</generator>
+		<language>zh</language>
+		
+		
+		
+		
+			<lastBuildDate>Tue, 02 Jun 2026 16:46:47 +0800</lastBuildDate>
+		
+			<atom:link href="https://example.org/ai/index.xml" rel="self" type="application/rss+xml" />
+			<item>
+				<title>KV Cache and Model Runner in vLLM</title>
+				<link>https://example.org/ai/kv_cache/</link>
+				<pubDate>Tue, 02 Jun 2026 16:46:47 +0800</pubDate>
+				<guid>https://example.org/ai/kv_cache/</guid>
+				<description>&lt;h2 id=&#34;1-kvcachemanager-and-related-classes&#34;&gt;1. KVCacheManager and Related Classes&lt;/h2&gt;&#xA;&lt;p&gt;&lt;img src=&#34;../../assets/ai/kv_cache_overview.webp&#34; alt=&#34;alt text&#34;&gt;&lt;/p&gt;&#xA;&lt;h3 id=&#34;kvcachemanager&#34;&gt;&lt;code&gt;KVCacheManager&lt;/code&gt;&lt;/h3&gt;&#xA;&lt;ul&gt;&#xA;&lt;li&gt;&#xA;&lt;p&gt;&lt;code&gt;hash_block_size&lt;/code&gt;&lt;br&gt;&#xA;Size used for computing block hashes (prefix caching). Different KV cache groups may have larger actual block sizes that are multiples of this.&lt;/p&gt;&#xA;&lt;/li&gt;&#xA;&lt;li&gt;&#xA;&lt;p&gt;&lt;code&gt;get_computed_blocks(request)&lt;/code&gt;&lt;br&gt;&#xA;Call &lt;code&gt;KVCacheCoordinator.find_longest_cache_hit()&lt;/code&gt; if prefix caching enabled, else nothing.&lt;/p&gt;&#xA;&lt;/li&gt;&#xA;&lt;li&gt;&#xA;&lt;p&gt;&lt;code&gt;allocate_slots(request, num_new_tokens, num_new_computed_tokens, ...)&lt;/code&gt; called when scheduling waiting or running requests, where&lt;/p&gt;&#xA;&lt;ul&gt;&#xA;&lt;li&gt;&lt;code&gt;computed&lt;/code&gt;: blocks allocated before current scheduling&lt;/li&gt;&#xA;&lt;li&gt;&lt;code&gt;new_computed&lt;/code&gt;: blocks that hit the prefix cache&lt;/li&gt;&#xA;&lt;li&gt;&lt;code&gt;new&lt;/code&gt;: blocks that need to be allocated&lt;/li&gt;&#xA;&lt;/ul&gt;&#xA;&lt;ol&gt;&#xA;&lt;li&gt;Computes the number of new required blocks.&lt;/li&gt;&#xA;&lt;li&gt;Increments reference counts for cached blocks.&lt;/li&gt;&#xA;&lt;li&gt;Allocates new blocks from the free queue (or eviction queue) by calling &lt;code&gt;allocate_new_blocks&lt;/code&gt; on the coordinator.&lt;/li&gt;&#xA;&lt;li&gt;Call coordinator&amp;rsquo;s &lt;code&gt;cache_blocks()&lt;/code&gt;.&lt;/li&gt;&#xA;&lt;li&gt;Returns a &lt;code&gt;KVCacheBlocks&lt;/code&gt; object.&lt;/li&gt;&#xA;&lt;/ol&gt;&#xA;&lt;p&gt;Note: Once a request enters the running queue, it is no longer considered for prefix caching (&lt;code&gt;num_new_computed_tokens = 0&lt;/code&gt;).&lt;/p&gt;</description>
+			</item>
+	</channel>
+</rss>

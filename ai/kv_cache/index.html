@@ -1,0 +1,685 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<title>KV Cache and Model Runner in vLLM</title>
+
+
+
+
+<meta charset="utf-8">
+<meta name="X-UA-Compatible" content="IE=edge">
+<meta name="google-site-verification" content="">
+<meta content="width=device-width, initial-scale=1.0, maximum-scale=5, user-scalable=5" name="viewport">
+<meta content="telephone=no" name="format-detection">
+<meta name="description" content="">
+<meta name="renderer" content="webkit">
+<meta name="theme-color" content="#ffffff">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+
+
+
+
+
+    <link type="text/css" rel="stylesheet" href="/vendor/css/bootstrap.min.css">
+
+<link rel="stylesheet" href="/scss/dark-mode.min.6c9b4c2290542df75010d1640eac4339c754ccff3c9b43fc81a23c94e7e12eaf.css" integrity="sha256-bJtMIpBULfdQENFkDqxDOcdUzP88m0P8gaI8lOfhLq8=" media="screen">
+
+
+<link rel="stylesheet"
+          href="https://fonts.googleapis.com/css?family=Material+Icons">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+</head>
+<body>
+    	<div id="app"><div class="single-column-drawer-container" id="drawer"
+     v-bind:class="{ 'single-column-drawer-container-active': isDrawerOpen }">
+    <div class="drawer-content">
+        <div class="drawer-menu">
+            
+            
+            
+                
+                
+                
+                    
+                
+                
+                
+                <a class="a-block drawer-menu-item active" href="/ai">
+                    AI
+                </a>
+                
+            
+            
+            <div class="toc">
+
+
+	<div class="toc-content">
+	
+		
+		
+		
+		<center>- 目录 -</center>
+		
+		
+		<ul>
+			
+				
+				
+					
+						
+						
+						
+						
+							
+								
+									<ul>
+								
+							
+						
+						
+							<li>
+								<a href="#1-kvcachemanager-and-related-classes" class="nav-1-kvcachemanager-and-related-classes">
+									1. KVCacheManager and Related Classes
+								</a>
+							</li>
+						
+						
+					
+				
+			
+				
+				
+					
+						
+						
+						
+						
+							
+								
+									<ul>
+								
+							
+						
+						
+							<li>
+								<a href="#kvcachemanager" class="nav-kvcachemanager">
+									KVCacheManager
+								</a>
+							</li>
+						
+						
+					
+				
+			
+				
+				
+					
+						
+						
+						
+						
+						
+							<li>
+								<a href="#kvcachecoordinator--base-coordinator-managing-multiple-single-type-managers" class="nav-kvcachecoordinator--base-coordinator-managing-multiple-single-type-managers">
+									KVCacheCoordinator – base coordinator managing multiple single-type managers.
+								</a>
+							</li>
+						
+						
+					
+				
+			
+				
+				
+					
+						
+						
+						
+						
+							
+								
+									<ul>
+								
+							
+						
+						
+							<li>
+								<a href="#blockpool-inside-the-coordinator" class="nav-blockpool-inside-the-coordinator">
+									BlockPool (inside the coordinator)
+								</a>
+							</li>
+						
+						
+					
+				
+			
+				
+				
+					
+						
+						
+						
+						
+						
+							<li>
+								<a href="#kvcacheblock" class="nav-kvcacheblock">
+									KVCacheBlock
+								</a>
+							</li>
+						
+						
+					
+				
+			
+				
+				
+					
+						
+						
+						
+						
+						
+							<li>
+								<a href="#kvcacheblocks" class="nav-kvcacheblocks">
+									KVCacheBlocks
+								</a>
+							</li>
+						
+						
+					
+				
+			
+				
+				
+					
+						
+						
+						
+							
+								</ul>
+							
+						
+						
+						
+							<li>
+								<a href="#singletypekvcachemanager" class="nav-singletypekvcachemanager">
+									SingleTypeKVCacheManager
+								</a>
+							</li>
+						
+						
+					
+				
+			
+				
+				
+					
+						
+						
+						
+							
+								</ul>
+							
+						
+						
+						
+							<li>
+								<a href="#2-initialization-of-kv-caches" class="nav-2-initialization-of-kv-caches">
+									2. Initialization of KV Caches
+								</a>
+							</li>
+						
+						
+					
+				
+			
+				
+				
+					
+						
+						
+						
+						
+						
+							<li>
+								<a href="#3-gpumodelrunner" class="nav-3-gpumodelrunner">
+									3. GPUModelRunner
+								</a>
+							</li>
+						
+						
+					
+				
+			
+		</ul>
+	</div>
+
+</div>
+            
+        </div>
+    </div>
+</div>
+<transition name="fade">
+    <div id="drawer-mask" v-bind:class="{ 'single-column-drawer-mask': mounted }" v-if="isDrawerOpen" v-on:click="toggleDrawer"></div>
+</transition>
+<nav id="navBar" class="navbar sticky-top navbar-light single-column-nav-container">
+    <div id="navBackground" class="nav-background"></div>
+    <div class="container container-narrow nav-content">
+        <button id="nav_dropdown_btn" class="nav-dropdown-toggle" type="button" v-on:click="toggleDrawer">
+            <i class="material-icons">
+                menu
+            </i>
+        </button>
+        <a id="navTitle" class="navbar-brand" href="https://example.org/">
+            Zhixuan&#39;s Blog
+        </a>
+        
+        <button type="button" class="nav-darkmode-toggle" id="darkModeToggleButton2">
+            <i class="material-icons" id="darkModeToggleIcon2">
+                dark_mode
+            </i>
+        </button>
+        
+    </div>
+</nav>
+<div class="single-column-header-container" id="pageHead"
+     v-bind:style="{ transform: 'translateZ(0px) translateY('+.3*scrollY+'px)', opacity: 1-navOpacity }">
+    <a href="https://example.org/">
+        <div class="single-column-header-title">Zhixuan&#39;s Blog</div>
+        
+
+    </a>
+</div>
+
+            <div id="content">
+                <div id="streamContainer" class="stream-container">
+
+    <div class="post-list-container post-list-container-shadow">
+        <div class="post">
+            
+            
+            
+
+            <div class="post-head-wrapper-text-only"
+                
+            >
+                <div class="post-title">
+                    KV Cache and Model Runner in vLLM
+                    
+                    <div class="post-meta">
+                        
+                        <time itemprop="datePublished">
+                            2026-06-02 16:46
+                        </time>
+                        
+
+                        
+
+                        
+                        
+                    </div>
+                </div>
+            </div>
+            
+            <div class="post-body-wrapper">
+                
+                <div class="post-body" v-pre>
+                
+                    <h2 id="1-kvcachemanager-and-related-classes">1. KVCacheManager and Related Classes</h2>
+<p><img src="../../assets/ai/kv_cache_overview.webp" alt="alt text"></p>
+<h3 id="kvcachemanager"><code>KVCacheManager</code></h3>
+<ul>
+<li>
+<p><code>hash_block_size</code><br>
+Size used for computing block hashes (prefix caching). Different KV cache groups may have larger actual block sizes that are multiples of this.</p>
+</li>
+<li>
+<p><code>get_computed_blocks(request)</code><br>
+Call <code>KVCacheCoordinator.find_longest_cache_hit()</code> if prefix caching enabled, else nothing.</p>
+</li>
+<li>
+<p><code>allocate_slots(request, num_new_tokens, num_new_computed_tokens, ...)</code> called when scheduling waiting or running requests, where</p>
+<ul>
+<li><code>computed</code>: blocks allocated before current scheduling</li>
+<li><code>new_computed</code>: blocks that hit the prefix cache</li>
+<li><code>new</code>: blocks that need to be allocated</li>
+</ul>
+<ol>
+<li>Computes the number of new required blocks.</li>
+<li>Increments reference counts for cached blocks.</li>
+<li>Allocates new blocks from the free queue (or eviction queue) by calling <code>allocate_new_blocks</code> on the coordinator.</li>
+<li>Call coordinator&rsquo;s <code>cache_blocks()</code>.</li>
+<li>Returns a <code>KVCacheBlocks</code> object.</li>
+</ol>
+<p>Note: Once a request enters the running queue, it is no longer considered for prefix caching (<code>num_new_computed_tokens = 0</code>).</p>
+</li>
+</ul>
+<h3 id="kvcachecoordinator--base-coordinator-managing-multiple-single-type-managers"><code>KVCacheCoordinator</code> – base coordinator managing multiple single-type managers.</h3>
+<ul>
+<li>
+<p><code>KVCacheCoordinatorNoPrefixCache</code> – variant without prefix caching.</p>
+<ul>
+<li><code>get_num_blocks_to_allocate()</code> – routes to each single-type manager.</li>
+<li><code>allocate_new_blocks(request_id, num_tokens)</code> – routes to each manager.</li>
+</ul>
+</li>
+<li>
+<p><code>HybridKVCacheCoordinator</code> – used when enabling prefix caching and there are two KV cache group types (e.g., one for full attention, one for Mamba).</p>
+<ul>
+<li><code>cache_blocks(self, num_computed_tokens)</code></li>
+</ul>
+</li>
+</ul>
+<h4 id="blockpool-inside-the-coordinator"><code>BlockPool</code> (inside the coordinator)</h4>
+<ul>
+<li><code>blocks: list[KVCacheBlock]</code> – all blocks in the pool.</li>
+<li><code>null_block</code> – a special block representing null.</li>
+<li><code>hash_block_size</code> – same as manager’s hash block size.</li>
+<li><code>FreeKVCacheBlockQueue</code> – a doubly‑linked list of free blocks.</li>
+<li><code>cached_block_hash_to_block: BlockHashToBlockMap</code> – a dictionary mapping <code>BlockHashWithGroupId</code> to <code>dict[int, KVCacheBlock]</code> (multiple blocks with same hash due to eviction).</li>
+<li><code>get_cached_block()</code>: hash lookup in <code>cached_block_hash_to_block</code>.</li>
+<li><code>cache_full_blocks()</code>: Maintain <code>cached_block_hash_to_block</code>, where the hashes have been computed by the <code>Request</code> object.</li>
+</ul>
+<h4 id="kvcacheblock"><code>KVCacheBlock</code></h4>
+<ul>
+<li>Attributes: <code>block_id</code>, <code>block_hash</code>, <code>ref_cnt</code>, and pointers for linked lists.</li>
+</ul>
+<h4 id="kvcacheblocks"><code>KVCacheBlocks</code></h4>
+<ul>
+<li><code>blocks: tuple[Sequence[KVCacheBlock]]</code> - A tuple where each element corresponds to a KV cache group, and inside each group there is a sequence of blocks (tokens). <code>blocks[i][j]</code> refers to the j‑th block of the i‑th group.</li>
+</ul>
+<h3 id="singletypekvcachemanager"><code>SingleTypeKVCacheManager</code></h3>
+<ul>
+<li><code>req_to_blocks: dict[req_id: str, list[KVCacheBlock]]</code> – maps request IDs to their allocated blocks.</li>
+<li><code>num_cached_block: dict[str, int]</code> – number of cached blocks per request.</li>
+<li><code>get_num_blocks_to_allocate()</code> – computes required blocks for a request.
+<ul>
+<li><code>cdiv(num_tokens, block_size)</code> by default or for <code>FullAttentionManager</code>.</li>
+<li><code>MambaManager</code>: <code>num_tokens += block_size * num_speculative_blocks</code> if spec decoding; otherwise default.</li>
+<li><code>SlidingWindowManager</code>:</li>
+</ul>
+</li>
+<li><code>allocate_new_blocks()</code>: calculate (again) the number of new blocks needed, calls <code>BlockPool.get_new_blocks()</code>, and stores the allocated blocks in the manager&rsquo;s <code>req_to_blocks</code> mapping.</li>
+<li><code>cache_blocks(self, request, num_tokens)</code>: call <code>BlockPool.cache_full_blocks</code>.</li>
+<li><code>remove_skipped_blocks()</code>: relies on <code>get_num_skipped_tokens()</code>.</li>
+</ul>
+<h2 id="2-initialization-of-kv-caches">2. Initialization of KV Caches</h2>
+<p><code>EngineCore._initialize_kv_caches</code></p>
+<ol>
+<li>Retrieve the <code>kv_cache_specs</code>.</li>
+<li>Generate the configuration via <code>get_kv_cache_configs</code>.</li>
+<li>Call <code>initialize_from_config</code>, which calls <code>GPUModelRunner.initialize_kv_cache</code>.</li>
+</ol>
+<p><code>GPUModelRunner.get_kv_cache_spec</code></p>
+<ul>
+<li>Enumerates all attention layers.</li>
+<li>For each layer, calls <code>Attention.get_kv_cache_spec</code>.</li>
+<li>Returns a <code>Dict[layer_name: str, AttentionSpec]</code>.</li>
+</ul>
+<p><code>get_kv_cache_configs</code> (from <code>kv_cache_utils.py</code>) groups specs and produces a unified configuration.</p>
+<ol>
+<li><code>get_kv_cache_groups</code> → <code>_get_kv_cache_groups_uniform_spec</code> / <code>uniform_page_size</code><br>
+Returns <code>list[KVCacheGroupSpec(layer_names, KVCacheSpec)]</code>.</li>
+<li><code>get_kv_cache_config_from_groups</code><br>
+Returns a <code>KVCacheConfig</code> containing:
+<ul>
+<li><code>num_blocks</code></li>
+<li><code>kv_cache_tensors: list[KVCacheTensor(size, shared_by: list[str])]</code> – length equals max group size.</li>
+<li><code>kv_cache_groups: list[KVCacheGroupSpec]</code></li>
+</ul>
+</li>
+</ol>
+<p>Notes:</p>
+<ul>
+<li><code>MambaSpec</code> cannot merge with <code>FullAttentionSpec</code>.</li>
+<li><code>unify_kv_cache_spec_page_size</code> adjusts block sizes for some specs; for already‑padded Qwen3‑Next Mamba, no operation is performed.</li>
+</ul>
+<p><code>GPUModelRunner.initialize_kv_cache</code></p>
+<ul>
+<li><code>initialize_attn_backend</code></li>
+<li><code>initialize_metadata_builders</code></li>
+<li><code>initialize_kv_cache_tensors</code>:
+<ul>
+<li><code>_allocate_kv_cache_tensors(kv_cache_config)</code> - Returns raw tensors per group: <code>dict[layer_name: str, torch.Tensor]</code>.</li>
+<li><code>_reshape_kv_cache_tensors(kv_cache_config, kv_cache_raw_tensors, kernel_block_size)</code>,<br>
+where <code>kernel_block_size</code> is the block size per group. Returns a sliced dictionary <code>dict[layer_name: str, tuple[torch.Tensor]]</code>.</li>
+<li><code>bind_kv_cache</code>
+<ol>
+<li>Sets <code>self.kv_caches</code> to a list of tuples (sorted by layer index).</li>
+<li>Configures the KV caches of <code>forward_context[layer_name]</code> (e.g., for <code>Qwen3NextGatedDeltaNet</code>).</li>
+</ol>
+</li>
+</ul>
+</li>
+</ul>
+<h2 id="3-gpumodelrunner">3. GPUModelRunner</h2>
+<p><code>execute_model(self, scheduler_output, ...)</code>:</p>
+<ol>
+<li>
+<p><code>_update_states(self, scheduler_output)</code></p>
+<ul>
+<li>Calls <code>InputBatch.add_request(self, request: CachedRequestState)</code>.</li>
+<li><code>self._get_valid_sampled_token_count()</code> synchronization</li>
+</ul>
+</li>
+<li>
+<p><code>_prepare_inputs</code></p>
+<ul>
+<li><code>self.input_batch.block_table.compute_slot_mapping(req_indices, positions_np)</code></li>
+<li><code>_calc_spec_decode_metadata()</code> handles the speculative tokens in <code>scheduler_output.scheduled_spec_decode_tokens</code>.</li>
+</ul>
+</li>
+<li>
+<p><code>_determine_batch_execution_and_padding</code></p>
+</li>
+<li>
+<p><code>_build_attention_metadata</code></p>
+<ul>
+<li>Prepares attention metadata for each KV cache group; layers in the same group share metadata.</li>
+<li>Block tables and slot mappings are already prepared in <code>input_batch</code>.</li>
+<li>Builds <code>CommonAttentionMetadata</code>, <code>spec_decode_common_attn_metadata: GDNAttentionMetadata</code>.</li>
+</ul>
+</li>
+<li>
+<p>Other methods: <code>preprocess</code>, <code>model_forward</code>.</p>
+</li>
+</ol>
+<p><code>sample_tokens()</code>:</p>
+<ol>
+<li><code>_sample()</code>
+<ul>
+<li><code>rejection_sampler</code></li>
+<li><code>_update_states_after_model_execute</code>.</li>
+</ul>
+</li>
+<li><code>_propose_draft_token_ids()</code>
+<ul>
+<li><code>drafter.prepare_next_token_ids_padded()</code></li>
+<li><code>drafter.prepare_inputs_padded()</code></li>
+<li><code>drafter.propose()</code> - run the MTP layers</li>
+<li><code>_copy_valid_sampled_token_count()</code>: trigger copying</li>
+</ul>
+</li>
+</ol>
+<p><code>BlockTable</code></p>
+<ul>
+<li><code>block_size</code>, <code>kernel_block_size</code></li>
+<li><code>block_table: (max_num_reqs, max_num_blocks_per_req)</code></li>
+<li><code>slot_mapping: (max_num_batched_tokens, )</code></li>
+<li><code>add_row(block_ids: list[int], row_idx: int)</code></li>
+<li><code>compute_slot_mapping(req_indices, positions)</code></li>
+</ul>
+<p>Example parameters:</p>
+<ul>
+<li>Full attention group: <code>block_size = 32</code>, <code>blocks_per_kv_block = 17</code>, <code>max_num_blocks_per_req = 17 * 8 = 136</code></li>
+<li>Mamba group: <code>group_size = 4096</code>, <code>blocks_per_kv_block = 1</code>, <code>max_num_blocks_per_req = 1</code></li>
+</ul>
+<p><code>MultiGroupBlockTable</code></p>
+<ul>
+<li><code>block_tables: list[BlockTable]</code> – one per group.</li>
+<li><code>add_row(block_ids: tuple[list[int], ...], row_idx)</code> – routes to each group’s <code>BlockTable.add_row</code>.</li>
+</ul>
+<p><code>SchedulerOutput</code> (<code>v1/core/shed/output.py</code>)</p>
+<ul>
+<li><code>scheduled_new_reqs: list[NewRequestData]</code></li>
+<li><code>scheduled_cached_reqs: CachedRequestData</code></li>
+<li><code>num_scheduled_tokens: dict[str, int]</code></li>
+</ul>
+
+                    
+                    <HR width="100%" id="EOF">
+		    <p style="color:#777;">最后修改于 2026-06-02</p>
+                    
+                </div>
+            </div>
+            
+            
+            <nav class="post-pagination">
+
+                
+                <a class="newer-posts">
+			下回<br>已经到头啦。
+                </a>
+                
+                
+                
+                <a class="older-posts">
+			上回<br>这是最旧的文章了。
+                </a>
+                
+            </nav>
+            <div class="post-comment-wrapper">
+                
+
+
+
+
+
+
+
+
+
+
+
+
+            </div>
+        </div>
+    </div>
+
+
+                    </div>
+            </div><div id="sideContainer" class="side-container">
+    
+    <a class="a-block nav-head false" href="https://example.org/">
+    
+        <div class="nav-title">
+            Zhixuan&#39;s Blog
+        </div>
+        
+    </a>
+
+    <div class="nav-link-list">
+        
+        
+            
+            
+            
+                
+            
+            
+            
+            <a class="a-block nav-link-item active" href="/ai">
+                AI
+            </a>
+            
+        
+    </div>
+
+    
+
+    <div class="nav-footer">
+        
+Hugo Theme <a href="https://github.com/amazingrise/hugo-theme-diary">Diary</a> by <a href="https://risehere.net/">Rise</a>
+<br>
+移植自 <a href="https://mak1t0.cc/" target="_blank" rel="noreferrer noopener">Makito</a>'s <a href="https://github.com/SumiMakito/hexo-theme-journal/" target="_blank" rel="noreferrer noopener">Journal.</a> <br>
+<br>
+
+&copy;
+	
+	2026 Zhixuan&#39;s Blog
+	
+
+    </div>
+    
+</div><div id="extraContainer" class="extra-container">
+    <div class="toc-wrapper">
+        
+
+        
+    </div>
+    <div class="pagination">
+        <a id="globalBackToTop" class="pagination-action animated-visibility" href="#top"
+            :class="{ invisible: scrollY == 0 }">
+            <i class="material-icons pagination-action-icon">
+                keyboard_arrow_up
+            </i>
+        </a>
+        
+        <a type="button" class="pagination-action" id="darkModeToggleButton">
+            <span class="material-icons pagination-action-icon" id="darkModeToggleIcon">
+                dark_mode
+            </span>
+        </a>
+        
+        
+    </div>
+</div>
+
+<div id="single-column-footer">
+Hugo Theme <a href="https://github.com/amazingrise/hugo-theme-diary">Diary</a> by <a href="https://risehere.net/">Rise</a>
+<br>
+移植自 <a href="https://mak1t0.cc/" target="_blank" rel="noreferrer noopener">Makito</a>'s <a href="https://github.com/SumiMakito/hexo-theme-journal/" target="_blank" rel="noreferrer noopener">Journal.</a> <br>
+<br>
+
+&copy;
+	
+	2026 Zhixuan&#39;s Blog
+	
+</div>
+            </div>
+    
+    <script src="/js/journal.js"></script></body>
+</html>

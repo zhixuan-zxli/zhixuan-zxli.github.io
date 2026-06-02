@@ -1,13 +1,225 @@
 <?xml-stylesheet href="/rss.xsl" type="text/xsl"?>
 <rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
   <channel>
-    <title>My New Hugo Project</title>
+    <title>Zhixuan&#39;s Blog</title>
     <link>https://example.org/</link>
-    <description>Recent content on My New Hugo Project</description>
+    <description>Recent content on Zhixuan&#39;s Blog</description>
     <generator>Hugo -- gohugo.io</generator>
-    <language>en-us</language>
+    <language>zh</language>
+    <lastBuildDate>Tue, 02 Jun 2026 16:46:47 +0800</lastBuildDate>
     
         <atom:link href="https://example.org/index.xml" rel="self" type="application/rss+xml" />
+    
+    
+    
+        <item>
+        <title>KV Cache and Model Runner in vLLM</title>
+        <link>https://example.org/ai/kv_cache/</link>
+        <pubDate>Tue, 02 Jun 2026 16:46:47 +0800</pubDate>
+        
+        <guid>https://example.org/ai/kv_cache/</guid>
+        <description>Zhixuan&#39;s Blog https://example.org/ai/kv_cache/ -&lt;h2 id=&#34;1-kvcachemanager-and-related-classes&#34;&gt;1. KVCacheManager and Related Classes&lt;/h2&gt;
+&lt;p&gt;&lt;img src=&#34;../../assets/ai/kv_cache_overview.webp&#34; alt=&#34;alt text&#34;&gt;&lt;/p&gt;
+&lt;h3 id=&#34;kvcachemanager&#34;&gt;&lt;code&gt;KVCacheManager&lt;/code&gt;&lt;/h3&gt;
+&lt;ul&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;code&gt;hash_block_size&lt;/code&gt;&lt;br&gt;
+Size used for computing block hashes (prefix caching). Different KV cache groups may have larger actual block sizes that are multiples of this.&lt;/p&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;code&gt;get_computed_blocks(request)&lt;/code&gt;&lt;br&gt;
+Call &lt;code&gt;KVCacheCoordinator.find_longest_cache_hit()&lt;/code&gt; if prefix caching enabled, else nothing.&lt;/p&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;code&gt;allocate_slots(request, num_new_tokens, num_new_computed_tokens, ...)&lt;/code&gt; called when scheduling waiting or running requests, where&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;code&gt;computed&lt;/code&gt;: blocks allocated before current scheduling&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;new_computed&lt;/code&gt;: blocks that hit the prefix cache&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;new&lt;/code&gt;: blocks that need to be allocated&lt;/li&gt;
+&lt;/ul&gt;
+&lt;ol&gt;
+&lt;li&gt;Computes the number of new required blocks.&lt;/li&gt;
+&lt;li&gt;Increments reference counts for cached blocks.&lt;/li&gt;
+&lt;li&gt;Allocates new blocks from the free queue (or eviction queue) by calling &lt;code&gt;allocate_new_blocks&lt;/code&gt; on the coordinator.&lt;/li&gt;
+&lt;li&gt;Call coordinator&amp;rsquo;s &lt;code&gt;cache_blocks()&lt;/code&gt;.&lt;/li&gt;
+&lt;li&gt;Returns a &lt;code&gt;KVCacheBlocks&lt;/code&gt; object.&lt;/li&gt;
+&lt;/ol&gt;
+&lt;p&gt;Note: Once a request enters the running queue, it is no longer considered for prefix caching (&lt;code&gt;num_new_computed_tokens = 0&lt;/code&gt;).&lt;/p&gt;
+&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h3 id=&#34;kvcachecoordinator--base-coordinator-managing-multiple-single-type-managers&#34;&gt;&lt;code&gt;KVCacheCoordinator&lt;/code&gt; – base coordinator managing multiple single-type managers.&lt;/h3&gt;
+&lt;ul&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;code&gt;KVCacheCoordinatorNoPrefixCache&lt;/code&gt; – variant without prefix caching.&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;code&gt;get_num_blocks_to_allocate()&lt;/code&gt; – routes to each single-type manager.&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;allocate_new_blocks(request_id, num_tokens)&lt;/code&gt; – routes to each manager.&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;code&gt;HybridKVCacheCoordinator&lt;/code&gt; – used when enabling prefix caching and there are two KV cache group types (e.g., one for full attention, one for Mamba).&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;code&gt;cache_blocks(self, num_computed_tokens)&lt;/code&gt;&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h4 id=&#34;blockpool-inside-the-coordinator&#34;&gt;&lt;code&gt;BlockPool&lt;/code&gt; (inside the coordinator)&lt;/h4&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;code&gt;blocks: list[KVCacheBlock]&lt;/code&gt; – all blocks in the pool.&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;null_block&lt;/code&gt; – a special block representing null.&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;hash_block_size&lt;/code&gt; – same as manager’s hash block size.&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;FreeKVCacheBlockQueue&lt;/code&gt; – a doubly‑linked list of free blocks.&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;cached_block_hash_to_block: BlockHashToBlockMap&lt;/code&gt; – a dictionary mapping &lt;code&gt;BlockHashWithGroupId&lt;/code&gt; to &lt;code&gt;dict[int, KVCacheBlock]&lt;/code&gt; (multiple blocks with same hash due to eviction).&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;get_cached_block()&lt;/code&gt;: hash lookup in &lt;code&gt;cached_block_hash_to_block&lt;/code&gt;.&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;cache_full_blocks()&lt;/code&gt;: Maintain &lt;code&gt;cached_block_hash_to_block&lt;/code&gt;, where the hashes have been computed by the &lt;code&gt;Request&lt;/code&gt; object.&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h4 id=&#34;kvcacheblock&#34;&gt;&lt;code&gt;KVCacheBlock&lt;/code&gt;&lt;/h4&gt;
+&lt;ul&gt;
+&lt;li&gt;Attributes: &lt;code&gt;block_id&lt;/code&gt;, &lt;code&gt;block_hash&lt;/code&gt;, &lt;code&gt;ref_cnt&lt;/code&gt;, and pointers for linked lists.&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h4 id=&#34;kvcacheblocks&#34;&gt;&lt;code&gt;KVCacheBlocks&lt;/code&gt;&lt;/h4&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;code&gt;blocks: tuple[Sequence[KVCacheBlock]]&lt;/code&gt; - A tuple where each element corresponds to a KV cache group, and inside each group there is a sequence of blocks (tokens). &lt;code&gt;blocks[i][j]&lt;/code&gt; refers to the j‑th block of the i‑th group.&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h3 id=&#34;singletypekvcachemanager&#34;&gt;&lt;code&gt;SingleTypeKVCacheManager&lt;/code&gt;&lt;/h3&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;code&gt;req_to_blocks: dict[req_id: str, list[KVCacheBlock]]&lt;/code&gt; – maps request IDs to their allocated blocks.&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;num_cached_block: dict[str, int]&lt;/code&gt; – number of cached blocks per request.&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;get_num_blocks_to_allocate()&lt;/code&gt; – computes required blocks for a request.
+&lt;ul&gt;
+&lt;li&gt;&lt;code&gt;cdiv(num_tokens, block_size)&lt;/code&gt; by default or for &lt;code&gt;FullAttentionManager&lt;/code&gt;.&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;MambaManager&lt;/code&gt;: &lt;code&gt;num_tokens += block_size * num_speculative_blocks&lt;/code&gt; if spec decoding; otherwise default.&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;SlidingWindowManager&lt;/code&gt;:&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;allocate_new_blocks()&lt;/code&gt;: calculate (again) the number of new blocks needed, calls &lt;code&gt;BlockPool.get_new_blocks()&lt;/code&gt;, and stores the allocated blocks in the manager&amp;rsquo;s &lt;code&gt;req_to_blocks&lt;/code&gt; mapping.&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;cache_blocks(self, request, num_tokens)&lt;/code&gt;: call &lt;code&gt;BlockPool.cache_full_blocks&lt;/code&gt;.&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;remove_skipped_blocks()&lt;/code&gt;: relies on &lt;code&gt;get_num_skipped_tokens()&lt;/code&gt;.&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h2 id=&#34;2-initialization-of-kv-caches&#34;&gt;2. Initialization of KV Caches&lt;/h2&gt;
+&lt;p&gt;&lt;code&gt;EngineCore._initialize_kv_caches&lt;/code&gt;&lt;/p&gt;
+&lt;ol&gt;
+&lt;li&gt;Retrieve the &lt;code&gt;kv_cache_specs&lt;/code&gt;.&lt;/li&gt;
+&lt;li&gt;Generate the configuration via &lt;code&gt;get_kv_cache_configs&lt;/code&gt;.&lt;/li&gt;
+&lt;li&gt;Call &lt;code&gt;initialize_from_config&lt;/code&gt;, which calls &lt;code&gt;GPUModelRunner.initialize_kv_cache&lt;/code&gt;.&lt;/li&gt;
+&lt;/ol&gt;
+&lt;p&gt;&lt;code&gt;GPUModelRunner.get_kv_cache_spec&lt;/code&gt;&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;Enumerates all attention layers.&lt;/li&gt;
+&lt;li&gt;For each layer, calls &lt;code&gt;Attention.get_kv_cache_spec&lt;/code&gt;.&lt;/li&gt;
+&lt;li&gt;Returns a &lt;code&gt;Dict[layer_name: str, AttentionSpec]&lt;/code&gt;.&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;&lt;code&gt;get_kv_cache_configs&lt;/code&gt; (from &lt;code&gt;kv_cache_utils.py&lt;/code&gt;) groups specs and produces a unified configuration.&lt;/p&gt;
+&lt;ol&gt;
+&lt;li&gt;&lt;code&gt;get_kv_cache_groups&lt;/code&gt; → &lt;code&gt;_get_kv_cache_groups_uniform_spec&lt;/code&gt; / &lt;code&gt;uniform_page_size&lt;/code&gt;&lt;br&gt;
+Returns &lt;code&gt;list[KVCacheGroupSpec(layer_names, KVCacheSpec)]&lt;/code&gt;.&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;get_kv_cache_config_from_groups&lt;/code&gt;&lt;br&gt;
+Returns a &lt;code&gt;KVCacheConfig&lt;/code&gt; containing:
+&lt;ul&gt;
+&lt;li&gt;&lt;code&gt;num_blocks&lt;/code&gt;&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;kv_cache_tensors: list[KVCacheTensor(size, shared_by: list[str])]&lt;/code&gt; – length equals max group size.&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;kv_cache_groups: list[KVCacheGroupSpec]&lt;/code&gt;&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;/ol&gt;
+&lt;p&gt;Notes:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;code&gt;MambaSpec&lt;/code&gt; cannot merge with &lt;code&gt;FullAttentionSpec&lt;/code&gt;.&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;unify_kv_cache_spec_page_size&lt;/code&gt; adjusts block sizes for some specs; for already‑padded Qwen3‑Next Mamba, no operation is performed.&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;&lt;code&gt;GPUModelRunner.initialize_kv_cache&lt;/code&gt;&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;code&gt;initialize_attn_backend&lt;/code&gt;&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;initialize_metadata_builders&lt;/code&gt;&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;initialize_kv_cache_tensors&lt;/code&gt;:
+&lt;ul&gt;
+&lt;li&gt;&lt;code&gt;_allocate_kv_cache_tensors(kv_cache_config)&lt;/code&gt; - Returns raw tensors per group: &lt;code&gt;dict[layer_name: str, torch.Tensor]&lt;/code&gt;.&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;_reshape_kv_cache_tensors(kv_cache_config, kv_cache_raw_tensors, kernel_block_size)&lt;/code&gt;,&lt;br&gt;
+where &lt;code&gt;kernel_block_size&lt;/code&gt; is the block size per group. Returns a sliced dictionary &lt;code&gt;dict[layer_name: str, tuple[torch.Tensor]]&lt;/code&gt;.&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;bind_kv_cache&lt;/code&gt;
+&lt;ol&gt;
+&lt;li&gt;Sets &lt;code&gt;self.kv_caches&lt;/code&gt; to a list of tuples (sorted by layer index).&lt;/li&gt;
+&lt;li&gt;Configures the KV caches of &lt;code&gt;forward_context[layer_name]&lt;/code&gt; (e.g., for &lt;code&gt;Qwen3NextGatedDeltaNet&lt;/code&gt;).&lt;/li&gt;
+&lt;/ol&gt;
+&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h2 id=&#34;3-gpumodelrunner&#34;&gt;3. GPUModelRunner&lt;/h2&gt;
+&lt;p&gt;&lt;code&gt;execute_model(self, scheduler_output, ...)&lt;/code&gt;:&lt;/p&gt;
+&lt;ol&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;code&gt;_update_states(self, scheduler_output)&lt;/code&gt;&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;Calls &lt;code&gt;InputBatch.add_request(self, request: CachedRequestState)&lt;/code&gt;.&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;self._get_valid_sampled_token_count()&lt;/code&gt; synchronization&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;code&gt;_prepare_inputs&lt;/code&gt;&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;code&gt;self.input_batch.block_table.compute_slot_mapping(req_indices, positions_np)&lt;/code&gt;&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;_calc_spec_decode_metadata()&lt;/code&gt; handles the speculative tokens in &lt;code&gt;scheduler_output.scheduled_spec_decode_tokens&lt;/code&gt;.&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;code&gt;_determine_batch_execution_and_padding&lt;/code&gt;&lt;/p&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;&lt;code&gt;_build_attention_metadata&lt;/code&gt;&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;Prepares attention metadata for each KV cache group; layers in the same group share metadata.&lt;/li&gt;
+&lt;li&gt;Block tables and slot mappings are already prepared in &lt;code&gt;input_batch&lt;/code&gt;.&lt;/li&gt;
+&lt;li&gt;Builds &lt;code&gt;CommonAttentionMetadata&lt;/code&gt;, &lt;code&gt;spec_decode_common_attn_metadata: GDNAttentionMetadata&lt;/code&gt;.&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;li&gt;
+&lt;p&gt;Other methods: &lt;code&gt;preprocess&lt;/code&gt;, &lt;code&gt;model_forward&lt;/code&gt;.&lt;/p&gt;
+&lt;/li&gt;
+&lt;/ol&gt;
+&lt;p&gt;&lt;code&gt;sample_tokens()&lt;/code&gt;:&lt;/p&gt;
+&lt;ol&gt;
+&lt;li&gt;&lt;code&gt;_sample()&lt;/code&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;code&gt;rejection_sampler&lt;/code&gt;&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;_update_states_after_model_execute&lt;/code&gt;.&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;_propose_draft_token_ids()&lt;/code&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;code&gt;drafter.prepare_next_token_ids_padded()&lt;/code&gt;&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;drafter.prepare_inputs_padded()&lt;/code&gt;&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;drafter.propose()&lt;/code&gt; - run the MTP layers&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;_copy_valid_sampled_token_count()&lt;/code&gt;: trigger copying&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;/ol&gt;
+&lt;p&gt;&lt;code&gt;BlockTable&lt;/code&gt;&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;code&gt;block_size&lt;/code&gt;, &lt;code&gt;kernel_block_size&lt;/code&gt;&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;block_table: (max_num_reqs, max_num_blocks_per_req)&lt;/code&gt;&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;slot_mapping: (max_num_batched_tokens, )&lt;/code&gt;&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;add_row(block_ids: list[int], row_idx: int)&lt;/code&gt;&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;compute_slot_mapping(req_indices, positions)&lt;/code&gt;&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;Example parameters:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;Full attention group: &lt;code&gt;block_size = 32&lt;/code&gt;, &lt;code&gt;blocks_per_kv_block = 17&lt;/code&gt;, &lt;code&gt;max_num_blocks_per_req = 17 * 8 = 136&lt;/code&gt;&lt;/li&gt;
+&lt;li&gt;Mamba group: &lt;code&gt;group_size = 4096&lt;/code&gt;, &lt;code&gt;blocks_per_kv_block = 1&lt;/code&gt;, &lt;code&gt;max_num_blocks_per_req = 1&lt;/code&gt;&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;&lt;code&gt;MultiGroupBlockTable&lt;/code&gt;&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;code&gt;block_tables: list[BlockTable]&lt;/code&gt; – one per group.&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;add_row(block_ids: tuple[list[int], ...], row_idx)&lt;/code&gt; – routes to each group’s &lt;code&gt;BlockTable.add_row&lt;/code&gt;.&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;&lt;code&gt;SchedulerOutput&lt;/code&gt; (&lt;code&gt;v1/core/shed/output.py&lt;/code&gt;)&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;code&gt;scheduled_new_reqs: list[NewRequestData]&lt;/code&gt;&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;scheduled_cached_reqs: CachedRequestData&lt;/code&gt;&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;num_scheduled_tokens: dict[str, int]&lt;/code&gt;&lt;/li&gt;
+&lt;/ul&gt;
+- https://example.org/ai/kv_cache/ - </description>
+        </item>
     
     
   </channel>
