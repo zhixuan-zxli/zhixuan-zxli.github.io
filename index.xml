@@ -6,9 +6,272 @@
     <description>Recent content on Zhixuan&#39;s Blog</description>
     <generator>Hugo -- gohugo.io</generator>
     <language>zh</language>
-    <lastBuildDate>Sat, 06 Jun 2026 10:26:37 +0800</lastBuildDate>
+    <lastBuildDate>Sat, 06 Jun 2026 17:00:00 +0800</lastBuildDate>
     
         <atom:link href="https://zhixuan-zxli.github.io/index.xml" rel="self" type="application/rss+xml" />
+    
+    
+    
+        <item>
+        <title>Scheduler, and KV transfer in disaggregation</title>
+        <link>https://zhixuan-zxli.github.io/llm/scheduler/</link>
+        <pubDate>Sat, 06 Jun 2026 17:00:00 +0800</pubDate>
+        
+        <guid>https://zhixuan-zxli.github.io/llm/scheduler/</guid>
+        <description>Zhixuan&#39;s Blog https://zhixuan-zxli.github.io/llm/scheduler/ -&lt;h2 id=&#34;1-scheduler&#34;&gt;1. Scheduler&lt;/h2&gt;
+&lt;p&gt;&lt;code&gt;Scheduler&lt;/code&gt; (vllm/v1/core/sched/scheduler.py) is the central resource allocator for vLLM&amp;rsquo;s v1 engine. Each iteration it decides which requests run, how many tokens each gets, and which KV cache blocks to (re-)use. It owns two queues — &lt;code&gt;self.waiting&lt;/code&gt; and &lt;code&gt;self.running&lt;/code&gt; — plus a &lt;code&gt;KVCacheManager&lt;/code&gt; for block allocation. The scheduler has no notion of a distinct &amp;ldquo;prefill phase&amp;rdquo; or &amp;ldquo;decode phase&amp;rdquo;; every request is simply tracked by &lt;code&gt;num_computed_tokens&lt;/code&gt; and &lt;code&gt;num_tokens_with_spec&lt;/code&gt;, and the scheduler&amp;rsquo;s job is to close the gap between the two.&lt;/p&gt;
+&lt;h3 id=&#34;summary-timeline-per-step&#34;&gt;Summary timeline per step&lt;/h3&gt;
+&lt;p&gt;See &lt;code&gt;EngineCore.step()&lt;/code&gt;:&lt;/p&gt;
+&lt;pre tabindex=&#34;0&#34;&gt;&lt;code&gt;EngineCore loop:
+  scheduler.schedule()
+    ├─ allocate KV blocks for running + new requests
+    ├─ build SchedulerOutput
+    └─ _update_after_schedule()   ← advance num_computed_tokens, clear finished_req_ids
+
+  model_executor.execute_model(scheduler_output)
+
+  model_executor.sample_tokens()
+
+  scheduler.update_from_output(scheduler_output, model_output)
+    ├─ adjust num_computed_tokens for rejected spec tokens
+    ├─ append new output tokens, check stop
+    ├─ free finished requests
+    └─ return EngineCoreOutputs to frontend
+&lt;/code&gt;&lt;/pre&gt;&lt;p&gt;The split between &lt;code&gt;_update_after_schedule&lt;/code&gt; and &lt;code&gt;update_from_output&lt;/code&gt; is deliberate: the former eagerly advances token counts (enabling chunked prefill pipelining), while &lt;strong&gt;the latter corrects any over-estimates&lt;/strong&gt; (e.g. spec decoding rejections) once the model result is known.&lt;/p&gt;
+&lt;h3 id=&#34;11-add_request--request-enters-the-system&#34;&gt;1.1. &lt;code&gt;add_request&lt;/code&gt; — request enters the system&lt;/h3&gt;
+&lt;p&gt;A &lt;code&gt;Request&lt;/code&gt; is added to &lt;code&gt;self.waiting&lt;/code&gt; queue and registered in &lt;code&gt;self.requests&lt;/code&gt;. Status: &lt;code&gt;WAITING&lt;/code&gt;.&lt;/p&gt;
+&lt;h3 id=&#34;12-schedule--called-each-iteration-by-enginecore&#34;&gt;1.2. &lt;code&gt;schedule()&lt;/code&gt; — called each iteration by &lt;code&gt;EngineCore&lt;/code&gt;&lt;/h3&gt;
+&lt;p&gt;The main loop runs in two sequential passes, sharing a single &lt;code&gt;token_budget&lt;/code&gt;:&lt;/p&gt;
+&lt;pre tabindex=&#34;0&#34;&gt;&lt;code&gt;token_budget = max_num_scheduled_tokens
+
+Pass 1 — running requests
+Pass 2 — waiting requests  (skipped entirely if any preemption occurred in Pass 1)
+&lt;/code&gt;&lt;/pre&gt;&lt;h4 id=&#34;pass-1-running-requests&#34;&gt;Pass 1: running requests&lt;/h4&gt;
+&lt;p&gt;Iterates &lt;code&gt;self.running&lt;/code&gt; in priority order. For each request, the number of new tokens to schedule is:&lt;/p&gt;
+&lt;div class=&#34;highlight&#34;&gt;&lt;pre tabindex=&#34;0&#34; style=&#34;color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;&#34;&gt;&lt;code class=&#34;language-python&#34; data-lang=&#34;python&#34;&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;num_new_tokens &lt;span style=&#34;color:#f92672&#34;&gt;=&lt;/span&gt; request&lt;span style=&#34;color:#f92672&#34;&gt;.&lt;/span&gt;num_tokens_with_spec &lt;span style=&#34;color:#f92672&#34;&gt;+&lt;/span&gt; request&lt;span style=&#34;color:#f92672&#34;&gt;.&lt;/span&gt;num_output_placeholders \
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;                 &lt;span style=&#34;color:#f92672&#34;&gt;-&lt;/span&gt; request&lt;span style=&#34;color:#f92672&#34;&gt;.&lt;/span&gt;num_computed_tokens
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;num_new_tokens &lt;span style=&#34;color:#f92672&#34;&gt;=&lt;/span&gt; min(num_new_tokens, token_budget)
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;&lt;code&gt;num_tokens_with_spec&lt;/code&gt; includes any speculative draft tokens, so this correctly handles both ordinary decoding (gap = 1) and chunked prefill continuation (gap = many).&lt;/p&gt;
+&lt;p&gt;&lt;code&gt;token_budget&lt;/code&gt; is then decremented by &lt;code&gt;num_new_tokens&lt;/code&gt; after each scheduled request, bounding total tokens per step.&lt;/p&gt;
+&lt;p&gt;&lt;strong&gt;KV block allocation and preemption.&lt;/strong&gt; For each request, &lt;code&gt;kv_cache_manager.allocate_slots()&lt;/code&gt; is called to obtain new blocks. If it fails (cache full), the scheduler preempts the lowest-priority request in &lt;code&gt;self.running&lt;/code&gt;:&lt;/p&gt;
+&lt;div class=&#34;highlight&#34;&gt;&lt;pre tabindex=&#34;0&#34; style=&#34;color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;&#34;&gt;&lt;code class=&#34;language-python&#34; data-lang=&#34;python&#34;&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#66d9ef&#34;&gt;while&lt;/span&gt; &lt;span style=&#34;color:#66d9ef&#34;&gt;True&lt;/span&gt;:
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;    new_blocks &lt;span style=&#34;color:#f92672&#34;&gt;=&lt;/span&gt; kv_cache_manager&lt;span style=&#34;color:#f92672&#34;&gt;.&lt;/span&gt;allocate_slots(request, num_new_tokens, &lt;span style=&#34;color:#f92672&#34;&gt;...&lt;/span&gt;)
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;    &lt;span style=&#34;color:#66d9ef&#34;&gt;if&lt;/span&gt; new_blocks &lt;span style=&#34;color:#f92672&#34;&gt;is&lt;/span&gt; &lt;span style=&#34;color:#f92672&#34;&gt;not&lt;/span&gt; &lt;span style=&#34;color:#66d9ef&#34;&gt;None&lt;/span&gt;:
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;        &lt;span style=&#34;color:#66d9ef&#34;&gt;break&lt;/span&gt;                   &lt;span style=&#34;color:#75715e&#34;&gt;# success&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;    preempted_req &lt;span style=&#34;color:#f92672&#34;&gt;=&lt;/span&gt; self&lt;span style=&#34;color:#f92672&#34;&gt;.&lt;/span&gt;running&lt;span style=&#34;color:#f92672&#34;&gt;.&lt;/span&gt;pop()   &lt;span style=&#34;color:#75715e&#34;&gt;# evict tail (FCFS) or max-priority (priority policy)&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;    _preempt_request(preempted_req)      &lt;span style=&#34;color:#75715e&#34;&gt;# free its KV blocks, move back to waiting&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;    preempted_reqs&lt;span style=&#34;color:#f92672&#34;&gt;.&lt;/span&gt;append(preempted_req)
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;    &lt;span style=&#34;color:#66d9ef&#34;&gt;if&lt;/span&gt; preempted_req &lt;span style=&#34;color:#f92672&#34;&gt;==&lt;/span&gt; request:
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;        &lt;span style=&#34;color:#66d9ef&#34;&gt;break&lt;/span&gt;                   &lt;span style=&#34;color:#75715e&#34;&gt;# can&amp;#39;t make room even by preempting self; skip&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;&lt;code&gt;_preempt_request&lt;/code&gt; frees all KV blocks for the evicted request, resets its &lt;code&gt;num_computed_tokens&lt;/code&gt; to 0, and pushes it back to the head of &lt;code&gt;self.waiting&lt;/code&gt; with status &lt;code&gt;PREEMPTED&lt;/code&gt;.&lt;/p&gt;
+&lt;h4 id=&#34;pass-2-waiting-requests&#34;&gt;Pass 2: waiting requests&lt;/h4&gt;
+&lt;p&gt;Skipped entirely if any preemption happened in Pass 1 (to avoid starving running requests further). Otherwise, pops from &lt;code&gt;self.waiting&lt;/code&gt; in order. Several checks can cause a request to be deferred (re-inserted at the head of the queue via &lt;code&gt;skipped_waiting_requests&lt;/code&gt;) rather than scheduled:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;&lt;code&gt;WAITING_FOR_REMOTE_KVS&lt;/code&gt;&lt;/strong&gt;: KV transfer from a remote prefill node is still in flight. The request is skipped until &lt;code&gt;finished_recving_kv_req_ids&lt;/code&gt; signals completion.&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;&lt;code&gt;WAITING_FOR_FSM&lt;/code&gt;&lt;/strong&gt;: The structured-output FSM is still being compiled asynchronously.&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;LoRA constraint&lt;/strong&gt;: Adding the request would exceed &lt;code&gt;max_loras&lt;/code&gt; adapters in the batch.&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;For requests that pass these checks, the scheduler resolves the prefix cache hit count:&lt;/p&gt;
+&lt;div class=&#34;highlight&#34;&gt;&lt;pre tabindex=&#34;0&#34; style=&#34;color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;&#34;&gt;&lt;code class=&#34;language-python&#34; data-lang=&#34;python&#34;&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#75715e&#34;&gt;# Local prefix cache hit&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;new_computed_blocks, num_local_hit &lt;span style=&#34;color:#f92672&#34;&gt;=&lt;/span&gt; kv_cache_manager&lt;span style=&#34;color:#f92672&#34;&gt;.&lt;/span&gt;get_computed_blocks(request)
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#75715e&#34;&gt;# Remote prefix cache hit (KV connector, e.g. P/D disaggregation)&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;ext_tokens, load_kv_async &lt;span style=&#34;color:#f92672&#34;&gt;=&lt;/span&gt; connector&lt;span style=&#34;color:#f92672&#34;&gt;.&lt;/span&gt;get_num_new_matched_tokens(request, num_local_hit)
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;num_computed_tokens &lt;span style=&#34;color:#f92672&#34;&gt;=&lt;/span&gt; num_local_hit &lt;span style=&#34;color:#f92672&#34;&gt;+&lt;/span&gt; ext_tokens
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;num_new_tokens &lt;span style=&#34;color:#f92672&#34;&gt;=&lt;/span&gt; request&lt;span style=&#34;color:#f92672&#34;&gt;.&lt;/span&gt;num_tokens &lt;span style=&#34;color:#f92672&#34;&gt;-&lt;/span&gt; num_computed_tokens
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;If &lt;code&gt;load_kv_async&lt;/code&gt; is True (the remote blocks aren&amp;rsquo;t available yet), the scheduler allocates KV memory speculatively, transitions the request to &lt;code&gt;WAITING_FOR_REMOTE_KVS&lt;/code&gt;, and skips it to the next step. Otherwise, &lt;code&gt;kv_cache_manager.allocate_slots()&lt;/code&gt; is called (with &lt;code&gt;new_computed_blocks&lt;/code&gt; to reuse cache hits). On success, the request transitions &lt;code&gt;WAITING → RUNNING&lt;/code&gt; (or &lt;code&gt;PREEMPTED → RUNNING&lt;/code&gt; for a resumption).&lt;/p&gt;
+&lt;p&gt;If chunked prefill is disabled and &lt;code&gt;num_new_tokens &amp;gt; token_budget&lt;/code&gt;, the loop breaks immediately rather than scheduling a partial prompt.&lt;/p&gt;
+&lt;h4 id=&#34;output-construction&#34;&gt;Output construction&lt;/h4&gt;
+&lt;p&gt;After both passes, a &lt;code&gt;SchedulerOutput&lt;/code&gt; is assembled with:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;code&gt;scheduled_new_reqs&lt;/code&gt; / &lt;code&gt;scheduled_resumed_reqs&lt;/code&gt; / &lt;code&gt;scheduled_running_reqs&lt;/code&gt;&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;num_scheduled_tokens&lt;/code&gt; per request&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;req_to_new_blocks&lt;/code&gt; — block assignments for the model runner&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;preempted_req_ids&lt;/code&gt; — so workers can free cached state&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;finished_req_ids&lt;/code&gt; — requests that completed since the previous step&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;&lt;code&gt;_update_after_schedule&lt;/code&gt; is then called to advance each request&amp;rsquo;s &lt;code&gt;num_computed_tokens&lt;/code&gt; by the scheduled amount, enabling the next step&amp;rsquo;s scheduling to see the updated positions without waiting for the model.&lt;/p&gt;
+&lt;h3 id=&#34;13-model-execution-outside-scheduler&#34;&gt;1.3. Model execution (outside &lt;code&gt;Scheduler&lt;/code&gt;)&lt;/h3&gt;
+&lt;p&gt;&lt;code&gt;EngineCore&lt;/code&gt; calls &lt;code&gt;model_executor.execute_model(scheduler_output)&lt;/code&gt;. Workers run the model and produce a &lt;code&gt;ModelRunnerOutput&lt;/code&gt;.&lt;/p&gt;
+&lt;h3 id=&#34;14-update_from_outputscheduler_output-model_runner_output&#34;&gt;1.4. &lt;code&gt;update_from_output(scheduler_output, model_runner_output)&lt;/code&gt;&lt;/h3&gt;
+&lt;p&gt;This is where the scheduler reconciles with what the model actually produced:&lt;/p&gt;
+&lt;ol&gt;
+&lt;li&gt;&lt;strong&gt;Handles failed KV loads&lt;/strong&gt; (&lt;code&gt;_handle_invalid_blocks&lt;/code&gt;) — adjusts &lt;code&gt;num_computed_tokens&lt;/code&gt; back for affected requests.&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;For each scheduled request&lt;/strong&gt; (iterating &lt;code&gt;num_scheduled_tokens&lt;/code&gt;):
+&lt;ul&gt;
+&lt;li&gt;Gets the sampled/generated token IDs from &lt;code&gt;model_runner_output&lt;/code&gt;&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;Spec decoding correction&lt;/strong&gt;: if draft tokens were rejected, decrements &lt;code&gt;request.num_computed_tokens&lt;/code&gt; by &lt;code&gt;num_rejected&lt;/code&gt; (undoing the over-advancement from &lt;code&gt;_update_after_schedule&lt;/code&gt;)&lt;/li&gt;
+&lt;li&gt;Calls &lt;code&gt;_update_request_with_output()&lt;/code&gt; to append new tokens and check stop conditions&lt;/li&gt;
+&lt;li&gt;If stopped: calls &lt;code&gt;_free_request()&lt;/code&gt; to release KV blocks, moves request out of &lt;code&gt;self.running&lt;/code&gt;&lt;/li&gt;
+&lt;li&gt;Builds &lt;code&gt;EngineCoreOutput&lt;/code&gt; per client&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;li&gt;Processes finished KV transfers (&lt;code&gt;_update_from_kv_xfer_finished&lt;/code&gt;)&lt;/li&gt;
+&lt;li&gt;Publishes KV cache events&lt;/li&gt;
+&lt;li&gt;Returns &lt;code&gt;EngineCoreOutputs&lt;/code&gt; (tokens, logprobs, finish reasons) to the engine&lt;/li&gt;
+&lt;/ol&gt;
+&lt;h3 id=&#34;15-disaggregation&#34;&gt;1.5. Disaggregation&lt;/h3&gt;
+&lt;p&gt;&lt;strong&gt;Prefill&lt;/strong&gt;&lt;/p&gt;
+&lt;p&gt;A waiting request is scheduled with &lt;code&gt;load_kv_async=False&lt;/code&gt; and its connector metadata built.&lt;/p&gt;
+&lt;p&gt;&lt;strong&gt;Decode&lt;/strong&gt; (3 rounds)&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;Round 1: the waiting request is scheduled with &lt;code&gt;num_ext_tokens &amp;gt; 0&lt;/code&gt; and &lt;code&gt;load_kv_async=True&lt;/code&gt;; its status is set to &lt;code&gt;WAITING_FOR_REMOTE_KVS&lt;/code&gt;. &lt;code&gt;start_load_kv&lt;/code&gt; is triggered by the model executor.&lt;/li&gt;
+&lt;li&gt;Round 2: the request parks as &lt;code&gt;WAITING_FOR_REMOTE_KVS&lt;/code&gt;. When the transfer completes, &lt;code&gt;update_from_output&lt;/code&gt; signals the scheduler via &lt;code&gt;finished_recving_kv_req_ids&lt;/code&gt;.&lt;/li&gt;
+&lt;li&gt;Round 3: &lt;code&gt;_update_waiting_for_remote_kv&lt;/code&gt; caches the received blocks, sets &lt;code&gt;num_computed_tokens&lt;/code&gt;, and the request is scheduled normally as a running request.&lt;/li&gt;
+&lt;/ul&gt;
+&lt;hr&gt;
+&lt;h2 id=&#34;2-disaggregated-prefill&#34;&gt;2. Disaggregated Prefill&lt;/h2&gt;
+&lt;p&gt;In standard (aggregated) inference, every GPU does both prefill (processing the full prompt) and decode (generating one token at a time). The problem is that these two phases have very different compute profiles: prefill is compute-bound (long sequences), decode is memory-bandwidth-bound (single tokens). Running them together causes head-of-line blocking and GPU underutilization.&lt;/p&gt;
+&lt;p&gt;Disaggregated prefill splits these into separate nodes. A &lt;strong&gt;prefill node&lt;/strong&gt; runs the full forward pass over the prompt, then ships its KV cache to a &lt;strong&gt;decode node&lt;/strong&gt;, which starts autoregressive generation from that already-computed state.&lt;/p&gt;
+&lt;h3 id=&#34;21-connector-interface-kvconnectorbase_v1&#34;&gt;2.1. Connector Interface: &lt;code&gt;KVConnectorBase_V1&lt;/code&gt;&lt;/h3&gt;
+&lt;p&gt;&lt;code&gt;vllm/distributed/kv_transfer/kv_connector/v1/base.py&lt;/code&gt;&lt;/p&gt;
+&lt;p&gt;The abstract base class. Every connector implements two distinct sides:&lt;/p&gt;
+&lt;p&gt;&lt;strong&gt;Scheduler side&lt;/strong&gt; (runs in the scheduler process, no tensors, pure planning):&lt;/p&gt;
+&lt;table&gt;
+	&lt;thead&gt;
+			&lt;tr&gt;
+					&lt;th&gt;Method&lt;/th&gt;
+					&lt;th&gt;Purpose&lt;/th&gt;
+			&lt;/tr&gt;
+	&lt;/thead&gt;
+	&lt;tbody&gt;
+			&lt;tr&gt;
+					&lt;td&gt;&lt;code&gt;get_num_new_matched_tokens(request, computed)&lt;/code&gt;&lt;/td&gt;
+					&lt;td&gt;Tell the scheduler how many tokens can be claimed from a remote prefill&lt;/td&gt;
+			&lt;/tr&gt;
+			&lt;tr&gt;
+					&lt;td&gt;&lt;code&gt;update_state_after_alloc(request, blocks, n)&lt;/code&gt;&lt;/td&gt;
+					&lt;td&gt;Record which blocks were allocated for incoming KV&lt;/td&gt;
+			&lt;/tr&gt;
+			&lt;tr&gt;
+					&lt;td&gt;&lt;code&gt;build_connector_meta(scheduler_output)&lt;/code&gt;&lt;/td&gt;
+					&lt;td&gt;Package per-step metadata to ship to workers&lt;/td&gt;
+			&lt;/tr&gt;
+			&lt;tr&gt;
+					&lt;td&gt;&lt;code&gt;request_finished(request, block_ids)&lt;/code&gt;&lt;/td&gt;
+					&lt;td&gt;Optionally defer block freeing until async send completes&lt;/td&gt;
+			&lt;/tr&gt;
+	&lt;/tbody&gt;
+&lt;/table&gt;
+&lt;p&gt;&lt;strong&gt;Worker side&lt;/strong&gt; (runs in the GPU worker process, operates on tensors):&lt;/p&gt;
+&lt;table&gt;
+	&lt;thead&gt;
+			&lt;tr&gt;
+					&lt;th&gt;Method&lt;/th&gt;
+					&lt;th&gt;Purpose&lt;/th&gt;
+			&lt;/tr&gt;
+	&lt;/thead&gt;
+	&lt;tbody&gt;
+			&lt;tr&gt;
+					&lt;td&gt;&lt;code&gt;start_load_kv(forward_context)&lt;/code&gt;&lt;/td&gt;
+					&lt;td&gt;Begin async KV receives (consumer)&lt;/td&gt;
+			&lt;/tr&gt;
+			&lt;tr&gt;
+					&lt;td&gt;&lt;code&gt;wait_for_layer_load(layer_name)&lt;/code&gt;&lt;/td&gt;
+					&lt;td&gt;Sync point before using a received layer&amp;rsquo;s KV&lt;/td&gt;
+			&lt;/tr&gt;
+			&lt;tr&gt;
+					&lt;td&gt;&lt;code&gt;save_kv_layer(layer_name, kv_cache, attn_metadata)&lt;/code&gt;&lt;/td&gt;
+					&lt;td&gt;Async-send a layer&amp;rsquo;s KV (producer)&lt;/td&gt;
+			&lt;/tr&gt;
+			&lt;tr&gt;
+					&lt;td&gt;&lt;code&gt;wait_for_save()&lt;/code&gt;&lt;/td&gt;
+					&lt;td&gt;Sync point after all layers are forwarded&lt;/td&gt;
+			&lt;/tr&gt;
+			&lt;tr&gt;
+					&lt;td&gt;&lt;code&gt;get_finished(...)&lt;/code&gt;&lt;/td&gt;
+					&lt;td&gt;Report which requests finished sending/receiving&lt;/td&gt;
+			&lt;/tr&gt;
+	&lt;/tbody&gt;
+&lt;/table&gt;
+&lt;p&gt;The scheduler-side / worker-side split mirrors vLLM v1&amp;rsquo;s process boundary: the scheduler manipulates block tables and request queues, while workers touch GPU memory.&lt;/p&gt;
+&lt;h3 id=&#34;22-scheduler-integration&#34;&gt;2.2. Scheduler Integration&lt;/h3&gt;
+&lt;p&gt;&lt;code&gt;vllm/v1/core/sched/scheduler.py&lt;/code&gt;&lt;/p&gt;
+&lt;p&gt;The scheduler instantiates the connector with &lt;code&gt;KVConnectorRole.SCHEDULER&lt;/code&gt; and calls it at three points per scheduling step:&lt;/p&gt;
+&lt;ol&gt;
+&lt;li&gt;&lt;strong&gt;Token counting&lt;/strong&gt; — &lt;code&gt;get_num_new_matched_tokens()&lt;/code&gt; lets a consumer claim up to &lt;code&gt;len(prompt) - 1&lt;/code&gt; tokens as &amp;ldquo;already computed&amp;rdquo; (coming from the prefill node), avoiding redundant recomputation.&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;Metadata building&lt;/strong&gt; — after scheduling decisions, &lt;code&gt;build_connector_meta()&lt;/code&gt; packages which requests need sends/receives this step.&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;Completion&lt;/strong&gt; — &lt;code&gt;request_finished()&lt;/code&gt; lets the connector optionally defer freeing KV blocks until async sends complete.&lt;/li&gt;
+&lt;/ol&gt;
+&lt;p&gt;The scheduler also processes worker feedback: when &lt;code&gt;finished_recving&lt;/code&gt; reports a request is fully loaded, it transitions that request from &lt;code&gt;WAITING_FOR_REMOTE_KVS&lt;/code&gt; → ready to schedule for decode.&lt;/p&gt;
+&lt;h3 id=&#34;23-worker-integration&#34;&gt;2.3. Worker Integration&lt;/h3&gt;
+&lt;p&gt;&lt;code&gt;vllm/v1/worker/kv_connector_model_runner_mixin.py&lt;/code&gt;
+&lt;code&gt;vllm/attention/utils/kv_transfer_utils.py&lt;/code&gt;&lt;/p&gt;
+&lt;p&gt;&lt;code&gt;KVConnectorModelRunnerMixin&lt;/code&gt; wraps each forward pass:&lt;/p&gt;
+&lt;div class=&#34;highlight&#34;&gt;&lt;pre tabindex=&#34;0&#34; style=&#34;color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;&#34;&gt;&lt;code class=&#34;language-python&#34; data-lang=&#34;python&#34;&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;connector&lt;span style=&#34;color:#f92672&#34;&gt;.&lt;/span&gt;bind_connector_metadata(metadata)
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;connector&lt;span style=&#34;color:#f92672&#34;&gt;.&lt;/span&gt;start_load_kv(forward_context)   &lt;span style=&#34;color:#75715e&#34;&gt;# kick off async recvs&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#66d9ef&#34;&gt;try&lt;/span&gt;:
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;    &lt;span style=&#34;color:#75715e&#34;&gt;# ... model forward pass ...&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#66d9ef&#34;&gt;finally&lt;/span&gt;:
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;    connector&lt;span style=&#34;color:#f92672&#34;&gt;.&lt;/span&gt;wait_for_save()              &lt;span style=&#34;color:#75715e&#34;&gt;# drain async sends&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;    output&lt;span style=&#34;color:#f92672&#34;&gt;.&lt;/span&gt;finished_sending, output&lt;span style=&#34;color:#f92672&#34;&gt;.&lt;/span&gt;finished_recving &lt;span style=&#34;color:#f92672&#34;&gt;=&lt;/span&gt; connector&lt;span style=&#34;color:#f92672&#34;&gt;.&lt;/span&gt;get_finished(&lt;span style=&#34;color:#f92672&#34;&gt;...&lt;/span&gt;)
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;    connector&lt;span style=&#34;color:#f92672&#34;&gt;.&lt;/span&gt;clear_connector_metadata()
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;Each attention layer is wrapped by &lt;code&gt;maybe_transfer_kv_layer&lt;/code&gt; (a decorator in &lt;code&gt;kv_transfer_utils.py&lt;/code&gt;):&lt;/p&gt;
+&lt;div class=&#34;highlight&#34;&gt;&lt;pre tabindex=&#34;0&#34; style=&#34;color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;&#34;&gt;&lt;code class=&#34;language-python&#34; data-lang=&#34;python&#34;&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;connector&lt;span style=&#34;color:#f92672&#34;&gt;.&lt;/span&gt;wait_for_layer_load(layer_name)  &lt;span style=&#34;color:#75715e&#34;&gt;# wait for this layer&amp;#39;s KV&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;result &lt;span style=&#34;color:#f92672&#34;&gt;=&lt;/span&gt; attention_forward(&lt;span style=&#34;color:#f92672&#34;&gt;...&lt;/span&gt;)            &lt;span style=&#34;color:#75715e&#34;&gt;# use received KV or compute fresh&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;connector&lt;span style=&#34;color:#f92672&#34;&gt;.&lt;/span&gt;save_kv_layer(layer_name, &lt;span style=&#34;color:#f92672&#34;&gt;...&lt;/span&gt;)   &lt;span style=&#34;color:#75715e&#34;&gt;# send this layer&amp;#39;s KV&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;This per-layer interleaving is the intended design: KV sending and the model forward pass can overlap in time, hiding transfer latency.&lt;/p&gt;
+&lt;h3 id=&#34;24-async-kv-transfer-lifecycle-decode-node&#34;&gt;2.4. Async KV Transfer Lifecycle (Decode Node)&lt;/h3&gt;
+&lt;p&gt;The actual transfer does &lt;strong&gt;not&lt;/strong&gt; start when &lt;code&gt;request.status = WAITING_FOR_REMOTE_KVS&lt;/code&gt; is set. That only parks the request. The transfer is kicked off on the next &lt;code&gt;execute_model&lt;/code&gt; call.&lt;/p&gt;
+&lt;pre tabindex=&#34;0&#34;&gt;&lt;code&gt;Scheduler step N:
+  get_num_new_matched_tokens()        -&amp;gt; (N tokens, async=True)
+  kv_cache_manager.allocate_blocks()  # reserve destination blocks
+  connector.update_state_after_alloc()# register blocks with connector
+  request.status = WAITING_FOR_REMOTE_KVS  # park the request
+  build_connector_meta()              # serialize pending ops into metadata
+
+execute_model (step N):
+  connector.bind_connector_metadata() # load the metadata
+  connector.start_load_kv()           # &amp;lt;&amp;lt; transfer actually starts here
+  [GPU forward pass for other requests] # overlaps with the transfer
+  connector.get_finished()            # poll: which transfers completed?
+
+Scheduler step N+1 (or later):
+  _update_waiting_for_remote_kv()     # sees request in finished_recving_kv_req_ids
+  kv_cache_manager.cache_blocks()
+  request.num_computed_tokens = N     # now &amp;gt; 0
+  request.status = WAITING            # re-enters scheduling via the else-branch
+&lt;/code&gt;&lt;/pre&gt;&lt;p&gt;The &lt;code&gt;else&lt;/code&gt; branch in &lt;code&gt;scheduler.py:548&lt;/code&gt; is only reached on the second scheduling attempt after &lt;code&gt;num_computed_tokens&lt;/code&gt; has been written by &lt;code&gt;_update_waiting_for_remote_kv&lt;/code&gt;. It skips &lt;code&gt;get_computed_blocks&lt;/code&gt; entirely — the blocks are already allocated and cached — and schedules only the residual tokens beyond the received KV prefix.&lt;/p&gt;
+&lt;h3 id=&#34;25-note-on-omni-npu&#34;&gt;2.5. Note on &lt;code&gt;omni-npu&lt;/code&gt;&lt;/h3&gt;
+&lt;p&gt;&lt;code&gt;omni-npu&lt;/code&gt; is an out-of-tree vLLM platform plugin for Ascend NPUs. It implements the KV connector interface as &lt;code&gt;LLMDataDistConnector&lt;/code&gt; (&lt;code&gt;omni_npu/connector/llmdatadist_connector_v1.py&lt;/code&gt;), which splits into four internal classes depending on the node role:&lt;/p&gt;
+&lt;table&gt;
+	&lt;thead&gt;
+			&lt;tr&gt;
+					&lt;th&gt;Class&lt;/th&gt;
+					&lt;th&gt;Role&lt;/th&gt;
+			&lt;/tr&gt;
+	&lt;/thead&gt;
+	&lt;tbody&gt;
+			&lt;tr&gt;
+					&lt;td&gt;&lt;code&gt;PrefillConnectorScheduler&lt;/code&gt;&lt;/td&gt;
+					&lt;td&gt;Scheduler side on prefill node&lt;/td&gt;
+			&lt;/tr&gt;
+			&lt;tr&gt;
+					&lt;td&gt;&lt;code&gt;PrefillConnectorWorker&lt;/code&gt;&lt;/td&gt;
+					&lt;td&gt;Worker side on prefill node&lt;/td&gt;
+			&lt;/tr&gt;
+			&lt;tr&gt;
+					&lt;td&gt;&lt;code&gt;DecodeConnectorScheduler&lt;/code&gt;&lt;/td&gt;
+					&lt;td&gt;Scheduler side on decode node&lt;/td&gt;
+			&lt;/tr&gt;
+			&lt;tr&gt;
+					&lt;td&gt;&lt;code&gt;DecodeConnectorWorker&lt;/code&gt;&lt;/td&gt;
+					&lt;td&gt;Worker side on decode node&lt;/td&gt;
+			&lt;/tr&gt;
+	&lt;/tbody&gt;
+&lt;/table&gt;
+&lt;p&gt;&lt;strong&gt;Bulk transfer, not per-layer.&lt;/strong&gt; The per-layer interleaving methods — &lt;code&gt;wait_for_layer_load&lt;/code&gt;, &lt;code&gt;save_kv_layer&lt;/code&gt;, and &lt;code&gt;wait_for_save&lt;/code&gt; — are all no-ops in &lt;code&gt;LLMDataDistConnector&lt;/code&gt;. Instead, the entire KV cache is transferred as a single bulk operation inside &lt;code&gt;start_load_kv&lt;/code&gt;. On the decode side, &lt;code&gt;DecodeConnectorWorker.start_load_kv()&lt;/code&gt; submits one &lt;code&gt;ThreadPoolExecutor&lt;/code&gt; job per request; each job calls &lt;code&gt;datadist_manager.pull_kv()&lt;/code&gt;, which issues an RDMA pull over RoCE (via the &lt;code&gt;llm_datadist&lt;/code&gt; C++ library). Because the transfer is not interleaved with the forward pass, the decode GPU idles during the transfer step rather than overlapping work.&lt;/p&gt;
+&lt;p&gt;&lt;strong&gt;Scheduler-side flow (decode node).&lt;/strong&gt; &lt;code&gt;DecodeConnectorScheduler.get_num_new_matched_tokens()&lt;/code&gt; returns &lt;code&gt;(len(prompt) - 1, True)&lt;/code&gt; for any new decode request, telling the scheduler to treat the entire prompt as externally computed and request an async load. After &lt;code&gt;kv_cache_manager.allocate_slots()&lt;/code&gt;, &lt;code&gt;update_state_after_alloc()&lt;/code&gt; records the request in &lt;code&gt;_reqs_need_recv&lt;/code&gt;. &lt;code&gt;build_connector_meta()&lt;/code&gt; then converts that list into a &lt;code&gt;DatadistConnectorMetadata&lt;/code&gt; containing, per request:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;code&gt;local_block_ids&lt;/code&gt; — where to write the pulled KV on the decode node&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;remote_block_ids&lt;/code&gt; / &lt;code&gt;remote_host&lt;/code&gt; / &lt;code&gt;remote_cluster_id&lt;/code&gt; — where to read from on the prefill node&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;kv_transfer_params&lt;/code&gt; — additional routing info (DP rank, PP partition)&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;&lt;strong&gt;Block lifetime on the prefill node.&lt;/strong&gt; &lt;code&gt;PrefillConnectorScheduler.request_finished()&lt;/code&gt; returns &lt;code&gt;delay_free_blocks=True&lt;/code&gt;, so the scheduler does not immediately release the prefill&amp;rsquo;s KV blocks. Instead, &lt;code&gt;PrefillConnectorWorker&lt;/code&gt; keeps them alive until the decode node confirms receipt via a ZMQ message. The maximum hold time is &lt;code&gt;BLOCK_RELEASE_DELAY = 600 s&lt;/code&gt;.&lt;/p&gt;
+&lt;p&gt;&lt;strong&gt;Tensor-parallel mismatch.&lt;/strong&gt; If prefill and decode run with different TP sizes, &lt;code&gt;TP_Convertor&lt;/code&gt; (&lt;code&gt;omni_npu/connector/utils.py&lt;/code&gt;) remaps block IDs and reorders KV tensors via &lt;code&gt;torch.distributed.all_to_all_single&lt;/code&gt; before the transfer, so blocks land on the correct TP shard.&lt;/p&gt;
+- https://zhixuan-zxli.github.io/llm/scheduler/ - </description>
+        </item>
     
     
     
@@ -18,238 +281,31 @@
         <pubDate>Sat, 06 Jun 2026 10:26:37 +0800</pubDate>
         
         <guid>https://zhixuan-zxli.github.io/life/2605/</guid>
-        <description>Zhixuan&#39;s Blog https://zhixuan-zxli.github.io/life/2605/ -&lt;p&gt;ZX上一次回广州的家是在春节。5月份他想回家，因为他累了，他想试试开一下许久没有开过的车。他和J &amp;amp; D去扫墓。一个山青水秀的地方，白鹭成群。它们大部分时间栖息在树上，有时候会成群地从一个山头迁徙到另一个山头，起飞、掠过，降落。像是这一片安息的灵魂的守护神。&lt;/p&gt;
-&lt;p&gt;每次回家总是有吃不完的鲜美的水果。他想知道那时候吃的番石榴在哪里买的，印象中又软又香。&lt;/p&gt;
+        <description>Zhixuan&#39;s Blog https://zhixuan-zxli.github.io/life/2605/ -&lt;p&gt;ZX上一次回广州的家是在春节。5月份他想回家，因为他累了，他想试试开一下许久没有开过的车。他和Jennie &amp;amp; David去扫墓。一个山青水秀的地方，白鹭成群。它们大部分时间栖息在树上，有时候会成群地从一个山头迁徙到另一个山头，起飞、掠过，降落。灵魂安息在这片净土上，而它们是这里的守护神。&lt;/p&gt;
+&lt;p&gt;每次回家总是有吃不完的鲜美的水果。后来他想知道那时候吃的番石榴在哪里买的，印象中又软又香。&lt;/p&gt;
 &lt;p&gt;“你是指上次在家里吃的那个吗？那是广东本地的品种，才又香又滑溜。明年夏天回来吃吧。”&lt;/p&gt;
 &lt;p&gt;“淘宝上有这个品种吗？”&lt;/p&gt;
 &lt;p&gt;“不会有，这个品种很难存放和运输。所以出了广东就没有了。”&lt;/p&gt;
+&lt;p&gt;J &amp;amp; D告诉ZX，他们打算重新装修一下已经住了20多年的家。&lt;/p&gt;
+&lt;p&gt;“你妈考虑这件事情很久了”，D说。&lt;/p&gt;
+&lt;p&gt;“重新装修以后，我们想把这面墙打掉，原来的书房就和客厅连通了。这样会有更多空间。房间的门我们也想换一个朝向。你觉得怎么样呢？” J问。&lt;/p&gt;
+&lt;p&gt;这自然没有什么不好的，ZX想。他觉得一次翻修可以把时间带来的小瑕疵修补掉，但又不至于磨灭20多年来的生活气息。他有点憧憬，想象他在新家中以一种什么样的姿态生活，或许会很惬意。D一如既往地热衷于设计、画图，他给我们展示他用软件画的翻新后的平面图，细致、严谨。&lt;/p&gt;
 &lt;p&gt;他们又聊了聊J &amp;amp; D年轻时候求学的经历，后来是如何工作、转行。ZX想知道J &amp;amp; D是如何走到一起的，但J似乎一直难以启齿。&lt;/p&gt;
-&lt;p&gt;ZX把小说《正常人》读完了。心满意足。&lt;/p&gt;
+&lt;p&gt;ZX把《正常人》的小说读完了，心满意足。&lt;/p&gt;
 &lt;hr&gt;
 &lt;p&gt;&lt;img src=&#34;https://zhixuan-zxli.github.io/life/IMG20260531.jpg&#34; alt=&#34;&#34;&gt;&lt;/p&gt;
 &lt;p&gt;黄永玉画展。一个活了99岁的艺术家，是怎么在他接近生命最后时刻创造出这么轻盈的作品的呢。&lt;/p&gt;
 &lt;hr&gt;
 &lt;p&gt;ZX的生日通常是二十四节气的“芒种”。一大早他就收到了来自Jennie的祝福，有种有收，似乎每年不外如此。&lt;/p&gt;
-&lt;p&gt;晚上，Sydney、DJ和CD到了ZX的房间。他们在吹气球、布置房间、吃喝东西、外放音乐。ZX觉得仿佛他们在举办一个生日派对，这是一个为他举办的生日派对，因为他想不起来一个以他为中心的派对是什么样子的，他在想他人生中是否经历过这样的时刻。他们在他许愿的时候唱起了生日歌。&lt;/p&gt;
+&lt;p&gt;晚上，Sydney、DJ和CD在ZX的房间。他们吹气球、布置房间、吃喝东西、外放音乐。ZX觉得仿佛他们在举办一个生日派对，这是一个为他举办的生日派对，因为他想不起来一个以他为中心的派对是什么样子的，他在想他人生中是否经历过这样的时刻。他们在他许愿的时候唱起了生日歌。&lt;/p&gt;
 &lt;p&gt;“这么快就许完了吗？”&lt;/p&gt;
 &lt;p&gt;“那我再认真许一下。”&lt;/p&gt;
 &lt;p&gt;他在心中再次默念了他的生日愿望。其实ZX在那天一早就在想怎么安排三个生日愿望，他觉得他已经考虑清楚了。要是有任何人问起，他可以毫无保留地分享给他人。&lt;/p&gt;
 &lt;p&gt;&lt;img src=&#34;https://zhixuan-zxli.github.io/life/IMG20260606_1.jpg&#34; alt=&#34;&#34;&gt;&lt;/p&gt;
-&lt;p&gt;Sydney似乎是一个天生的艺术家。她像一位导演一样安排好了现场布置的每一个细节。她有一种天赋，她在脑海中有一种影像，她在等待他人最好看的一面，她为每一个人拍了拍立得。ZX很喜欢她为他拍的一幅单人生日照：他坐在沙发上，戴着生日帽，双手捧着小蛋糕，他浅蓝色的睡衣和旁边粉色的气球营造出一种梦幻温柔的日常感，背景是HAPPY BIRTHDAY的字母气球。&lt;/p&gt;
+&lt;p&gt;S似乎是一个天生的艺术家。她像一位导演一样安排好了现场布置的每一个细节。她有一种天赋，她在脑海中有一种影像，她在等待他人最好看的一面，她为每一个人拍了拍立得。ZX很喜欢她为他拍的一幅单人生日照：他坐在沙发上，戴着生日帽，双手捧着小蛋糕，他浅蓝色的睡衣和旁边粉色的气球营造出一种梦幻温柔的日常感，背景是HAPPY BIRTHDAY的字母气球。&lt;/p&gt;
 &lt;p&gt;&lt;img src=&#34;https://zhixuan-zxli.github.io/life/20260605.jpg&#34; alt=&#34;&#34;&gt;&lt;/p&gt;
 &lt;p&gt;来日再聚。&lt;/p&gt;
 - https://zhixuan-zxli.github.io/life/2605/ - </description>
-        </item>
-    
-    
-    
-        <item>
-        <title>KV Cache and Model Runner in vLLM</title>
-        <link>https://zhixuan-zxli.github.io/llm/kv_cache/</link>
-        <pubDate>Tue, 02 Jun 2026 16:46:47 +0800</pubDate>
-        
-        <guid>https://zhixuan-zxli.github.io/llm/kv_cache/</guid>
-        <description>Zhixuan&#39;s Blog https://zhixuan-zxli.github.io/llm/kv_cache/ -&lt;h2 id=&#34;1-kvcachemanager-and-related-classes&#34;&gt;1. KVCacheManager and Related Classes&lt;/h2&gt;
-&lt;p&gt;&lt;img src=&#34;../../assets/ai/kv_cache_overview.webp&#34; alt=&#34;alt text&#34;&gt;&lt;/p&gt;
-&lt;h3 id=&#34;kvcachemanager&#34;&gt;&lt;code&gt;KVCacheManager&lt;/code&gt;&lt;/h3&gt;
-&lt;ul&gt;
-&lt;li&gt;
-&lt;p&gt;&lt;code&gt;hash_block_size&lt;/code&gt;&lt;br&gt;
-Size used for computing block hashes (prefix caching). Different KV cache groups may have larger actual block sizes that are multiples of this.&lt;/p&gt;
-&lt;/li&gt;
-&lt;li&gt;
-&lt;p&gt;&lt;code&gt;get_computed_blocks(request)&lt;/code&gt;&lt;br&gt;
-Call &lt;code&gt;KVCacheCoordinator.find_longest_cache_hit()&lt;/code&gt; if prefix caching enabled, else nothing.&lt;/p&gt;
-&lt;/li&gt;
-&lt;li&gt;
-&lt;p&gt;&lt;code&gt;allocate_slots(request, num_new_tokens, num_new_computed_tokens, ...)&lt;/code&gt; called when scheduling waiting or running requests, where&lt;/p&gt;
-&lt;ul&gt;
-&lt;li&gt;&lt;code&gt;computed&lt;/code&gt;: blocks allocated before current scheduling&lt;/li&gt;
-&lt;li&gt;&lt;code&gt;new_computed&lt;/code&gt;: blocks that hit the prefix cache&lt;/li&gt;
-&lt;li&gt;&lt;code&gt;new&lt;/code&gt;: blocks that need to be allocated&lt;/li&gt;
-&lt;/ul&gt;
-&lt;ol&gt;
-&lt;li&gt;Computes the number of new required blocks.&lt;/li&gt;
-&lt;li&gt;Increments reference counts for cached blocks.&lt;/li&gt;
-&lt;li&gt;Allocates new blocks from the free queue (or eviction queue) by calling &lt;code&gt;allocate_new_blocks&lt;/code&gt; on the coordinator.&lt;/li&gt;
-&lt;li&gt;Call coordinator&amp;rsquo;s &lt;code&gt;cache_blocks()&lt;/code&gt;.&lt;/li&gt;
-&lt;li&gt;Returns a &lt;code&gt;KVCacheBlocks&lt;/code&gt; object.&lt;/li&gt;
-&lt;/ol&gt;
-&lt;p&gt;Note: Once a request enters the running queue, it is no longer considered for prefix caching (&lt;code&gt;num_new_computed_tokens = 0&lt;/code&gt;).&lt;/p&gt;
-&lt;/li&gt;
-&lt;/ul&gt;
-&lt;h3 id=&#34;kvcachecoordinator--base-coordinator-managing-multiple-single-type-managers&#34;&gt;&lt;code&gt;KVCacheCoordinator&lt;/code&gt; – base coordinator managing multiple single-type managers.&lt;/h3&gt;
-&lt;ul&gt;
-&lt;li&gt;
-&lt;p&gt;&lt;code&gt;KVCacheCoordinatorNoPrefixCache&lt;/code&gt; – variant without prefix caching.&lt;/p&gt;
-&lt;ul&gt;
-&lt;li&gt;&lt;code&gt;get_num_blocks_to_allocate()&lt;/code&gt; – routes to each single-type manager.&lt;/li&gt;
-&lt;li&gt;&lt;code&gt;allocate_new_blocks(request_id, num_tokens)&lt;/code&gt; – routes to each manager.&lt;/li&gt;
-&lt;/ul&gt;
-&lt;/li&gt;
-&lt;li&gt;
-&lt;p&gt;&lt;code&gt;HybridKVCacheCoordinator&lt;/code&gt; – used when enabling prefix caching and there are two KV cache group types (e.g., one for full attention, one for Mamba).&lt;/p&gt;
-&lt;ul&gt;
-&lt;li&gt;&lt;code&gt;cache_blocks(self, num_computed_tokens)&lt;/code&gt;&lt;/li&gt;
-&lt;/ul&gt;
-&lt;/li&gt;
-&lt;/ul&gt;
-&lt;h4 id=&#34;blockpool-inside-the-coordinator&#34;&gt;&lt;code&gt;BlockPool&lt;/code&gt; (inside the coordinator)&lt;/h4&gt;
-&lt;ul&gt;
-&lt;li&gt;&lt;code&gt;blocks: list[KVCacheBlock]&lt;/code&gt; – all blocks in the pool.&lt;/li&gt;
-&lt;li&gt;&lt;code&gt;null_block&lt;/code&gt; – a special block representing null.&lt;/li&gt;
-&lt;li&gt;&lt;code&gt;hash_block_size&lt;/code&gt; – same as manager’s hash block size.&lt;/li&gt;
-&lt;li&gt;&lt;code&gt;FreeKVCacheBlockQueue&lt;/code&gt; – a doubly‑linked list of free blocks.&lt;/li&gt;
-&lt;li&gt;&lt;code&gt;cached_block_hash_to_block: BlockHashToBlockMap&lt;/code&gt; – a dictionary mapping &lt;code&gt;BlockHashWithGroupId&lt;/code&gt; to &lt;code&gt;dict[int, KVCacheBlock]&lt;/code&gt; (multiple blocks with same hash due to eviction).&lt;/li&gt;
-&lt;li&gt;&lt;code&gt;get_cached_block()&lt;/code&gt;: hash lookup in &lt;code&gt;cached_block_hash_to_block&lt;/code&gt;.&lt;/li&gt;
-&lt;li&gt;&lt;code&gt;cache_full_blocks()&lt;/code&gt;: Maintain &lt;code&gt;cached_block_hash_to_block&lt;/code&gt;, where the hashes have been computed by the &lt;code&gt;Request&lt;/code&gt; object.&lt;/li&gt;
-&lt;/ul&gt;
-&lt;h4 id=&#34;kvcacheblock&#34;&gt;&lt;code&gt;KVCacheBlock&lt;/code&gt;&lt;/h4&gt;
-&lt;ul&gt;
-&lt;li&gt;Attributes: &lt;code&gt;block_id&lt;/code&gt;, &lt;code&gt;block_hash&lt;/code&gt;, &lt;code&gt;ref_cnt&lt;/code&gt;, and pointers for linked lists.&lt;/li&gt;
-&lt;/ul&gt;
-&lt;h4 id=&#34;kvcacheblocks&#34;&gt;&lt;code&gt;KVCacheBlocks&lt;/code&gt;&lt;/h4&gt;
-&lt;ul&gt;
-&lt;li&gt;&lt;code&gt;blocks: tuple[Sequence[KVCacheBlock]]&lt;/code&gt; - A tuple where each element corresponds to a KV cache group, and inside each group there is a sequence of blocks (tokens). &lt;code&gt;blocks[i][j]&lt;/code&gt; refers to the j‑th block of the i‑th group.&lt;/li&gt;
-&lt;/ul&gt;
-&lt;h3 id=&#34;singletypekvcachemanager&#34;&gt;&lt;code&gt;SingleTypeKVCacheManager&lt;/code&gt;&lt;/h3&gt;
-&lt;ul&gt;
-&lt;li&gt;&lt;code&gt;req_to_blocks: dict[req_id: str, list[KVCacheBlock]]&lt;/code&gt; – maps request IDs to their allocated blocks.&lt;/li&gt;
-&lt;li&gt;&lt;code&gt;num_cached_block: dict[str, int]&lt;/code&gt; – number of cached blocks per request.&lt;/li&gt;
-&lt;li&gt;&lt;code&gt;get_num_blocks_to_allocate()&lt;/code&gt; – computes required blocks for a request.
-&lt;ul&gt;
-&lt;li&gt;&lt;code&gt;cdiv(num_tokens, block_size)&lt;/code&gt; by default or for &lt;code&gt;FullAttentionManager&lt;/code&gt;.&lt;/li&gt;
-&lt;li&gt;&lt;code&gt;MambaManager&lt;/code&gt;: &lt;code&gt;num_tokens += block_size * num_speculative_blocks&lt;/code&gt; if spec decoding; otherwise default.&lt;/li&gt;
-&lt;li&gt;&lt;code&gt;SlidingWindowManager&lt;/code&gt;:&lt;/li&gt;
-&lt;/ul&gt;
-&lt;/li&gt;
-&lt;li&gt;&lt;code&gt;allocate_new_blocks()&lt;/code&gt;: calculate (again) the number of new blocks needed, calls &lt;code&gt;BlockPool.get_new_blocks()&lt;/code&gt;, and stores the allocated blocks in the manager&amp;rsquo;s &lt;code&gt;req_to_blocks&lt;/code&gt; mapping.&lt;/li&gt;
-&lt;li&gt;&lt;code&gt;cache_blocks(self, request, num_tokens)&lt;/code&gt;: call &lt;code&gt;BlockPool.cache_full_blocks&lt;/code&gt;.&lt;/li&gt;
-&lt;li&gt;&lt;code&gt;remove_skipped_blocks()&lt;/code&gt;: relies on &lt;code&gt;get_num_skipped_tokens()&lt;/code&gt;.&lt;/li&gt;
-&lt;/ul&gt;
-&lt;h2 id=&#34;2-initialization-of-kv-caches&#34;&gt;2. Initialization of KV Caches&lt;/h2&gt;
-&lt;p&gt;&lt;code&gt;EngineCore._initialize_kv_caches&lt;/code&gt;&lt;/p&gt;
-&lt;ol&gt;
-&lt;li&gt;Retrieve the &lt;code&gt;kv_cache_specs&lt;/code&gt;.&lt;/li&gt;
-&lt;li&gt;Generate the configuration via &lt;code&gt;get_kv_cache_configs&lt;/code&gt;.&lt;/li&gt;
-&lt;li&gt;Call &lt;code&gt;initialize_from_config&lt;/code&gt;, which calls &lt;code&gt;GPUModelRunner.initialize_kv_cache&lt;/code&gt;.&lt;/li&gt;
-&lt;/ol&gt;
-&lt;p&gt;&lt;code&gt;GPUModelRunner.get_kv_cache_spec&lt;/code&gt;&lt;/p&gt;
-&lt;ul&gt;
-&lt;li&gt;Enumerates all attention layers.&lt;/li&gt;
-&lt;li&gt;For each layer, calls &lt;code&gt;Attention.get_kv_cache_spec&lt;/code&gt;.&lt;/li&gt;
-&lt;li&gt;Returns a &lt;code&gt;Dict[layer_name: str, AttentionSpec]&lt;/code&gt;.&lt;/li&gt;
-&lt;/ul&gt;
-&lt;p&gt;&lt;code&gt;get_kv_cache_configs&lt;/code&gt; (from &lt;code&gt;kv_cache_utils.py&lt;/code&gt;) groups specs and produces a unified configuration.&lt;/p&gt;
-&lt;ol&gt;
-&lt;li&gt;&lt;code&gt;get_kv_cache_groups&lt;/code&gt; → &lt;code&gt;_get_kv_cache_groups_uniform_spec&lt;/code&gt; / &lt;code&gt;uniform_page_size&lt;/code&gt;&lt;br&gt;
-Returns &lt;code&gt;list[KVCacheGroupSpec(layer_names, KVCacheSpec)]&lt;/code&gt;.&lt;/li&gt;
-&lt;li&gt;&lt;code&gt;get_kv_cache_config_from_groups&lt;/code&gt;&lt;br&gt;
-Returns a &lt;code&gt;KVCacheConfig&lt;/code&gt; containing:
-&lt;ul&gt;
-&lt;li&gt;&lt;code&gt;num_blocks&lt;/code&gt;&lt;/li&gt;
-&lt;li&gt;&lt;code&gt;kv_cache_tensors: list[KVCacheTensor(size, shared_by: list[str])]&lt;/code&gt; – length equals max group size.&lt;/li&gt;
-&lt;li&gt;&lt;code&gt;kv_cache_groups: list[KVCacheGroupSpec]&lt;/code&gt;&lt;/li&gt;
-&lt;/ul&gt;
-&lt;/li&gt;
-&lt;/ol&gt;
-&lt;p&gt;Notes:&lt;/p&gt;
-&lt;ul&gt;
-&lt;li&gt;&lt;code&gt;MambaSpec&lt;/code&gt; cannot merge with &lt;code&gt;FullAttentionSpec&lt;/code&gt;.&lt;/li&gt;
-&lt;li&gt;&lt;code&gt;unify_kv_cache_spec_page_size&lt;/code&gt; adjusts block sizes for some specs; for already‑padded Qwen3‑Next Mamba, no operation is performed.&lt;/li&gt;
-&lt;/ul&gt;
-&lt;p&gt;&lt;code&gt;GPUModelRunner.initialize_kv_cache&lt;/code&gt;&lt;/p&gt;
-&lt;ul&gt;
-&lt;li&gt;&lt;code&gt;initialize_attn_backend&lt;/code&gt;&lt;/li&gt;
-&lt;li&gt;&lt;code&gt;initialize_metadata_builders&lt;/code&gt;&lt;/li&gt;
-&lt;li&gt;&lt;code&gt;initialize_kv_cache_tensors&lt;/code&gt;:
-&lt;ul&gt;
-&lt;li&gt;&lt;code&gt;_allocate_kv_cache_tensors(kv_cache_config)&lt;/code&gt; - Returns raw tensors per group: &lt;code&gt;dict[layer_name: str, torch.Tensor]&lt;/code&gt;.&lt;/li&gt;
-&lt;li&gt;&lt;code&gt;_reshape_kv_cache_tensors(kv_cache_config, kv_cache_raw_tensors, kernel_block_size)&lt;/code&gt;,&lt;br&gt;
-where &lt;code&gt;kernel_block_size&lt;/code&gt; is the block size per group. Returns a sliced dictionary &lt;code&gt;dict[layer_name: str, tuple[torch.Tensor]]&lt;/code&gt;.&lt;/li&gt;
-&lt;li&gt;&lt;code&gt;bind_kv_cache&lt;/code&gt;
-&lt;ol&gt;
-&lt;li&gt;Sets &lt;code&gt;self.kv_caches&lt;/code&gt; to a list of tuples (sorted by layer index).&lt;/li&gt;
-&lt;li&gt;Configures the KV caches of &lt;code&gt;forward_context[layer_name]&lt;/code&gt; (e.g., for &lt;code&gt;Qwen3NextGatedDeltaNet&lt;/code&gt;).&lt;/li&gt;
-&lt;/ol&gt;
-&lt;/li&gt;
-&lt;/ul&gt;
-&lt;/li&gt;
-&lt;/ul&gt;
-&lt;h2 id=&#34;3-gpumodelrunner&#34;&gt;3. GPUModelRunner&lt;/h2&gt;
-&lt;p&gt;&lt;code&gt;execute_model(self, scheduler_output, ...)&lt;/code&gt;:&lt;/p&gt;
-&lt;ol&gt;
-&lt;li&gt;
-&lt;p&gt;&lt;code&gt;_update_states(self, scheduler_output)&lt;/code&gt;&lt;/p&gt;
-&lt;ul&gt;
-&lt;li&gt;Calls &lt;code&gt;InputBatch.add_request(self, request: CachedRequestState)&lt;/code&gt;.&lt;/li&gt;
-&lt;li&gt;&lt;code&gt;self._get_valid_sampled_token_count()&lt;/code&gt; synchronization&lt;/li&gt;
-&lt;/ul&gt;
-&lt;/li&gt;
-&lt;li&gt;
-&lt;p&gt;&lt;code&gt;_prepare_inputs&lt;/code&gt;&lt;/p&gt;
-&lt;ul&gt;
-&lt;li&gt;&lt;code&gt;self.input_batch.block_table.compute_slot_mapping(req_indices, positions_np)&lt;/code&gt;&lt;/li&gt;
-&lt;li&gt;&lt;code&gt;_calc_spec_decode_metadata()&lt;/code&gt; handles the speculative tokens in &lt;code&gt;scheduler_output.scheduled_spec_decode_tokens&lt;/code&gt;.&lt;/li&gt;
-&lt;/ul&gt;
-&lt;/li&gt;
-&lt;li&gt;
-&lt;p&gt;&lt;code&gt;_determine_batch_execution_and_padding&lt;/code&gt;&lt;/p&gt;
-&lt;/li&gt;
-&lt;li&gt;
-&lt;p&gt;&lt;code&gt;_build_attention_metadata&lt;/code&gt;&lt;/p&gt;
-&lt;ul&gt;
-&lt;li&gt;Prepares attention metadata for each KV cache group; layers in the same group share metadata.&lt;/li&gt;
-&lt;li&gt;Block tables and slot mappings are already prepared in &lt;code&gt;input_batch&lt;/code&gt;.&lt;/li&gt;
-&lt;li&gt;Builds &lt;code&gt;CommonAttentionMetadata&lt;/code&gt;, &lt;code&gt;spec_decode_common_attn_metadata: GDNAttentionMetadata&lt;/code&gt;.&lt;/li&gt;
-&lt;/ul&gt;
-&lt;/li&gt;
-&lt;li&gt;
-&lt;p&gt;Other methods: &lt;code&gt;preprocess&lt;/code&gt;, &lt;code&gt;model_forward&lt;/code&gt;.&lt;/p&gt;
-&lt;/li&gt;
-&lt;/ol&gt;
-&lt;p&gt;&lt;code&gt;sample_tokens()&lt;/code&gt;:&lt;/p&gt;
-&lt;ol&gt;
-&lt;li&gt;&lt;code&gt;_sample()&lt;/code&gt;
-&lt;ul&gt;
-&lt;li&gt;&lt;code&gt;rejection_sampler&lt;/code&gt;&lt;/li&gt;
-&lt;li&gt;&lt;code&gt;_update_states_after_model_execute&lt;/code&gt;.&lt;/li&gt;
-&lt;/ul&gt;
-&lt;/li&gt;
-&lt;li&gt;&lt;code&gt;_propose_draft_token_ids()&lt;/code&gt;
-&lt;ul&gt;
-&lt;li&gt;&lt;code&gt;drafter.prepare_next_token_ids_padded()&lt;/code&gt;&lt;/li&gt;
-&lt;li&gt;&lt;code&gt;drafter.prepare_inputs_padded()&lt;/code&gt;&lt;/li&gt;
-&lt;li&gt;&lt;code&gt;drafter.propose()&lt;/code&gt; - run the MTP layers&lt;/li&gt;
-&lt;li&gt;&lt;code&gt;_copy_valid_sampled_token_count()&lt;/code&gt;: trigger copying&lt;/li&gt;
-&lt;/ul&gt;
-&lt;/li&gt;
-&lt;/ol&gt;
-&lt;p&gt;&lt;code&gt;BlockTable&lt;/code&gt;&lt;/p&gt;
-&lt;ul&gt;
-&lt;li&gt;&lt;code&gt;block_size&lt;/code&gt;, &lt;code&gt;kernel_block_size&lt;/code&gt;&lt;/li&gt;
-&lt;li&gt;&lt;code&gt;block_table: (max_num_reqs, max_num_blocks_per_req)&lt;/code&gt;&lt;/li&gt;
-&lt;li&gt;&lt;code&gt;slot_mapping: (max_num_batched_tokens, )&lt;/code&gt;&lt;/li&gt;
-&lt;li&gt;&lt;code&gt;add_row(block_ids: list[int], row_idx: int)&lt;/code&gt;&lt;/li&gt;
-&lt;li&gt;&lt;code&gt;compute_slot_mapping(req_indices, positions)&lt;/code&gt;&lt;/li&gt;
-&lt;/ul&gt;
-&lt;p&gt;Example parameters:&lt;/p&gt;
-&lt;ul&gt;
-&lt;li&gt;Full attention group: &lt;code&gt;block_size = 32&lt;/code&gt;, &lt;code&gt;blocks_per_kv_block = 17&lt;/code&gt;, &lt;code&gt;max_num_blocks_per_req = 17 * 8 = 136&lt;/code&gt;&lt;/li&gt;
-&lt;li&gt;Mamba group: &lt;code&gt;group_size = 4096&lt;/code&gt;, &lt;code&gt;blocks_per_kv_block = 1&lt;/code&gt;, &lt;code&gt;max_num_blocks_per_req = 1&lt;/code&gt;&lt;/li&gt;
-&lt;/ul&gt;
-&lt;p&gt;&lt;code&gt;MultiGroupBlockTable&lt;/code&gt;&lt;/p&gt;
-&lt;ul&gt;
-&lt;li&gt;&lt;code&gt;block_tables: list[BlockTable]&lt;/code&gt; – one per group.&lt;/li&gt;
-&lt;li&gt;&lt;code&gt;add_row(block_ids: tuple[list[int], ...], row_idx)&lt;/code&gt; – routes to each group’s &lt;code&gt;BlockTable.add_row&lt;/code&gt;.&lt;/li&gt;
-&lt;/ul&gt;
-&lt;p&gt;&lt;code&gt;SchedulerOutput&lt;/code&gt; (&lt;code&gt;v1/core/shed/output.py&lt;/code&gt;)&lt;/p&gt;
-&lt;ul&gt;
-&lt;li&gt;&lt;code&gt;scheduled_new_reqs: list[NewRequestData]&lt;/code&gt;&lt;/li&gt;
-&lt;li&gt;&lt;code&gt;scheduled_cached_reqs: CachedRequestData&lt;/code&gt;&lt;/li&gt;
-&lt;li&gt;&lt;code&gt;num_scheduled_tokens: dict[str, int]&lt;/code&gt;&lt;/li&gt;
-&lt;/ul&gt;
-- https://zhixuan-zxli.github.io/llm/kv_cache/ - </description>
         </item>
     
     

@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="utf-8" standalone="yes"?>
 <rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
 	<channel>
-		<title>LLMs on Zhixuan&#39;s Blog</title>
-		<link>https://zhixuan-zxli.github.io/llm/</link>
-		<description>Recent content in LLMs on Zhixuan&#39;s Blog</description>
+		<title>VLLM on Zhixuan&#39;s Blog</title>
+		<link>https://zhixuan-zxli.github.io/tags/vllm/</link>
+		<description>Recent content in VLLM on Zhixuan&#39;s Blog</description>
 		<generator>Hugo</generator>
 		<language>zh</language>
 		
@@ -12,7 +12,7 @@
 		
 			<lastBuildDate>Sat, 06 Jun 2026 17:00:00 +0800</lastBuildDate>
 		
-			<atom:link href="https://zhixuan-zxli.github.io/llm/index.xml" rel="self" type="application/rss+xml" />
+			<atom:link href="https://zhixuan-zxli.github.io/tags/vllm/index.xml" rel="self" type="application/rss+xml" />
 			<item>
 				<title>Scheduler, and KV transfer in disaggregation</title>
 				<link>https://zhixuan-zxli.github.io/llm/scheduler/</link>
