@@ -10,13 +10,13 @@
 		
 		
 		
-			<lastBuildDate>Sat, 06 Jun 2026 17:00:00 +0800</lastBuildDate>
+			<lastBuildDate>Sat, 06 Jun 2026 00:00:00 +0000</lastBuildDate>
 		
 			<atom:link href="https://zhixuan-zxli.github.io/llm/index.xml" rel="self" type="application/rss+xml" />
 			<item>
-				<title>Scheduler, and KV transfer in disaggregation</title>
+				<title>Scheduler and KV transfer in disaggregated prefill</title>
 				<link>https://zhixuan-zxli.github.io/llm/scheduler/</link>
-				<pubDate>Sat, 06 Jun 2026 17:00:00 +0800</pubDate>
+				<pubDate>Sat, 06 Jun 2026 00:00:00 +0000</pubDate>
 				<guid>https://zhixuan-zxli.github.io/llm/scheduler/</guid>
 				<description>&lt;h2 id=&#34;1-scheduler&#34;&gt;1. Scheduler&lt;/h2&gt;&#xA;&lt;p&gt;&lt;code&gt;Scheduler&lt;/code&gt; (vllm/v1/core/sched/scheduler.py) is the central resource allocator for vLLM&amp;rsquo;s v1 engine. Each iteration it decides which requests run, how many tokens each gets, and which KV cache blocks to (re-)use. It owns two queues — &lt;code&gt;self.waiting&lt;/code&gt; and &lt;code&gt;self.running&lt;/code&gt; — plus a &lt;code&gt;KVCacheManager&lt;/code&gt; for block allocation. The scheduler has no notion of a distinct &amp;ldquo;prefill phase&amp;rdquo; or &amp;ldquo;decode phase&amp;rdquo;; every request is simply tracked by &lt;code&gt;num_computed_tokens&lt;/code&gt; and &lt;code&gt;num_tokens_with_spec&lt;/code&gt;, and the scheduler&amp;rsquo;s job is to close the gap between the two.&lt;/p&gt;</description>
 			</item>
