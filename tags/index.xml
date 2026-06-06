@@ -2,7 +2,7 @@
 <rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
 	<channel>
 		<title>Tags on Zhixuan&#39;s Blog</title>
-		<link>https://example.org/tags/</link>
+		<link>https://zhixuan-zxli.github.io/tags/</link>
 		<description>Recent content in Tags on Zhixuan&#39;s Blog</description>
 		<generator>Hugo</generator>
 		<language>zh</language>
@@ -10,6 +10,22 @@
 		
 		
 		
-			<atom:link href="https://example.org/tags/index.xml" rel="self" type="application/rss+xml" />
+			<lastBuildDate>Sat, 06 Jun 2026 10:26:37 +0800</lastBuildDate>
+		
+			<atom:link href="https://zhixuan-zxli.github.io/tags/index.xml" rel="self" type="application/rss+xml" />
+			<item>
+				<title>展览</title>
+				<link>https://zhixuan-zxli.github.io/tags/%E5%B1%95%E8%A7%88/</link>
+				<pubDate>Sat, 06 Jun 2026 10:26:37 +0800</pubDate>
+				<guid>https://zhixuan-zxli.github.io/tags/%E5%B1%95%E8%A7%88/</guid>
+				<description></description>
+			</item>
+			<item>
+				<title>生日</title>
+				<link>https://zhixuan-zxli.github.io/tags/%E7%94%9F%E6%97%A5/</link>
+				<pubDate>Sat, 06 Jun 2026 10:26:37 +0800</pubDate>
+				<guid>https://zhixuan-zxli.github.io/tags/%E7%94%9F%E6%97%A5/</guid>
+				<description></description>
+			</item>
 	</channel>
 </rss>
