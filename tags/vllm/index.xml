@@ -10,15 +10,36 @@
 		
 		
 		
-			<lastBuildDate>Sat, 06 Jun 2026 00:00:00 +0000</lastBuildDate>
+			<lastBuildDate>Sun, 28 Jun 2026 00:00:00 +0000</lastBuildDate>
 		
 			<atom:link href="https://zhixuan-zxli.github.io/tags/vllm/index.xml" rel="self" type="application/rss+xml" />
+			<item>
+				<title>Attention in vLLM: Cache and Computation</title>
+				<link>https://zhixuan-zxli.github.io/llm/adapt_attn/</link>
+				<pubDate>Sun, 28 Jun 2026 00:00:00 +0000</pubDate>
+				<guid>https://zhixuan-zxli.github.io/llm/adapt_attn/</guid>
+				<description>&lt;p&gt;Working in progress&lt;/p&gt;</description>
+			</item>
+			<item>
+				<title>Causal Convolution: Cache, Computation and Sequence Parallelism</title>
+				<link>https://zhixuan-zxli.github.io/llm/causal_conv/</link>
+				<pubDate>Sun, 28 Jun 2026 00:00:00 +0000</pubDate>
+				<guid>https://zhixuan-zxli.github.io/llm/causal_conv/</guid>
+				<description>&lt;p&gt;Working in progress&lt;/p&gt;</description>
+			</item>
 			<item>
 				<title>Scheduler and KV transfer in disaggregated prefill</title>
 				<link>https://zhixuan-zxli.github.io/llm/scheduler/</link>
 				<pubDate>Sat, 06 Jun 2026 00:00:00 +0000</pubDate>
 				<guid>https://zhixuan-zxli.github.io/llm/scheduler/</guid>
 				<description>&lt;h2 id=&#34;1-scheduler&#34;&gt;1. Scheduler&lt;/h2&gt;&#xA;&lt;p&gt;&lt;code&gt;Scheduler&lt;/code&gt; (vllm/v1/core/sched/scheduler.py) is the central resource allocator for vLLM&amp;rsquo;s v1 engine. Each iteration it decides which requests run, how many tokens each gets, and which KV cache blocks to (re-)use. It owns two queues — &lt;code&gt;self.waiting&lt;/code&gt; and &lt;code&gt;self.running&lt;/code&gt; — plus a &lt;code&gt;KVCacheManager&lt;/code&gt; for block allocation. The scheduler has no notion of a distinct &amp;ldquo;prefill phase&amp;rdquo; or &amp;ldquo;decode phase&amp;rdquo;; every request is simply tracked by &lt;code&gt;num_computed_tokens&lt;/code&gt; and &lt;code&gt;num_tokens_with_spec&lt;/code&gt;, and the scheduler&amp;rsquo;s job is to close the gap between the two.&lt;/p&gt;</description>
+			</item>
+			<item>
+				<title>KV Cache and Model Runner in vLLM</title>
+				<link>https://zhixuan-zxli.github.io/llm/kv_cache/</link>
+				<pubDate>Tue, 02 Jun 2026 16:46:47 +0800</pubDate>
+				<guid>https://zhixuan-zxli.github.io/llm/kv_cache/</guid>
+				<description>&lt;h2 id=&#34;1-kvcachemanager-and-related-classes&#34;&gt;1. KVCacheManager and Related Classes&lt;/h2&gt;&#xA;&lt;p&gt;&lt;img src=&#34;https://zhixuan-zxli.github.io/LLM/kv_cache_overview.webp&#34; alt=&#34;&#34;&gt;&lt;/p&gt;&#xA;&lt;h3 id=&#34;kvcachemanager&#34;&gt;&lt;code&gt;KVCacheManager&lt;/code&gt;&lt;/h3&gt;&#xA;&lt;ul&gt;&#xA;&lt;li&gt;&#xA;&lt;p&gt;&lt;code&gt;hash_block_size&lt;/code&gt;&lt;br&gt;&#xA;Size used for computing block hashes (prefix caching). Different KV cache groups may have larger actual block sizes that are multiples of this.&lt;/p&gt;&#xA;&lt;/li&gt;&#xA;&lt;li&gt;&#xA;&lt;p&gt;&lt;code&gt;get_computed_blocks(request)&lt;/code&gt;&lt;br&gt;&#xA;Call &lt;code&gt;KVCacheCoordinator.find_longest_cache_hit()&lt;/code&gt; if prefix caching enabled, else nothing.&lt;/p&gt;&#xA;&lt;/li&gt;&#xA;&lt;li&gt;&#xA;&lt;p&gt;&lt;code&gt;allocate_slots(request, num_new_tokens, num_new_computed_tokens, ...)&lt;/code&gt; called when scheduling waiting or running requests, where&lt;/p&gt;&#xA;&lt;ul&gt;&#xA;&lt;li&gt;&lt;code&gt;computed&lt;/code&gt;: blocks allocated before current scheduling&lt;/li&gt;&#xA;&lt;li&gt;&lt;code&gt;new_computed&lt;/code&gt;: blocks that hit the prefix cache&lt;/li&gt;&#xA;&lt;li&gt;&lt;code&gt;new&lt;/code&gt;: blocks that need to be allocated&lt;/li&gt;&#xA;&lt;/ul&gt;&#xA;&lt;ol&gt;&#xA;&lt;li&gt;Computes the number of new required blocks.&lt;/li&gt;&#xA;&lt;li&gt;Increments reference counts for cached blocks.&lt;/li&gt;&#xA;&lt;li&gt;Allocates new blocks from the free queue (or eviction queue) by calling &lt;code&gt;allocate_new_blocks&lt;/code&gt; on the coordinator.&lt;/li&gt;&#xA;&lt;li&gt;Call coordinator&amp;rsquo;s &lt;code&gt;cache_blocks()&lt;/code&gt;.&lt;/li&gt;&#xA;&lt;li&gt;Returns a &lt;code&gt;KVCacheBlocks&lt;/code&gt; object.&lt;/li&gt;&#xA;&lt;/ol&gt;&#xA;&lt;p&gt;Note: Once a request enters the running queue, it is no longer considered for prefix caching (&lt;code&gt;num_new_computed_tokens = 0&lt;/code&gt;).&lt;/p&gt;</description>
 			</item>
 	</channel>
 </rss>

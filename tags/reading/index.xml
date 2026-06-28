@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
+	<channel>
+		<title>Reading on Zhixuan&#39;s Blog</title>
+		<link>https://zhixuan-zxli.github.io/tags/reading/</link>
+		<description>Recent content in Reading on Zhixuan&#39;s Blog</description>
+		<generator>Hugo</generator>
+		<language>zh</language>
+		
+		
+		
+		
+			<lastBuildDate>Sun, 28 Jun 2026 00:00:00 +0000</lastBuildDate>
+		
+			<atom:link href="https://zhixuan-zxli.github.io/tags/reading/index.xml" rel="self" type="application/rss+xml" />
+			<item>
+				<title>Reading List 2026</title>
+				<link>https://zhixuan-zxli.github.io/llm/reading_2026/</link>
+				<pubDate>Sun, 28 Jun 2026 00:00:00 +0000</pubDate>
+				<guid>https://zhixuan-zxli.github.io/llm/reading_2026/</guid>
+				<description>&lt;h3 id=&#34;deepseek-v4&#34;&gt;Deepseek V4&lt;/h3&gt;&#xA;&lt;ul&gt;&#xA;&lt;li&gt;&lt;a href=&#34;https://arxiv.org/abs/2606.19348&#34;&gt;DeepSeek-V4: Towards Highly Efficient Million-Token Context Intelligence&lt;/a&gt; ✅&lt;/li&gt;&#xA;&lt;li&gt;&lt;a href=&#34;https://arxiv.org/abs/2512.24880&#34;&gt;mHC: Manifold-Constrained Hyper-Connections&lt;/a&gt; ✅&lt;/li&gt;&#xA;&lt;li&gt;&lt;a href=&#34;https://github.com/deepseek-ai/DeepSpec/blob/main/DSpark_paper.pdf&#34;&gt;DSpark&lt;/a&gt;&lt;/li&gt;&#xA;&lt;/ul&gt;&#xA;&lt;h3 id=&#34;glm-52&#34;&gt;GLM 5.2&lt;/h3&gt;&#xA;&lt;ul&gt;&#xA;&lt;li&gt;&lt;a href=&#34;https://arxiv.org/pdf/2602.15763&#34;&gt;GLM-5: from Vibe Coding to Agentic Engineering&lt;/a&gt;&lt;/li&gt;&#xA;&lt;li&gt;&lt;a href=&#34;https://z.ai/blog/glm-5.2&#34;&gt;GLM-5.2: Built for Long-Horizon Tasks&lt;/a&gt;&lt;/li&gt;&#xA;&lt;li&gt;&lt;a href=&#34;https://arxiv.org/pdf/2603.12201&#34;&gt;IndexShare&lt;/a&gt;&lt;/li&gt;&#xA;&lt;/ul&gt;&#xA;&lt;h3 id=&#34;others&#34;&gt;Others&lt;/h3&gt;&#xA;&lt;ul&gt;&#xA;&lt;li&gt;&lt;a href=&#34;https://lilianweng.github.io/posts/2026-06-24-scaling-laws/&#34;&gt;Lil&amp;rsquo;Log: Scaling Laws, Carefully&lt;/a&gt;&lt;/li&gt;&#xA;&lt;/ul&gt;</description>
+			</item>
+			<item>
+				<title>读书 2026</title>
+				<link>https://zhixuan-zxli.github.io/life/reading_2026/</link>
+				<pubDate>Sun, 28 Jun 2026 00:00:00 +0000</pubDate>
+				<guid>https://zhixuan-zxli.github.io/life/reading_2026/</guid>
+				<description>&lt;h3 id=&#34;5月&#34;&gt;5月&lt;/h3&gt;&#xA;&lt;ul&gt;&#xA;&lt;li&gt;&lt;em&gt;正常人&lt;/em&gt;， 萨莉・鲁尼 ✅&lt;/li&gt;&#xA;&lt;/ul&gt;&#xA;&lt;h3 id=&#34;6月&#34;&gt;6月&lt;/h3&gt;&#xA;&lt;ul&gt;&#xA;&lt;li&gt;&lt;em&gt;窄门&lt;/em&gt;，纪德 ✅&lt;/li&gt;&#xA;&lt;li&gt;&lt;em&gt;爱的艺术&lt;/em&gt;，爱里希・弗洛姆&lt;/li&gt;&#xA;&lt;/ul&gt;</description>
+			</item>
+	</channel>
+</rss>
