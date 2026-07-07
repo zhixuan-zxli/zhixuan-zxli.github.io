@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
+	<channel>
+		<title>摄影 on Zhixuan&#39;s Blog</title>
+		<link>http://localhost:1313/tags/%E6%91%84%E5%BD%B1/</link>
+		<description>Recent content in 摄影 on Zhixuan&#39;s Blog</description>
+		<generator>Hugo</generator>
+		<language>zh</language>
+		
+		
+		
+		
+			<lastBuildDate>Sun, 05 Jul 2026 00:00:00 +0000</lastBuildDate>
+		
+			<atom:link href="http://localhost:1313/tags/%E6%91%84%E5%BD%B1/index.xml" rel="self" type="application/rss+xml" />
+			<item>
+				<title>2026年7月</title>
+				<link>http://localhost:1313/life/2607/</link>
+				<pubDate>Sun, 05 Jul 2026 00:00:00 +0000</pubDate>
+				<guid>http://localhost:1313/life/2607/</guid>
+				<description>&lt;p&gt;敬请期待&lt;/p&gt;</description>
+			</item>
+	</channel>
+</rss>
