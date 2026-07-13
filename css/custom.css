@@ -1,0 +1,30 @@
+/* Widen content area by shrinking sidebars */
+.side-container {
+    width: 18%;
+}
+
+.extra-container {
+    width: 10%;
+}
+
+.stream-container {
+    padding-left: 18%;
+    padding-right: 10%;
+}
+
+.pagination-bar-container {
+    width: 18%;
+}
+
+/* Let pagination items fill the narrower right sidebar */
+.extra-container .pagination .pagination-indicator,
+.extra-container .pagination .pagination-action {
+    width: 100%;
+}
+
+/* Prevent content from getting too wide on ultrawide screens */
+.stream-container .post-body-wrapper {
+    max-width: 860px;
+    margin: 0 auto;
+}
+
