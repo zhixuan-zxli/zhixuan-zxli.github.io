@@ -27,13 +27,22 @@
 &lt;/ul&gt;
 &lt;h3 id=&#34;glm-52&#34;&gt;GLM 5.2&lt;/h3&gt;
 &lt;ul&gt;
-&lt;li&gt;&lt;a href=&#34;https://arxiv.org/pdf/2602.15763&#34;&gt;GLM-5: from Vibe Coding to Agentic Engineering&lt;/a&gt;&lt;/li&gt;
-&lt;li&gt;&lt;a href=&#34;https://z.ai/blog/glm-5.2&#34;&gt;GLM-5.2: Built for Long-Horizon Tasks&lt;/a&gt;&lt;/li&gt;
-&lt;li&gt;&lt;a href=&#34;https://arxiv.org/pdf/2603.12201&#34;&gt;IndexShare&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a href=&#34;https://arxiv.org/pdf/2602.15763&#34;&gt;GLM-5: from Vibe Coding to Agentic Engineering&lt;/a&gt; ✅&lt;/li&gt;
+&lt;li&gt;&lt;a href=&#34;https://z.ai/blog/glm-5.2&#34;&gt;GLM-5.2: Built for Long-Horizon Tasks&lt;/a&gt; ✅&lt;/li&gt;
+&lt;li&gt;&lt;a href=&#34;https://arxiv.org/pdf/2603.12201&#34;&gt;IndexShare&lt;/a&gt; ✅&lt;/li&gt;
 &lt;/ul&gt;
 &lt;h3 id=&#34;others&#34;&gt;Others&lt;/h3&gt;
 &lt;ul&gt;
 &lt;li&gt;&lt;a href=&#34;https://lilianweng.github.io/posts/2026-06-24-scaling-laws/&#34;&gt;Lil&amp;rsquo;Log: Scaling Laws, Carefully&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;&lt;a href=&#34;https://thinkingmachines.ai/blog/on-policy-distillation&#34;&gt;On-Policy Distillation&lt;/a&gt; ✅&lt;/li&gt;
+&lt;li&gt;mini-sglang&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h3 id=&#34;vllm&#34;&gt;vLLM&lt;/h3&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;a href=&#34;https://vllm.ai/blog/2025-09-05-anatomy-of-vllm&#34;&gt;Inside vLLM: Anatomy of a High-Throughput LLM Inference System&lt;/a&gt; ⭐️ ✅&lt;/li&gt;
+&lt;li&gt;&lt;a href=&#34;https://mp.weixin.qq.com/s/wfAyVE-9B-SqWr7JoC7jnQ&#34;&gt;透过 vLLM 深入分析一次推理的完整旅程：从 HTTP 请求到 Token 流出&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;Async scheduling: PR 29957 &amp;amp; 32951&lt;/li&gt;
+&lt;li&gt;&lt;a href=&#34;https://mp.weixin.qq.com/s/kxoaqZsBsl0kKT5pPyD09Q&#34;&gt;vLLM Mooncake KV Connector详解：让KV Cache在GPU之间“瞬移”&lt;/a&gt;&lt;/li&gt;
 &lt;/ul&gt;
 - https://zhixuan-zxli.github.io/llm/reading_2026/ - </description>
         </item>
@@ -160,23 +169,11 @@ Pass 2 — waiting requests  (skipped entirely if any preemption occurred in Pas
 &lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;num_new_tokens &lt;span style=&#34;color:#f92672&#34;&gt;=&lt;/span&gt; min(num_new_tokens, token_budget)
 &lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;&lt;code&gt;num_tokens_with_spec&lt;/code&gt; includes any speculative draft tokens, so this correctly handles both ordinary decoding (gap = 1) and chunked prefill continuation (gap = many).&lt;/p&gt;
 &lt;p&gt;&lt;code&gt;token_budget&lt;/code&gt; is then decremented by &lt;code&gt;num_new_tokens&lt;/code&gt; after each scheduled request, bounding total tokens per step.&lt;/p&gt;
-&lt;p&gt;&lt;strong&gt;KV block allocation and preemption.&lt;/strong&gt; For each request, &lt;code&gt;kv_cache_manager.allocate_slots()&lt;/code&gt; is called to obtain new blocks. If it fails (cache full), the scheduler preempts the lowest-priority request in &lt;code&gt;self.running&lt;/code&gt;:&lt;/p&gt;
-&lt;div class=&#34;highlight&#34;&gt;&lt;pre tabindex=&#34;0&#34; style=&#34;color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;&#34;&gt;&lt;code class=&#34;language-python&#34; data-lang=&#34;python&#34;&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#66d9ef&#34;&gt;while&lt;/span&gt; &lt;span style=&#34;color:#66d9ef&#34;&gt;True&lt;/span&gt;:
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;    new_blocks &lt;span style=&#34;color:#f92672&#34;&gt;=&lt;/span&gt; kv_cache_manager&lt;span style=&#34;color:#f92672&#34;&gt;.&lt;/span&gt;allocate_slots(request, num_new_tokens, &lt;span style=&#34;color:#f92672&#34;&gt;...&lt;/span&gt;)
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;    &lt;span style=&#34;color:#66d9ef&#34;&gt;if&lt;/span&gt; new_blocks &lt;span style=&#34;color:#f92672&#34;&gt;is&lt;/span&gt; &lt;span style=&#34;color:#f92672&#34;&gt;not&lt;/span&gt; &lt;span style=&#34;color:#66d9ef&#34;&gt;None&lt;/span&gt;:
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;        &lt;span style=&#34;color:#66d9ef&#34;&gt;break&lt;/span&gt;                   &lt;span style=&#34;color:#75715e&#34;&gt;# success&lt;/span&gt;
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;    preempted_req &lt;span style=&#34;color:#f92672&#34;&gt;=&lt;/span&gt; self&lt;span style=&#34;color:#f92672&#34;&gt;.&lt;/span&gt;running&lt;span style=&#34;color:#f92672&#34;&gt;.&lt;/span&gt;pop()   &lt;span style=&#34;color:#75715e&#34;&gt;# evict tail (FCFS) or max-priority (priority policy)&lt;/span&gt;
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;    _preempt_request(preempted_req)      &lt;span style=&#34;color:#75715e&#34;&gt;# free its KV blocks, move back to waiting&lt;/span&gt;
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;    preempted_reqs&lt;span style=&#34;color:#f92672&#34;&gt;.&lt;/span&gt;append(preempted_req)
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;    &lt;span style=&#34;color:#66d9ef&#34;&gt;if&lt;/span&gt; preempted_req &lt;span style=&#34;color:#f92672&#34;&gt;==&lt;/span&gt; request:
-&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;        &lt;span style=&#34;color:#66d9ef&#34;&gt;break&lt;/span&gt;                   &lt;span style=&#34;color:#75715e&#34;&gt;# can&amp;#39;t make room even by preempting self; skip&lt;/span&gt;
-&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;&lt;code&gt;_preempt_request&lt;/code&gt; frees all KV blocks for the evicted request, resets its &lt;code&gt;num_computed_tokens&lt;/code&gt; to 0, and pushes it back to the head of &lt;code&gt;self.waiting&lt;/code&gt; with status &lt;code&gt;PREEMPTED&lt;/code&gt;.&lt;/p&gt;
+&lt;p&gt;&lt;strong&gt;KV block allocation and preemption.&lt;/strong&gt; Omitted. See the posts on KV cache / model runner.&lt;/p&gt;
 &lt;h4 id=&#34;pass-2-waiting-requests&#34;&gt;Pass 2: waiting requests&lt;/h4&gt;
 &lt;p&gt;Skipped entirely if any preemption happened in Pass 1 (to avoid starving running requests further). Otherwise, pops from &lt;code&gt;self.waiting&lt;/code&gt; in order. Several checks can cause a request to be deferred (re-inserted at the head of the queue via &lt;code&gt;skipped_waiting_requests&lt;/code&gt;) rather than scheduled:&lt;/p&gt;
 &lt;ul&gt;
 &lt;li&gt;&lt;strong&gt;&lt;code&gt;WAITING_FOR_REMOTE_KVS&lt;/code&gt;&lt;/strong&gt;: KV transfer from a remote prefill node is still in flight. The request is skipped until &lt;code&gt;finished_recving_kv_req_ids&lt;/code&gt; signals completion.&lt;/li&gt;
-&lt;li&gt;&lt;strong&gt;&lt;code&gt;WAITING_FOR_FSM&lt;/code&gt;&lt;/strong&gt;: The structured-output FSM is still being compiled asynchronously.&lt;/li&gt;
-&lt;li&gt;&lt;strong&gt;LoRA constraint&lt;/strong&gt;: Adding the request would exceed &lt;code&gt;max_loras&lt;/code&gt; adapters in the batch.&lt;/li&gt;
 &lt;/ul&gt;
 &lt;p&gt;For requests that pass these checks, the scheduler resolves the prefix cache hit count:&lt;/p&gt;
 &lt;div class=&#34;highlight&#34;&gt;&lt;pre tabindex=&#34;0&#34; style=&#34;color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;&#34;&gt;&lt;code class=&#34;language-python&#34; data-lang=&#34;python&#34;&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#75715e&#34;&gt;# Local prefix cache hit&lt;/span&gt;
@@ -376,7 +373,6 @@ Scheduler step N+1 (or later):
 &lt;li&gt;&lt;code&gt;kv_transfer_params&lt;/code&gt; — additional routing info (DP rank, PP partition)&lt;/li&gt;
 &lt;/ul&gt;
 &lt;p&gt;&lt;strong&gt;Block lifetime on the prefill node.&lt;/strong&gt; &lt;code&gt;PrefillConnectorScheduler.request_finished()&lt;/code&gt; returns &lt;code&gt;delay_free_blocks=True&lt;/code&gt;, so the scheduler does not immediately release the prefill&amp;rsquo;s KV blocks. Instead, &lt;code&gt;PrefillConnectorWorker&lt;/code&gt; keeps them alive until the decode node confirms receipt via a ZMQ message. The maximum hold time is &lt;code&gt;BLOCK_RELEASE_DELAY = 600 s&lt;/code&gt;.&lt;/p&gt;
-&lt;p&gt;&lt;strong&gt;Tensor-parallel mismatch.&lt;/strong&gt; If prefill and decode run with different TP sizes, &lt;code&gt;TP_Convertor&lt;/code&gt; (&lt;code&gt;omni_npu/connector/utils.py&lt;/code&gt;) remaps block IDs and reorders KV tensors via &lt;code&gt;torch.distributed.all_to_all_single&lt;/code&gt; before the transfer, so blocks land on the correct TP shard.&lt;/p&gt;
 - https://zhixuan-zxli.github.io/llm/scheduler/ - </description>
         </item>
     

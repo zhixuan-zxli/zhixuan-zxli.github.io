@@ -541,23 +541,11 @@ Pass 2 — waiting requests  (skipped entirely if any preemption occurred in Pas
 </span></span><span style="display:flex;"><span>num_new_tokens <span style="color:#f92672">=</span> min(num_new_tokens, token_budget)
 </span></span></code></pre></div><p><code>num_tokens_with_spec</code> includes any speculative draft tokens, so this correctly handles both ordinary decoding (gap = 1) and chunked prefill continuation (gap = many).</p>
 <p><code>token_budget</code> is then decremented by <code>num_new_tokens</code> after each scheduled request, bounding total tokens per step.</p>
-<p><strong>KV block allocation and preemption.</strong> For each request, <code>kv_cache_manager.allocate_slots()</code> is called to obtain new blocks. If it fails (cache full), the scheduler preempts the lowest-priority request in <code>self.running</code>:</p>
-<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-python" data-lang="python"><span style="display:flex;"><span><span style="color:#66d9ef">while</span> <span style="color:#66d9ef">True</span>:
-</span></span><span style="display:flex;"><span>    new_blocks <span style="color:#f92672">=</span> kv_cache_manager<span style="color:#f92672">.</span>allocate_slots(request, num_new_tokens, <span style="color:#f92672">...</span>)
-</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">if</span> new_blocks <span style="color:#f92672">is</span> <span style="color:#f92672">not</span> <span style="color:#66d9ef">None</span>:
-</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">break</span>                   <span style="color:#75715e"># success</span>
-</span></span><span style="display:flex;"><span>    preempted_req <span style="color:#f92672">=</span> self<span style="color:#f92672">.</span>running<span style="color:#f92672">.</span>pop()   <span style="color:#75715e"># evict tail (FCFS) or max-priority (priority policy)</span>
-</span></span><span style="display:flex;"><span>    _preempt_request(preempted_req)      <span style="color:#75715e"># free its KV blocks, move back to waiting</span>
-</span></span><span style="display:flex;"><span>    preempted_reqs<span style="color:#f92672">.</span>append(preempted_req)
-</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">if</span> preempted_req <span style="color:#f92672">==</span> request:
-</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">break</span>                   <span style="color:#75715e"># can&#39;t make room even by preempting self; skip</span>
-</span></span></code></pre></div><p><code>_preempt_request</code> frees all KV blocks for the evicted request, resets its <code>num_computed_tokens</code> to 0, and pushes it back to the head of <code>self.waiting</code> with status <code>PREEMPTED</code>.</p>
+<p><strong>KV block allocation and preemption.</strong> Omitted. See the posts on KV cache / model runner.</p>
 <h4 id="pass-2-waiting-requests">Pass 2: waiting requests</h4>
 <p>Skipped entirely if any preemption happened in Pass 1 (to avoid starving running requests further). Otherwise, pops from <code>self.waiting</code> in order. Several checks can cause a request to be deferred (re-inserted at the head of the queue via <code>skipped_waiting_requests</code>) rather than scheduled:</p>
 <ul>
 <li><strong><code>WAITING_FOR_REMOTE_KVS</code></strong>: KV transfer from a remote prefill node is still in flight. The request is skipped until <code>finished_recving_kv_req_ids</code> signals completion.</li>
-<li><strong><code>WAITING_FOR_FSM</code></strong>: The structured-output FSM is still being compiled asynchronously.</li>
-<li><strong>LoRA constraint</strong>: Adding the request would exceed <code>max_loras</code> adapters in the batch.</li>
 </ul>
 <p>For requests that pass these checks, the scheduler resolves the prefix cache hit count:</p>
 <div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-python" data-lang="python"><span style="display:flex;"><span><span style="color:#75715e"># Local prefix cache hit</span>
@@ -757,7 +745,6 @@ Scheduler step N+1 (or later):
 <li><code>kv_transfer_params</code> — additional routing info (DP rank, PP partition)</li>
 </ul>
 <p><strong>Block lifetime on the prefill node.</strong> <code>PrefillConnectorScheduler.request_finished()</code> returns <code>delay_free_blocks=True</code>, so the scheduler does not immediately release the prefill&rsquo;s KV blocks. Instead, <code>PrefillConnectorWorker</code> keeps them alive until the decode node confirms receipt via a ZMQ message. The maximum hold time is <code>BLOCK_RELEASE_DELAY = 600 s</code>.</p>
-<p><strong>Tensor-parallel mismatch.</strong> If prefill and decode run with different TP sizes, <code>TP_Convertor</code> (<code>omni_npu/connector/utils.py</code>) remaps block IDs and reorders KV tensors via <code>torch.distributed.all_to_all_single</code> before the transfer, so blocks land on the correct TP shard.</p>
 
                     
                     <HR width="100%" id="EOF">
