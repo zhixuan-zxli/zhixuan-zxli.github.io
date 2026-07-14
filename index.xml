@@ -82,6 +82,631 @@
     
     
         <item>
+        <title>Mooncake KV Connector</title>
+        <link>https://zhixuan-zxli.github.io/llm/mooncake/</link>
+        <pubDate>Tue, 14 Jul 2026 00:00:00 +0000</pubDate>
+        
+        <guid>https://zhixuan-zxli.github.io/llm/mooncake/</guid>
+        <description>Zhixuan&#39;s Blog https://zhixuan-zxli.github.io/llm/mooncake/ -&lt;blockquote&gt;
+&lt;p&gt;这篇博客是这个&lt;a href=&#34;https://mp.weixin.qq.com/s/kxoaqZsBsl0kKT5pPyD09Q&#34;&gt;公众号文章&lt;/a&gt;的重整理和排版，暂时找不到更上游的出处。&lt;/p&gt;
+&lt;/blockquote&gt;
+&lt;h2 id=&#34;引言&#34;&gt;引言&lt;/h2&gt;
+&lt;p&gt;分离式推理的核心思想：让 Prefill 和 Decode 跑在不同的机器上，各干各的最擅长的事。但分离后，KV Cache 怎么从 Prefill 机器传到 Decode 机器？这就是Mooncake KV Connector要解决的问题。&lt;/p&gt;
+&lt;p&gt;当前业界分离式推理的 KV 传输方案：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;Mooncake&lt;/strong&gt;
+：基于 RDMA 的零拷贝 P2P 传输，专为 GPU 间高速 KV 传输设计，vLLM 原生集成&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;NIXL&lt;/strong&gt;
+（LMCache 使用）：NVIDIA 的通用高速传输库，支持多种内存类型&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;自定义 TCP/gRPC&lt;/strong&gt;
+：简单但延迟高，适合原型验证&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;选型建议：如果追求最低延迟且有 RDMA 网卡（InfiniBand/RoCE），选 Mooncake；如果需要跨引擎共享 KV Cache 或持久化，选 LMCache+NIXL；如果只是验证概念，TCP 方案最简单。vLLM 对 Mooncake 的集成最深入，开箱即用。&lt;/p&gt;
+&lt;p&gt;MooncakeConnector，只支持p和d之间的kv cache传输，即pd分离式架构下的产物，不支持共享前缀缓存；MooncakeStoreConnector，只支持共享前缀缓存，不支持pd传输；这里提一下上一篇文章中主要介绍的OffloadingConnector，vLLM自带的，共享前缀缓存，有时候测试下来也挺好。和MooncakeStoreConnector类似，一个是单机缓存，一个是多机分布式存储池。&lt;/p&gt;
+&lt;p&gt;vLLM支持MultiConnector：同时使用PD传输（P2P）和 前缀缓存（Store），可以 MooncakeConnector + MooncakeStoreConnector组合，也可以 MooncakeConnector + OffloadingConnector组合。MultiConnector方式下，要注意两种connector有关block size等参数的大小要对齐。&lt;/p&gt;
+&lt;h2 id=&#34;1-mooncake-是什么不只是传送带&#34;&gt;1. Mooncake 是什么：不只是&amp;quot;传送带&amp;quot;&lt;/h2&gt;
+&lt;h3 id=&#34;11-mooncake-项目&#34;&gt;1.1 Mooncake 项目&lt;/h3&gt;
+&lt;p&gt;Mooncake 是一个面向 LLM 推理的分布式 KV Cache 传输与存储系统。它的核心能力：&lt;/p&gt;
+&lt;pre tabindex=&#34;0&#34;&gt;&lt;code&gt;┌──────────────────────────────────────────────────────────────┐
+│                    Mooncake 核心能力                          │
+│                                                              │
+│  1. 零拷贝 RDMA 传输：GPU 之间直接传 KV Cache，不经 CPU 拷贝  │
+│  2. 多级存储池：DRAM / SSD 构建分层缓存，慢存储也不怕          │
+│  3. 高速互联：充分利用多网卡 RDMA 带宽                       │
+│  4. 前缀去重：基于哈希的 KV Cache 去重与复用                  │
+└──────────────────────────────────────────────────────────────┘
+&lt;/code&gt;&lt;/pre&gt;&lt;p&gt;在 vLLM 中，Mooncake 以KV Connector的形式集成——它是 vLLM KV 传输框架的一个&amp;quot;插件&amp;quot;，专门负责跨实例的 KV Cache 传输。&lt;/p&gt;
+&lt;h3 id=&#34;12-两种-mooncake-connector&#34;&gt;1.2 两种 Mooncake Connector&lt;/h3&gt;
+&lt;p&gt;vLLM 提供了两种基于 Mooncake 的 Connector：&lt;/p&gt;
+&lt;table&gt;
+	&lt;thead&gt;
+			&lt;tr&gt;
+					&lt;th&gt;Connector&lt;/th&gt;
+					&lt;th&gt;架构&lt;/th&gt;
+					&lt;th&gt;传输方式&lt;/th&gt;
+					&lt;th&gt;适用场景&lt;/th&gt;
+			&lt;/tr&gt;
+	&lt;/thead&gt;
+	&lt;tbody&gt;
+			&lt;tr&gt;
+					&lt;td&gt;MooncakeConnector&lt;/td&gt;
+					&lt;td&gt;P2P 直连&lt;/td&gt;
+					&lt;td&gt;RDMA 零拷贝&lt;/td&gt;
+					&lt;td&gt;分离式 Prefill/Decode&lt;/td&gt;
+			&lt;/tr&gt;
+			&lt;tr&gt;
+					&lt;td&gt;MooncakeStoreConnector&lt;/td&gt;
+					&lt;td&gt;共享存储池&lt;/td&gt;
+					&lt;td&gt;分布式 KV Pool&lt;/td&gt;
+					&lt;td&gt;单机 offload + 跨实例共享&lt;/td&gt;
+			&lt;/tr&gt;
+	&lt;/tbody&gt;
+&lt;/table&gt;
+&lt;p&gt;本文重点讲解MooncakeConnector（P2P 直连），最后简要介绍MooncakeStoreConnector。&lt;/p&gt;
+&lt;h2 id=&#34;2-分离式推理架构prefill-和-decode-各干各的&#34;&gt;2. 分离式推理架构：Prefill 和 Decode 各干各的&lt;/h2&gt;
+&lt;h3 id=&#34;21-为什么需要分离&#34;&gt;2.1 为什么需要分离&lt;/h3&gt;
+&lt;table&gt;
+	&lt;thead&gt;
+			&lt;tr&gt;
+					&lt;th&gt;特性&lt;/th&gt;
+					&lt;th&gt;Prefill&lt;/th&gt;
+					&lt;th&gt;Decode&lt;/th&gt;
+			&lt;/tr&gt;
+	&lt;/thead&gt;
+	&lt;tbody&gt;
+			&lt;tr&gt;
+					&lt;td&gt;计算类型&lt;/td&gt;
+					&lt;td&gt;计算密集型（大量 token 并行）&lt;/td&gt;
+					&lt;td&gt;访存密集型（逐 token 生成）&lt;/td&gt;
+			&lt;/tr&gt;
+			&lt;tr&gt;
+					&lt;td&gt;GPU 利用率&lt;/td&gt;
+					&lt;td&gt;高（矩阵乘法密集）&lt;/td&gt;
+					&lt;td&gt;低（大量等待内存访问）&lt;/td&gt;
+			&lt;/tr&gt;
+			&lt;tr&gt;
+					&lt;td&gt;批次大小&lt;/td&gt;
+					&lt;td&gt;小（少量长请求）&lt;/td&gt;
+					&lt;td&gt;大（大量短请求）&lt;/td&gt;
+			&lt;/tr&gt;
+			&lt;tr&gt;
+					&lt;td&gt;最优硬件&lt;/td&gt;
+					&lt;td&gt;高算力 GPU（如 H100 SXM）&lt;/td&gt;
+					&lt;td&gt;高带宽 GPU（如 H100 PCIe）&lt;/td&gt;
+			&lt;/tr&gt;
+	&lt;/tbody&gt;
+&lt;/table&gt;
+&lt;p&gt;把它们绑在一起，就像让举重选手和体操选手共用一个训练馆——谁都施展不开。分离后，Prefill 机器可以全力做矩阵乘法，Decode 机器可以全力做内存访问，各得其所。&lt;/p&gt;
+&lt;p&gt;2.2 分离后的数据流&lt;/p&gt;
+&lt;pre tabindex=&#34;0&#34;&gt;&lt;code&gt;┌──────────────────┐                        ┌──────────────────┐
+│   Prefiller      │    KV Cache 传输       │    Decoder       │
+│   (Producer)     │ ═════════════════════► │   (Consumer)     │
+│                  │     Mooncake RDMA      │                  │
+│  1. 接收请求      │                        │  3. 接收 KV      │
+│  2. Prefill      │                        │  4. Decode       │
+│     生成 KV       │                        │     逐 token     │
+│     Cache        │                        │     生成         │
+└──────────────────┘                        └──────────────────┘
+       GPU A                                       GPU B
+&lt;/code&gt;&lt;/pre&gt;&lt;p&gt;关键问题：Prefill 生成的 KV Cache 怎么传到 Decode 机器？&lt;/p&gt;
+&lt;h2 id=&#34;3-mooncakeconnector-架构双进程协作&#34;&gt;3. MooncakeConnector 架构：双进程协作&lt;/h2&gt;
+&lt;h3 id=&#34;31-类层次结构&#34;&gt;3.1 类层次结构&lt;/h3&gt;
+&lt;div class=&#34;highlight&#34;&gt;&lt;pre tabindex=&#34;0&#34; style=&#34;color:#272822;background-color:#fafafa;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;&#34;&gt;&lt;code class=&#34;language-python&#34; data-lang=&#34;python&#34;&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#75715e&#34;&gt;# vllm/distributed/kv_transfer/kv_connector/v1/mooncake/mooncake_connector.py&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#00a8c8&#34;&gt;class&lt;/span&gt; &lt;span style=&#34;color:#75af00&#34;&gt;MooncakeConnector&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;(&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;KVConnectorBase_V1&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;,&lt;/span&gt; &lt;span style=&#34;color:#111&#34;&gt;SupportsHMA&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;):&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;    &lt;span style=&#34;color:#d88200&#34;&gt;&amp;#34;&amp;#34;&amp;#34;Mooncake P2P KV Cache 传输连接器&amp;#34;&amp;#34;&amp;#34;&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;    &lt;span style=&#34;color:#75715e&#34;&gt;# 内部类&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;    &lt;span style=&#34;color:#00a8c8&#34;&gt;class&lt;/span&gt; &lt;span style=&#34;color:#75af00&#34;&gt;MooncakeConnectorScheduler&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;:&lt;/span&gt;  &lt;span style=&#34;color:#75715e&#34;&gt;# Scheduler 进程侧&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;    &lt;span style=&#34;color:#00a8c8&#34;&gt;class&lt;/span&gt; &lt;span style=&#34;color:#75af00&#34;&gt;MooncakeConnectorWorker&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;:&lt;/span&gt;     &lt;span style=&#34;color:#75715e&#34;&gt;# Worker 进程侧&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;继承关系：&lt;/p&gt;
+&lt;pre tabindex=&#34;0&#34;&gt;&lt;code&gt;KVConnectorBase_V1 (抽象基类)
+    └── MooncakeConnector
+            ├── MooncakeConnectorScheduler  (Scheduler 侧实现)
+            └── MooncakeConnectorWorker     (Worker 侧实现)
+
+SupportsHMA (混入类，支持混合内存分配器)
+    └── MooncakeConnector
+&lt;/code&gt;&lt;/pre&gt;&lt;h3 id=&#34;32-双进程分工&#34;&gt;3.2 双进程分工&lt;/h3&gt;
+&lt;p&gt;vLLM V1 是双进程架构——Scheduler 进程做调度，Worker 进程做计算。MooncakeConnector 在两个进程中各有一个实例，分工不同：&lt;/p&gt;
+&lt;pre tabindex=&#34;0&#34;&gt;&lt;code&gt;┌─────────────────────────────────────────────────────────────┐
+│                    Prefiller 节点                            │
+│                                                             │
+│  Scheduler 进程                  Worker 进程                 │
+│  ┌─────────────────────┐        ┌─────────────────────┐    │
+│  │ Scheduler 侧        │        │ Worker 侧           │    │
+│  │                     │        │                     │    │
+│  │ · 判断哪些请求        │  meta  │ · 实际执行 RDMA      │    │
+│  │   需要发送 KV        │ ────→  │   传输              │    │
+│  │ · 构建传输元数据      │        │ · 注册 GPU 内存      │    │
+│  │ · 通知 Worker 发送   │        │ · 调用 TransferEngine│    │
+│  └─────────────────────┘        └─────────────────────┘    │
+└─────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────┐
+│                    Decoder 节点                              │
+│                                                             │
+│  Scheduler 进程                  Worker 进程                 │
+│  ┌─────────────────────┐        ┌─────────────────────┐    │
+│  │ Scheduler 侧        │        │ Worker 侧            │    │
+│  │                     │        │                     │    │
+│  │ · 判断哪些请求        │  meta  │ · 实际接收 RDMA      │    │
+│  │   需要接收 KV        │ ────→  │   传输               │    │
+│  │ · 计算匹配的         │        │ · 将 KV 写入本地      │    │
+│  │   token 数          │        │   KV Cache          │    │
+│  └─────────────────────┘        └─────────────────────┘    │
+└─────────────────────────────────────────────────────────────┘
+&lt;/code&gt;&lt;/pre&gt;&lt;h3 id=&#34;33-角色枚举&#34;&gt;3.3 角色枚举&lt;/h3&gt;
+&lt;div class=&#34;highlight&#34;&gt;&lt;pre tabindex=&#34;0&#34; style=&#34;color:#272822;background-color:#fafafa;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;&#34;&gt;&lt;code class=&#34;language-python&#34; data-lang=&#34;python&#34;&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#75715e&#34;&gt;# vllm/distributed/kv_transfer/kv_connector/v1/base.py&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#00a8c8&#34;&gt;class&lt;/span&gt; &lt;span style=&#34;color:#75af00&#34;&gt;KVConnectorRole&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;(&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;enum&lt;/span&gt;&lt;span style=&#34;color:#f92672&#34;&gt;.&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;Enum&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;):&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;    &lt;span style=&#34;color:#111&#34;&gt;SCHEDULER&lt;/span&gt; &lt;span style=&#34;color:#f92672&#34;&gt;=&lt;/span&gt; &lt;span style=&#34;color:#ae81ff&#34;&gt;0&lt;/span&gt;  &lt;span style=&#34;color:#75715e&#34;&gt;# Scheduler 进程中的连接器&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;    &lt;span style=&#34;color:#111&#34;&gt;WORKER&lt;/span&gt; &lt;span style=&#34;color:#f92672&#34;&gt;=&lt;/span&gt; &lt;span style=&#34;color:#ae81ff&#34;&gt;1&lt;/span&gt;      &lt;span style=&#34;color:#75715e&#34;&gt;# Worker 进程中的连接器&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;构造函数根据角色创建不同的内部实现：&lt;/p&gt;
+&lt;div class=&#34;highlight&#34;&gt;&lt;pre tabindex=&#34;0&#34; style=&#34;color:#272822;background-color:#fafafa;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;&#34;&gt;&lt;code class=&#34;language-python&#34; data-lang=&#34;python&#34;&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#75715e&#34;&gt;# mooncake_connector.py&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#00a8c8&#34;&gt;def&lt;/span&gt; &lt;span style=&#34;color:#75af00&#34;&gt;__init__&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;(&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;self&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;,&lt;/span&gt; &lt;span style=&#34;color:#111&#34;&gt;vllm_config&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;,&lt;/span&gt; &lt;span style=&#34;color:#111&#34;&gt;role&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;,&lt;/span&gt; &lt;span style=&#34;color:#111&#34;&gt;kv_cache_config&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;):&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;    &lt;span style=&#34;color:#00a8c8&#34;&gt;if&lt;/span&gt; &lt;span style=&#34;color:#111&#34;&gt;role&lt;/span&gt; &lt;span style=&#34;color:#f92672&#34;&gt;==&lt;/span&gt; &lt;span style=&#34;color:#111&#34;&gt;KVConnectorRole&lt;/span&gt;&lt;span style=&#34;color:#f92672&#34;&gt;.&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;SCHEDULER&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;:&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;        &lt;span style=&#34;color:#111&#34;&gt;self&lt;/span&gt;&lt;span style=&#34;color:#f92672&#34;&gt;.&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;connector_scheduler&lt;/span&gt; &lt;span style=&#34;color:#f92672&#34;&gt;=&lt;/span&gt; &lt;span style=&#34;color:#111&#34;&gt;MooncakeConnectorScheduler&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;(&lt;/span&gt;&lt;span style=&#34;color:#f92672&#34;&gt;...&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;)&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;    &lt;span style=&#34;color:#00a8c8&#34;&gt;elif&lt;/span&gt; &lt;span style=&#34;color:#111&#34;&gt;role&lt;/span&gt; &lt;span style=&#34;color:#f92672&#34;&gt;==&lt;/span&gt; &lt;span style=&#34;color:#111&#34;&gt;KVConnectorRole&lt;/span&gt;&lt;span style=&#34;color:#f92672&#34;&gt;.&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;WORKER&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;:&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;        &lt;span style=&#34;color:#111&#34;&gt;self&lt;/span&gt;&lt;span style=&#34;color:#f92672&#34;&gt;.&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;connector_worker&lt;/span&gt; &lt;span style=&#34;color:#f92672&#34;&gt;=&lt;/span&gt; &lt;span style=&#34;color:#111&#34;&gt;MooncakeConnectorWorker&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;(&lt;/span&gt;&lt;span style=&#34;color:#f92672&#34;&gt;...&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;)&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;h2 id=&#34;4-kv-传输的完整数据流&#34;&gt;4. KV 传输的完整数据流&lt;/h2&gt;
+&lt;h3 id=&#34;41-producer-侧prefiller发送-kv-cache&#34;&gt;4.1 Producer 侧（Prefiller）：发送 KV Cache&lt;/h3&gt;
+&lt;p&gt;Step 1：Scheduler 判断哪些请求需要发送&lt;/p&gt;
+&lt;div class=&#34;highlight&#34;&gt;&lt;pre tabindex=&#34;0&#34; style=&#34;color:#272822;background-color:#fafafa;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;&#34;&gt;&lt;code class=&#34;language-python&#34; data-lang=&#34;python&#34;&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#75715e&#34;&gt;# MooncakeConnectorScheduler&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#00a8c8&#34;&gt;def&lt;/span&gt; &lt;span style=&#34;color:#75af00&#34;&gt;build_connector_meta&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;(&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;self&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;,&lt;/span&gt; &lt;span style=&#34;color:#111&#34;&gt;scheduler_output&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;)&lt;/span&gt; &lt;span style=&#34;color:#f92672&#34;&gt;-&amp;gt;&lt;/span&gt; &lt;span style=&#34;color:#111&#34;&gt;KVConnectorMetadata&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;:&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;    &lt;span style=&#34;color:#111&#34;&gt;meta&lt;/span&gt; &lt;span style=&#34;color:#f92672&#34;&gt;=&lt;/span&gt; &lt;span style=&#34;color:#111&#34;&gt;MooncakeConnectorMetadata&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;()&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;    &lt;span style=&#34;color:#75715e&#34;&gt;# 遍历需要发送的请求&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;    &lt;span style=&#34;color:#00a8c8&#34;&gt;for&lt;/span&gt; &lt;span style=&#34;color:#111&#34;&gt;req_id&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;,&lt;/span&gt; &lt;span style=&#34;color:#111&#34;&gt;(&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;req&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;,&lt;/span&gt; &lt;span style=&#34;color:#111&#34;&gt;block_ids&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;)&lt;/span&gt; &lt;span style=&#34;color:#f92672&#34;&gt;in&lt;/span&gt; &lt;span style=&#34;color:#111&#34;&gt;self&lt;/span&gt;&lt;span style=&#34;color:#f92672&#34;&gt;.&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;_reqs_need_send&lt;/span&gt;&lt;span style=&#34;color:#f92672&#34;&gt;.&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;items&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;():&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;        &lt;span style=&#34;color:#111&#34;&gt;meta&lt;/span&gt;&lt;span style=&#34;color:#f92672&#34;&gt;.&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;add_new_req&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;(&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;            &lt;span style=&#34;color:#111&#34;&gt;request_id&lt;/span&gt;&lt;span style=&#34;color:#f92672&#34;&gt;=&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;req_id&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;,&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;            &lt;span style=&#34;color:#111&#34;&gt;local_block_ids&lt;/span&gt;&lt;span style=&#34;color:#f92672&#34;&gt;=&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;block_ids&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;,&lt;/span&gt;        &lt;span style=&#34;color:#75715e&#34;&gt;# 本地 block IDs&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;            &lt;span style=&#34;color:#111&#34;&gt;kv_transfer_params&lt;/span&gt;&lt;span style=&#34;color:#f92672&#34;&gt;=&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;req&lt;/span&gt;&lt;span style=&#34;color:#f92672&#34;&gt;.&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;kv_transfer_params&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;,&lt;/span&gt;  &lt;span style=&#34;color:#75715e&#34;&gt;# 传输参数&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;            &lt;span style=&#34;color:#111&#34;&gt;load_remote_cache&lt;/span&gt;&lt;span style=&#34;color:#f92672&#34;&gt;=&lt;/span&gt;&lt;span style=&#34;color:#00a8c8&#34;&gt;False&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;,&lt;/span&gt;           &lt;span style=&#34;color:#75715e&#34;&gt;# 我是发送方&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;        &lt;span style=&#34;color:#111&#34;&gt;)&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;    &lt;span style=&#34;color:#00a8c8&#34;&gt;return&lt;/span&gt; &lt;span style=&#34;color:#111&#34;&gt;meta&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;Step 2：Worker 执行 RDMA 传输&lt;/p&gt;
+&lt;div class=&#34;highlight&#34;&gt;&lt;pre tabindex=&#34;0&#34; style=&#34;color:#272822;background-color:#fafafa;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;&#34;&gt;&lt;code class=&#34;language-python&#34; data-lang=&#34;python&#34;&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#75715e&#34;&gt;# MooncakeConnectorWorker&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#00a8c8&#34;&gt;def&lt;/span&gt; &lt;span style=&#34;color:#75af00&#34;&gt;send_kv_to_decode&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;(&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;self&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;,&lt;/span&gt; &lt;span style=&#34;color:#f92672&#34;&gt;...&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;):&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;    &lt;span style=&#34;color:#75715e&#34;&gt;# 1. 接收 Decoder 发来的 ZMQ 请求（包含目标地址信息）&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;    &lt;span style=&#34;color:#75715e&#34;&gt;# 2. 验证 TP 配对和区域对齐&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;    &lt;span style=&#34;color:#75715e&#34;&gt;# 3. 计算源地址和目标地址&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;    &lt;span style=&#34;color:#75715e&#34;&gt;# 4. 调用 Mooncake TransferEngine 批量写入&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;    &lt;span style=&#34;color:#111&#34;&gt;self&lt;/span&gt;&lt;span style=&#34;color:#f92672&#34;&gt;.&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;_send_blocks&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;(&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;remote_session&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;,&lt;/span&gt; &lt;span style=&#34;color:#111&#34;&gt;src_ptrs&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;,&lt;/span&gt; &lt;span style=&#34;color:#111&#34;&gt;dst_ptrs&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;,&lt;/span&gt; &lt;span style=&#34;color:#111&#34;&gt;lengths&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;)&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;Step 3：底层传输&lt;/p&gt;
+&lt;div class=&#34;highlight&#34;&gt;&lt;pre tabindex=&#34;0&#34; style=&#34;color:#272822;background-color:#fafafa;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;&#34;&gt;&lt;code class=&#34;language-python&#34; data-lang=&#34;python&#34;&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#75715e&#34;&gt;# 底层 RDMA 传输&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#00a8c8&#34;&gt;def&lt;/span&gt; &lt;span style=&#34;color:#75af00&#34;&gt;_send_blocks&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;(&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;self&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;,&lt;/span&gt; &lt;span style=&#34;color:#111&#34;&gt;remote_session&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;,&lt;/span&gt; &lt;span style=&#34;color:#111&#34;&gt;src_ptrs&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;,&lt;/span&gt; &lt;span style=&#34;color:#111&#34;&gt;dst_ptrs&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;,&lt;/span&gt; &lt;span style=&#34;color:#111&#34;&gt;lengths&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;):&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;    &lt;span style=&#34;color:#111&#34;&gt;ret_value&lt;/span&gt; &lt;span style=&#34;color:#f92672&#34;&gt;=&lt;/span&gt; &lt;span style=&#34;color:#111&#34;&gt;self&lt;/span&gt;&lt;span style=&#34;color:#f92672&#34;&gt;.&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;engine&lt;/span&gt;&lt;span style=&#34;color:#f92672&#34;&gt;.&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;batch_transfer_sync_write&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;(&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;        &lt;span style=&#34;color:#111&#34;&gt;remote_session&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;,&lt;/span&gt; &lt;span style=&#34;color:#111&#34;&gt;src_ptrs&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;,&lt;/span&gt; &lt;span style=&#34;color:#111&#34;&gt;dst_ptrs&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;,&lt;/span&gt; &lt;span style=&#34;color:#111&#34;&gt;lengths&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;    &lt;span style=&#34;color:#111&#34;&gt;)&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;    &lt;span style=&#34;color:#75715e&#34;&gt;# 一次调用，批量传输多个 block&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;h3 id=&#34;42-consumer-侧decoder接收-kv-cache&#34;&gt;4.2 Consumer 侧（Decoder）：接收 KV Cache&lt;/h3&gt;
+&lt;p&gt;Step 1：Scheduler 判断需要接收多少 token&lt;/p&gt;
+&lt;div class=&#34;highlight&#34;&gt;&lt;pre tabindex=&#34;0&#34; style=&#34;color:#272822;background-color:#fafafa;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;&#34;&gt;&lt;code class=&#34;language-python&#34; data-lang=&#34;python&#34;&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#75715e&#34;&gt;# MooncakeConnectorScheduler&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#00a8c8&#34;&gt;def&lt;/span&gt; &lt;span style=&#34;color:#75af00&#34;&gt;get_num_new_matched_tokens&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;(&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;self&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;,&lt;/span&gt; &lt;span style=&#34;color:#111&#34;&gt;request&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;,&lt;/span&gt; &lt;span style=&#34;color:#111&#34;&gt;num_computed_tokens&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;):&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;    &lt;span style=&#34;color:#111&#34;&gt;params&lt;/span&gt; &lt;span style=&#34;color:#f92672&#34;&gt;=&lt;/span&gt; &lt;span style=&#34;color:#111&#34;&gt;request&lt;/span&gt;&lt;span style=&#34;color:#f92672&#34;&gt;.&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;kv_transfer_params&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;    &lt;span style=&#34;color:#00a8c8&#34;&gt;if&lt;/span&gt; &lt;span style=&#34;color:#111&#34;&gt;params&lt;/span&gt;&lt;span style=&#34;color:#f92672&#34;&gt;.&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;get&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;(&lt;/span&gt;&lt;span style=&#34;color:#d88200&#34;&gt;&amp;#34;do_remote_prefill&amp;#34;&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;):&lt;/span&gt;    &lt;span style=&#34;color:#75715e&#34;&gt;# 远程 prefill：从 Producer 获取所有 prompt 的 KV&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;        &lt;span style=&#34;color:#111&#34;&gt;token_ids&lt;/span&gt; &lt;span style=&#34;color:#f92672&#34;&gt;=&lt;/span&gt; &lt;span style=&#34;color:#111&#34;&gt;request&lt;/span&gt;&lt;span style=&#34;color:#f92672&#34;&gt;.&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;prompt_token_ids&lt;/span&gt; &lt;span style=&#34;color:#f92672&#34;&gt;or&lt;/span&gt; &lt;span style=&#34;color:#111&#34;&gt;[]&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;        &lt;span style=&#34;color:#111&#34;&gt;count&lt;/span&gt; &lt;span style=&#34;color:#f92672&#34;&gt;=&lt;/span&gt; &lt;span style=&#34;color:#111&#34;&gt;len&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;(&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;token_ids&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;)&lt;/span&gt; &lt;span style=&#34;color:#f92672&#34;&gt;-&lt;/span&gt; &lt;span style=&#34;color:#111&#34;&gt;num_computed_tokens&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;    &lt;span style=&#34;color:#00a8c8&#34;&gt;if&lt;/span&gt; &lt;span style=&#34;color:#111&#34;&gt;count&lt;/span&gt; &lt;span style=&#34;color:#f92672&#34;&gt;&amp;gt;&lt;/span&gt; &lt;span style=&#34;color:#ae81ff&#34;&gt;0&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;:&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;        &lt;span style=&#34;color:#00a8c8&#34;&gt;return&lt;/span&gt; &lt;span style=&#34;color:#111&#34;&gt;count&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;,&lt;/span&gt; &lt;span style=&#34;color:#00a8c8&#34;&gt;True&lt;/span&gt;  &lt;span style=&#34;color:#75715e&#34;&gt;# True = 异步加载&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;Step 2：Scheduler 记录需要接收的请求&lt;/p&gt;
+&lt;div class=&#34;highlight&#34;&gt;&lt;pre tabindex=&#34;0&#34; style=&#34;color:#272822;background-color:#fafafa;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;&#34;&gt;&lt;code class=&#34;language-python&#34; data-lang=&#34;python&#34;&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#00a8c8&#34;&gt;def&lt;/span&gt; &lt;span style=&#34;color:#75af00&#34;&gt;update_state_after_alloc&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;(&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;self&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;,&lt;/span&gt; &lt;span style=&#34;color:#111&#34;&gt;request&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;,&lt;/span&gt; &lt;span style=&#34;color:#111&#34;&gt;blocks&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;,&lt;/span&gt; &lt;span style=&#34;color:#111&#34;&gt;num_external_tokens&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;):&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;    &lt;span style=&#34;color:#75715e&#34;&gt;# 记录到 _reqs_need_recv，等待 Worker 处理&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;    &lt;span style=&#34;color:#111&#34;&gt;self&lt;/span&gt;&lt;span style=&#34;color:#f92672&#34;&gt;.&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;_reqs_need_recv&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;[&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;request&lt;/span&gt;&lt;span style=&#34;color:#f92672&#34;&gt;.&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;request_id&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;]&lt;/span&gt; &lt;span style=&#34;color:#f92672&#34;&gt;=&lt;/span&gt; &lt;span style=&#34;color:#111&#34;&gt;PullReqMeta&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;(&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;        &lt;span style=&#34;color:#111&#34;&gt;d_req_id&lt;/span&gt;&lt;span style=&#34;color:#f92672&#34;&gt;=&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;request&lt;/span&gt;&lt;span style=&#34;color:#f92672&#34;&gt;.&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;request_id&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;,&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;        &lt;span style=&#34;color:#111&#34;&gt;transfer_id&lt;/span&gt;&lt;span style=&#34;color:#f92672&#34;&gt;=&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;transfer_id&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;,&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;        &lt;span style=&#34;color:#111&#34;&gt;local_block_ids&lt;/span&gt;&lt;span style=&#34;color:#f92672&#34;&gt;=&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;block_ids&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;,&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;        &lt;span style=&#34;color:#111&#34;&gt;remote_engine_id&lt;/span&gt;&lt;span style=&#34;color:#f92672&#34;&gt;=&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;remote_engine_id&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;,&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;        &lt;span style=&#34;color:#111&#34;&gt;remote_bootstrap_addr&lt;/span&gt;&lt;span style=&#34;color:#f92672&#34;&gt;=&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;remote_addr&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;,&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;    &lt;span style=&#34;color:#111&#34;&gt;)&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;Step 3：Worker 接收 KV Cache&lt;/p&gt;
+&lt;div class=&#34;highlight&#34;&gt;&lt;pre tabindex=&#34;0&#34; style=&#34;color:#272822;background-color:#fafafa;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;&#34;&gt;&lt;code class=&#34;language-python&#34; data-lang=&#34;python&#34;&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#75715e&#34;&gt;# MooncakeConnectorWorker&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#00a8c8&#34;&gt;def&lt;/span&gt; &lt;span style=&#34;color:#75af00&#34;&gt;start_load_kv&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;(&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;self&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;,&lt;/span&gt; &lt;span style=&#34;color:#111&#34;&gt;forward_context&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;,&lt;/span&gt; &lt;span style=&#34;color:#f92672&#34;&gt;**&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;kwargs&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;):&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;    &lt;span style=&#34;color:#75715e&#34;&gt;# 向 Producer 发送 ZMQ 请求&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;    &lt;span style=&#34;color:#75715e&#34;&gt;# 等待 RDMA 传输完成&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;    &lt;span style=&#34;color:#75715e&#34;&gt;# KV Cache 已写入本地 GPU 内存&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;h3 id=&#34;43-完整时序&#34;&gt;4.3 完整时序&lt;/h3&gt;
+&lt;p&gt;时间轴 →&lt;/p&gt;
+&lt;pre tabindex=&#34;0&#34;&gt;&lt;code&gt;Decoder (Consumer)                          Prefiller (Producer)
+     │                                                │
+     │  1. 请求到达，Scheduler 判断需要远程 prefill       │
+     │  2. Scheduler 分配本地 block IDs                 │
+     │                                                │
+     │  3. ZMQ 请求 ──────────────────────────────→    │
+     │     (包含: block IDs, 目标地址信息)               │
+     │                                                │
+     │                              4. Worker 收到请求  │
+     │                              5. 计算源/目标地址   │
+     │                              6. RDMA 写入 ───→  │
+     │                                 (KV Cache 瞬移) │
+     │                                                │
+     │  7. KV Cache 到达本地 GPU                        │
+     │  8. 开始 Decode                                 │
+     │                                                │
+&lt;/code&gt;&lt;/pre&gt;&lt;h2 id=&#34;5-核心数据结构&#34;&gt;5. 核心数据结构&lt;/h2&gt;
+&lt;h3 id=&#34;51-mooncakexfermetadata传输的快递单&#34;&gt;5.1 MooncakeXferMetadata：传输的&amp;quot;快递单&amp;quot;&lt;/h3&gt;
+&lt;p&gt;每次 KV 传输都附带一张&amp;quot;快递单&amp;quot;，告诉对方传什么、传到哪：&lt;/p&gt;
+&lt;div class=&#34;highlight&#34;&gt;&lt;pre tabindex=&#34;0&#34; style=&#34;color:#272822;background-color:#fafafa;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;&#34;&gt;&lt;code class=&#34;language-python&#34; data-lang=&#34;python&#34;&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#75715e&#34;&gt;# mooncake_connector.py&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#00a8c8&#34;&gt;class&lt;/span&gt; &lt;span style=&#34;color:#75af00&#34;&gt;MooncakeXferMetadata&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;(&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;msgspec&lt;/span&gt;&lt;span style=&#34;color:#f92672&#34;&gt;.&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;Struct&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;,&lt;/span&gt; &lt;span style=&#34;color:#111&#34;&gt;omit_defaults&lt;/span&gt;&lt;span style=&#34;color:#f92672&#34;&gt;=&lt;/span&gt;&lt;span style=&#34;color:#00a8c8&#34;&gt;True&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;):&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;    &lt;span style=&#34;color:#111&#34;&gt;remote_hostname&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;:&lt;/span&gt; &lt;span style=&#34;color:#111&#34;&gt;str&lt;/span&gt;              &lt;span style=&#34;color:#75715e&#34;&gt;# 对端主机名&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;    &lt;span style=&#34;color:#111&#34;&gt;remote_port&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;:&lt;/span&gt; &lt;span style=&#34;color:#111&#34;&gt;int&lt;/span&gt;                  &lt;span style=&#34;color:#75715e&#34;&gt;# 对端端口&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;    &lt;span style=&#34;color:#111&#34;&gt;remote_tp_size&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;:&lt;/span&gt; &lt;span style=&#34;color:#111&#34;&gt;int&lt;/span&gt;               &lt;span style=&#34;color:#75715e&#34;&gt;# 对端 TP 大小&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;    &lt;span style=&#34;color:#111&#34;&gt;remote_tp_rank&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;:&lt;/span&gt; &lt;span style=&#34;color:#111&#34;&gt;int&lt;/span&gt;               &lt;span style=&#34;color:#75715e&#34;&gt;# 对端 TP rank&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;    &lt;span style=&#34;color:#111&#34;&gt;req_blocks&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;:&lt;/span&gt; &lt;span style=&#34;color:#111&#34;&gt;dict&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;[&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;ReqId&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;,&lt;/span&gt; &lt;span style=&#34;color:#111&#34;&gt;tuple&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;[&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;TransferId&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;,&lt;/span&gt; &lt;span style=&#34;color:#111&#34;&gt;list&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;[&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;list&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;[&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;int&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;]]]]&lt;/span&gt; &lt;span style=&#34;color:#75715e&#34;&gt;# 请求ID → (传输ID, block ID 列表)&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;    &lt;span style=&#34;color:#111&#34;&gt;kv_caches_base_addr&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;:&lt;/span&gt; &lt;span style=&#34;color:#111&#34;&gt;list&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;[&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;int&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;]&lt;/span&gt;    &lt;span style=&#34;color:#75715e&#34;&gt;# KV Cache 基地址列表&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;    &lt;span style=&#34;color:#111&#34;&gt;block_lens&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;:&lt;/span&gt; &lt;span style=&#34;color:#111&#34;&gt;list&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;[&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;int&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;]&lt;/span&gt;             &lt;span style=&#34;color:#75715e&#34;&gt;# 每个 block 的字节长度&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;    &lt;span style=&#34;color:#111&#34;&gt;registered_layer_names&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;:&lt;/span&gt; &lt;span style=&#34;color:#111&#34;&gt;list&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;[&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;str&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;]&lt;/span&gt; &lt;span style=&#34;color:#75715e&#34;&gt;# 已注册的层名&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;    &lt;span style=&#34;color:#111&#34;&gt;registered_layer_indices&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;:&lt;/span&gt; &lt;span style=&#34;color:#111&#34;&gt;list&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;[&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;int&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;]&lt;/span&gt; &lt;span style=&#34;color:#75715e&#34;&gt;# 已注册的层索引&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;h3 id=&#34;52-pullreqmeta接收请求的取件码&#34;&gt;5.2 PullReqMeta：接收请求的&amp;quot;取件码&amp;quot;&lt;/h3&gt;
+&lt;div class=&#34;highlight&#34;&gt;&lt;pre tabindex=&#34;0&#34; style=&#34;color:#272822;background-color:#fafafa;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;&#34;&gt;&lt;code class=&#34;language-python&#34; data-lang=&#34;python&#34;&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#75715e&#34;&gt;# mooncake_connector.py&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#75af00&#34;&gt;@dataclass&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#00a8c8&#34;&gt;class&lt;/span&gt; &lt;span style=&#34;color:#75af00&#34;&gt;PullReqMeta&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;:&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;    &lt;span style=&#34;color:#111&#34;&gt;d_req_id&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;:&lt;/span&gt; &lt;span style=&#34;color:#111&#34;&gt;ReqId&lt;/span&gt;                   &lt;span style=&#34;color:#75715e&#34;&gt;# Decoder 侧请求 ID&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;    &lt;span style=&#34;color:#111&#34;&gt;transfer_id&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;:&lt;/span&gt; &lt;span style=&#34;color:#111&#34;&gt;TransferId&lt;/span&gt;           &lt;span style=&#34;color:#75715e&#34;&gt;# 传输 ID&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;    &lt;span style=&#34;color:#111&#34;&gt;local_block_ids&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;:&lt;/span&gt; &lt;span style=&#34;color:#111&#34;&gt;list&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;[&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;list&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;[&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;int&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;]]&lt;/span&gt;  &lt;span style=&#34;color:#75715e&#34;&gt;# 本地 block ID 列表&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;    &lt;span style=&#34;color:#111&#34;&gt;remote_engine_id&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;:&lt;/span&gt; &lt;span style=&#34;color:#111&#34;&gt;EngineId&lt;/span&gt;        &lt;span style=&#34;color:#75715e&#34;&gt;# 远程引擎 ID&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;    &lt;span style=&#34;color:#111&#34;&gt;remote_bootstrap_addr&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;:&lt;/span&gt; &lt;span style=&#34;color:#111&#34;&gt;str&lt;/span&gt;        &lt;span style=&#34;color:#75715e&#34;&gt;# 远程引导服务器地址&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;    &lt;span style=&#34;color:#111&#34;&gt;expire_time&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;:&lt;/span&gt; &lt;span style=&#34;color:#111&#34;&gt;float&lt;/span&gt; &lt;span style=&#34;color:#f92672&#34;&gt;=&lt;/span&gt; &lt;span style=&#34;color:#111&#34;&gt;float&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;(&lt;/span&gt;&lt;span style=&#34;color:#d88200&#34;&gt;&amp;#34;inf&amp;#34;&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;)&lt;/span&gt; &lt;span style=&#34;color:#75715e&#34;&gt;# 过期时间&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;    &lt;span style=&#34;color:#111&#34;&gt;pull_tasks_count&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;:&lt;/span&gt; &lt;span style=&#34;color:#111&#34;&gt;int&lt;/span&gt; &lt;span style=&#34;color:#f92672&#34;&gt;=&lt;/span&gt; &lt;span style=&#34;color:#ae81ff&#34;&gt;0&lt;/span&gt;         &lt;span style=&#34;color:#75715e&#34;&gt;# 拉取任务计数&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;h3 id=&#34;53-transferregion传输区域的地图&#34;&gt;5.3 TransferRegion：传输区域的&amp;quot;地图&amp;quot;&lt;/h3&gt;
+&lt;div class=&#34;highlight&#34;&gt;&lt;pre tabindex=&#34;0&#34; style=&#34;color:#272822;background-color:#fafafa;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;&#34;&gt;&lt;code class=&#34;language-python&#34; data-lang=&#34;python&#34;&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#75715e&#34;&gt;# mooncake_connector.py&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#75af00&#34;&gt;@dataclass&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#00a8c8&#34;&gt;class&lt;/span&gt; &lt;span style=&#34;color:#75af00&#34;&gt;TransferRegion&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;:&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;    &lt;span style=&#34;color:#d88200&#34;&gt;&amp;#34;&amp;#34;&amp;#34;描述一次 KV Cache 传输的区域&amp;#34;&amp;#34;&amp;#34;&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;    &lt;span style=&#34;color:#111&#34;&gt;base_addr&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;:&lt;/span&gt; &lt;span style=&#34;color:#111&#34;&gt;int&lt;/span&gt;        &lt;span style=&#34;color:#75715e&#34;&gt;# 基地址&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;    &lt;span style=&#34;color:#111&#34;&gt;block_len&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;:&lt;/span&gt; &lt;span style=&#34;color:#111&#34;&gt;int&lt;/span&gt;        &lt;span style=&#34;color:#75715e&#34;&gt;# 每个 block 的字节长度&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;    &lt;span style=&#34;color:#111&#34;&gt;num_layers&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;:&lt;/span&gt; &lt;span style=&#34;color:#111&#34;&gt;int&lt;/span&gt;       &lt;span style=&#34;color:#75715e&#34;&gt;# 层数&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;    &lt;span style=&#34;color:#111&#34;&gt;num_blocks&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;:&lt;/span&gt; &lt;span style=&#34;color:#111&#34;&gt;int&lt;/span&gt;       &lt;span style=&#34;color:#75715e&#34;&gt;# block 数量&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;h2 id=&#34;6-地址映射block-id-如何变成内存地址&#34;&gt;6. 地址映射：Block ID 如何变成内存地址&lt;/h2&gt;
+&lt;p&gt;RDMA 传输需要精确的内存地址。vLLM 的 block ID 是逻辑编号，Mooncake 需要的是物理地址。这个映射过程是 MooncakeConnector 的核心机制之一。&lt;/p&gt;
+&lt;h3 id=&#34;61-内存注册&#34;&gt;6.1 内存注册&lt;/h3&gt;
+&lt;p&gt;Worker 启动时，将 GPU 上的 KV Cache 内存注册到 Mooncake TransferEngine：&lt;/p&gt;
+&lt;div class=&#34;highlight&#34;&gt;&lt;pre tabindex=&#34;0&#34; style=&#34;color:#272822;background-color:#fafafa;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;&#34;&gt;&lt;code class=&#34;language-python&#34; data-lang=&#34;python&#34;&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#75715e&#34;&gt;# MooncakeConnectorWorker&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#00a8c8&#34;&gt;def&lt;/span&gt; &lt;span style=&#34;color:#75af00&#34;&gt;register_kv_caches&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;(&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;self&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;,&lt;/span&gt; &lt;span style=&#34;color:#111&#34;&gt;kv_caches&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;:&lt;/span&gt; &lt;span style=&#34;color:#111&#34;&gt;dict&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;[&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;str&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;,&lt;/span&gt; &lt;span style=&#34;color:#111&#34;&gt;torch&lt;/span&gt;&lt;span style=&#34;color:#f92672&#34;&gt;.&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;Tensor&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;]):&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;    &lt;span style=&#34;color:#75715e&#34;&gt;# 收集每层 KV Cache 的基地址和长度&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;    &lt;span style=&#34;color:#00a8c8&#34;&gt;for&lt;/span&gt; &lt;span style=&#34;color:#111&#34;&gt;layer_name&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;,&lt;/span&gt; &lt;span style=&#34;color:#111&#34;&gt;cache&lt;/span&gt; &lt;span style=&#34;color:#f92672&#34;&gt;in&lt;/span&gt; &lt;span style=&#34;color:#111&#34;&gt;kv_caches&lt;/span&gt;&lt;span style=&#34;color:#f92672&#34;&gt;.&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;items&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;():&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;        &lt;span style=&#34;color:#111&#34;&gt;base_addr&lt;/span&gt; &lt;span style=&#34;color:#f92672&#34;&gt;=&lt;/span&gt; &lt;span style=&#34;color:#111&#34;&gt;cache&lt;/span&gt;&lt;span style=&#34;color:#f92672&#34;&gt;.&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;data_ptr&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;()&lt;/span&gt;          &lt;span style=&#34;color:#75715e&#34;&gt;# GPU 内存基地址&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;        &lt;span style=&#34;color:#111&#34;&gt;block_len&lt;/span&gt; &lt;span style=&#34;color:#f92672&#34;&gt;=&lt;/span&gt; &lt;span style=&#34;color:#111&#34;&gt;cache&lt;/span&gt;&lt;span style=&#34;color:#f92672&#34;&gt;.&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;stride&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;(&lt;/span&gt;&lt;span style=&#34;color:#ae81ff&#34;&gt;0&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;)&lt;/span&gt; &lt;span style=&#34;color:#f92672&#34;&gt;*&lt;/span&gt; &lt;span style=&#34;color:#111&#34;&gt;cache&lt;/span&gt;&lt;span style=&#34;color:#f92672&#34;&gt;.&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;element_size&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;()&lt;/span&gt;  &lt;span style=&#34;color:#75715e&#34;&gt;# 每个 block 的字节长度&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;        &lt;span style=&#34;color:#111&#34;&gt;self&lt;/span&gt;&lt;span style=&#34;color:#f92672&#34;&gt;.&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;kv_caches_base_addr&lt;/span&gt;&lt;span style=&#34;color:#f92672&#34;&gt;.&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;append&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;(&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;base_addr&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;)&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;        &lt;span style=&#34;color:#111&#34;&gt;self&lt;/span&gt;&lt;span style=&#34;color:#f92672&#34;&gt;.&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;block_len_per_layer&lt;/span&gt;&lt;span style=&#34;color:#f92672&#34;&gt;.&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;append&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;(&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;block_len&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;)&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;    &lt;span style=&#34;color:#75715e&#34;&gt;# 批量注册到 Mooncake TransferEngine&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;    &lt;span style=&#34;color:#111&#34;&gt;ret_value&lt;/span&gt; &lt;span style=&#34;color:#f92672&#34;&gt;=&lt;/span&gt; &lt;span style=&#34;color:#111&#34;&gt;self&lt;/span&gt;&lt;span style=&#34;color:#f92672&#34;&gt;.&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;engine&lt;/span&gt;&lt;span style=&#34;color:#f92672&#34;&gt;.&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;batch_register_memory&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;(&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;kv_data_ptrs&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;,&lt;/span&gt; &lt;span style=&#34;color:#111&#34;&gt;kv_data_lens&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;)&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;笔者注：batch_register_memory是 RDMA 的关键步骤——只有注册过的内存区域，才能被远程节点直接访问。这就像给仓库的门装了智能锁，只有授权的人才能直接取货。&lt;/p&gt;
+&lt;h3 id=&#34;62-地址计算&#34;&gt;6.2 地址计算&lt;/h3&gt;
+&lt;p&gt;传输时，根据 block ID 计算实际的内存地址：&lt;/p&gt;
+&lt;div class=&#34;highlight&#34;&gt;&lt;pre tabindex=&#34;0&#34; style=&#34;color:#272822;background-color:#fafafa;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;&#34;&gt;&lt;code class=&#34;language-python&#34; data-lang=&#34;python&#34;&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#75715e&#34;&gt;# 发送端地址计算&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#111&#34;&gt;src_ptr&lt;/span&gt; &lt;span style=&#34;color:#f92672&#34;&gt;=&lt;/span&gt; &lt;span style=&#34;color:#111&#34;&gt;local_region&lt;/span&gt;&lt;span style=&#34;color:#f92672&#34;&gt;.&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;base_addr&lt;/span&gt; &lt;span style=&#34;color:#f92672&#34;&gt;+&lt;/span&gt; &lt;span style=&#34;color:#111&#34;&gt;local_block_id&lt;/span&gt; &lt;span style=&#34;color:#f92672&#34;&gt;*&lt;/span&gt; &lt;span style=&#34;color:#111&#34;&gt;local_region&lt;/span&gt;&lt;span style=&#34;color:#f92672&#34;&gt;.&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;block_len&lt;/span&gt; &lt;span style=&#34;color:#f92672&#34;&gt;+&lt;/span&gt; &lt;span style=&#34;color:#111&#34;&gt;offset&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#75715e&#34;&gt;# 接收端地址计算&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#111&#34;&gt;dst_ptr&lt;/span&gt; &lt;span style=&#34;color:#f92672&#34;&gt;=&lt;/span&gt; &lt;span style=&#34;color:#111&#34;&gt;remote_region&lt;/span&gt;&lt;span style=&#34;color:#f92672&#34;&gt;.&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;base_addr&lt;/span&gt; &lt;span style=&#34;color:#f92672&#34;&gt;+&lt;/span&gt; &lt;span style=&#34;color:#111&#34;&gt;remote_block_id&lt;/span&gt; &lt;span style=&#34;color:#f92672&#34;&gt;*&lt;/span&gt; &lt;span style=&#34;color:#111&#34;&gt;remote_region&lt;/span&gt;&lt;span style=&#34;color:#f92672&#34;&gt;.&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;block_len&lt;/span&gt; &lt;span style=&#34;color:#f92672&#34;&gt;+&lt;/span&gt; &lt;span style=&#34;color:#111&#34;&gt;offset&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;KV Cache 内存布局（单层）:&lt;/p&gt;
+&lt;pre tabindex=&#34;0&#34;&gt;&lt;code&gt;base_addr ──→ ┌──────────┬──────────┬──────────┬──────────┐
+              │ Block 0  │ Block 1  │ Block 2  │ Block 3  │
+              │ 64 KB    │ 64 KB    │ 64 KB    │ 64 KB    │
+              └──────────┴──────────┴──────────┴──────────┘
+              ↑                     ↑
+              base_addr             base_addr + 2 * block_len
+&lt;/code&gt;&lt;/pre&gt;&lt;h2 id=&#34;7-bootstrap-server两个陌生人的介绍人&#34;&gt;7. Bootstrap Server：两个陌生人的&amp;quot;介绍人&amp;quot;&lt;/h2&gt;
+&lt;p&gt;Prefiller 和 Decoder 启动时互不知道对方的地址。它们需要一个&amp;quot;介绍人&amp;quot;来交换连接信息——这就是MooncakeBootstrapServer。&lt;/p&gt;
+&lt;div class=&#34;highlight&#34;&gt;&lt;pre tabindex=&#34;0&#34; style=&#34;color:#272822;background-color:#fafafa;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;&#34;&gt;&lt;code class=&#34;language-python&#34; data-lang=&#34;python&#34;&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#75715e&#34;&gt;# vllm/distributed/kv_transfer/kv_connector/v1/mooncake/mooncake_utils.py&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#00a8c8&#34;&gt;class&lt;/span&gt; &lt;span style=&#34;color:#75af00&#34;&gt;MooncakeBootstrapServer&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;:&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;    &lt;span style=&#34;color:#d88200&#34;&gt;&amp;#34;&amp;#34;&amp;#34;运行在全局 rank 0 的 Prefiller Worker 上的集中式注册服务&amp;#34;&amp;#34;&amp;#34;&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;工作流程：&lt;/p&gt;
+&lt;pre tabindex=&#34;0&#34;&gt;&lt;code&gt;┌─────────────┐     注册      ┌──────────────────┐     注册      ┌─────────────┐
+│ Prefiller   │ ───────────→ │ Bootstrap Server │ ←──────────── │ Decoder     │
+│ Worker 0    │   (IP,端口,   │ (rank 0 上运行)   │   (IP,端口,   │ Worker 0    │
+│             │    TP 信息)   │                  │    TP 信息)   │             │
+└─────────────┘              └──────────────────┘               └─────────────┘
+                                      │
+                                      │ 交换连接信息
+                                      ▼
+                              Prefiller 和 Decoder 互相知道对方地址
+                              可以开始 RDMA 传输
+&lt;/code&gt;&lt;/pre&gt;&lt;p&gt;环境变量控制：&lt;/p&gt;
+&lt;table&gt;
+	&lt;thead&gt;
+			&lt;tr&gt;
+					&lt;th&gt;环境变量&lt;/th&gt;
+					&lt;th&gt;默认值&lt;/th&gt;
+			&lt;/tr&gt;
+	&lt;/thead&gt;
+	&lt;tbody&gt;
+			&lt;tr&gt;
+					&lt;td&gt;VLLM_MOONCAKE_BOOTSTRAP_PORT&lt;/td&gt;
+					&lt;td&gt;8998&lt;/td&gt;
+			&lt;/tr&gt;
+			&lt;tr&gt;
+					&lt;td&gt;VLLM_MOONCAKE_ABORT_REQUEST_TIMEOUT&lt;/td&gt;
+					&lt;td&gt;480s&lt;/td&gt;
+			&lt;/tr&gt;
+	&lt;/tbody&gt;
+&lt;/table&gt;
+&lt;h2 id=&#34;8-异构-tp-支持prefiller-和-decoder-的-tp-可以不同&#34;&gt;8. 异构 TP 支持：Prefiller 和 Decoder 的 TP 可以不同&lt;/h2&gt;
+&lt;p&gt;这是一个非常实用的特性——Prefiller 和 Decoder 可以使用不同的 TP 配置。&lt;/p&gt;
+&lt;p&gt;比如 Prefiller 用 4 卡 TP（需要大算力），Decoder 用 2 卡 TP（需要高带宽），MooncakeConnector 能自动处理不同 TP 之间的 block 映射。&lt;/p&gt;
+&lt;pre tabindex=&#34;0&#34;&gt;&lt;code&gt;Prefiller (TP=4):                    Decoder (TP=2):
+┌──────┬──────┬──────┬──────┐        ┌──────┬──────┐
+│GPU 0 │GPU 1 │GPU 2 │GPU 3 │        │GPU 0 │GPU 1 │
+│L0-L9 │L0-L9 │L0-L9 │L0-L9 │   →    │L0-L9 │L0-L9 │
+│(rank0)│(rank1)│(rank2)│(rank3)│    │(rank0)│(rank1)│
+└──────┴──────┴──────┴──────┘        └──────┴──────┘
+&lt;/code&gt;&lt;/pre&gt;&lt;p&gt;每张卡有相同的层数，但 TP rank 不同
+MooncakeConnector 自动映射: P_rank0+P_rank1 → D_rank0, P_rank2+P_rank3 → D_rank1
+传输时，MooncakeXferMetadata中的remote_tp_size和remote_tp_rank字段确保了正确的 rank 映射。&lt;/p&gt;
+&lt;h2 id=&#34;9-mooncakestoreconnector共享存储池模式&#34;&gt;9. MooncakeStoreConnector：共享存储池模式&lt;/h2&gt;
+&lt;p&gt;除了 P2P 直连模式，Mooncake 还提供了一种共享存储池模式——MooncakeStoreConnector。&lt;/p&gt;
+&lt;h3 id=&#34;91-两种模式对比&#34;&gt;9.1 两种模式对比&lt;/h3&gt;
+&lt;table&gt;
+	&lt;thead&gt;
+			&lt;tr&gt;
+					&lt;th&gt;特性&lt;/th&gt;
+					&lt;th&gt;MooncakeConnector (P2P)&lt;/th&gt;
+					&lt;th&gt;MooncakeStoreConnector (Store)&lt;/th&gt;
+			&lt;/tr&gt;
+	&lt;/thead&gt;
+	&lt;tbody&gt;
+			&lt;tr&gt;
+					&lt;td&gt;架构&lt;/td&gt;
+					&lt;td&gt;Prefiller ↔ Decoder 直连&lt;/td&gt;
+					&lt;td&gt;通过共享 KV Pool 间接连接&lt;/td&gt;
+			&lt;/tr&gt;
+			&lt;tr&gt;
+					&lt;td&gt;传输方式&lt;/td&gt;
+					&lt;td&gt;RDMA P2P&lt;/td&gt;
+					&lt;td&gt;RDMA → 分布式存储池 → RDMA&lt;/td&gt;
+			&lt;/tr&gt;
+			&lt;tr&gt;
+					&lt;td&gt;前缀缓存&lt;/td&gt;
+					&lt;td&gt;不支持&lt;/td&gt;
+					&lt;td&gt;支持（基于哈希去重）&lt;/td&gt;
+			&lt;/tr&gt;
+			&lt;tr&gt;
+					&lt;td&gt;适用场景&lt;/td&gt;
+					&lt;td&gt;分离式 Prefill/Decode&lt;/td&gt;
+					&lt;td&gt;单机 offload + 跨实例共享&lt;/td&gt;
+			&lt;/tr&gt;
+			&lt;tr&gt;
+					&lt;td&gt;去重&lt;/td&gt;
+					&lt;td&gt;不支持&lt;/td&gt;
+					&lt;td&gt;支持（相同前缀只存一份）&lt;/td&gt;
+			&lt;/tr&gt;
+	&lt;/tbody&gt;
+&lt;/table&gt;
+&lt;h3 id=&#34;92-store-模式架构&#34;&gt;9.2 Store 模式架构&lt;/h3&gt;
+&lt;pre tabindex=&#34;0&#34;&gt;&lt;code&gt;┌──────────┐                    ┌──────────────────┐                   ┌──────────┐
+│ vLLM     │   RDMA 写入        │  Mooncake Store  │   RDMA 读取        │ vLLM     │
+│ 实例 A   │ ────────────────→  │  (分布式 KV Pool) │ ────────────────→  │ 实例 B   │
+│          │                    │                  │                   │          │
+│ Prefill  │                    │  · CPU DRAM      │                   │ Decode   │
+│ 完成     │                     │  · SSD           │                   │ 开始     │
+│          │                    │  · 前缀去重       │                   │          │
+└──────────┘                    └──────────────────┘                   └──────────┘
+&lt;/code&gt;&lt;/pre&gt;&lt;p&gt;Store 模式的关键概念：&lt;/p&gt;
+&lt;table&gt;
+	&lt;thead&gt;
+			&lt;tr&gt;
+					&lt;th&gt;概念&lt;/th&gt;
+					&lt;th&gt;说明&lt;/th&gt;
+			&lt;/tr&gt;
+	&lt;/thead&gt;
+	&lt;tbody&gt;
+			&lt;tr&gt;
+					&lt;td&gt;&lt;code&gt;global_segment_size&lt;/code&gt;&lt;/td&gt;
+					&lt;td&gt;每个 GPU 贡献给共享池的 CPU 内存大小&lt;/td&gt;
+			&lt;/tr&gt;
+			&lt;tr&gt;
+					&lt;td&gt;&lt;code&gt;local_buffer_size&lt;/code&gt;&lt;/td&gt;
+					&lt;td&gt;本地私有缓冲区大小&lt;/td&gt;
+			&lt;/tr&gt;
+			&lt;tr&gt;
+					&lt;td&gt;Embedded 模式&lt;/td&gt;
+					&lt;td&gt;共享池在 vLLM 进程内运行&lt;/td&gt;
+			&lt;/tr&gt;
+			&lt;tr&gt;
+					&lt;td&gt;Standalone 模式&lt;/td&gt;
+					&lt;td&gt;共享池作为独立进程运行&lt;/td&gt;
+			&lt;/tr&gt;
+	&lt;/tbody&gt;
+&lt;/table&gt;
+&lt;h3 id=&#34;93-store-模式配置详解&#34;&gt;9.3 Store 模式配置详解&lt;/h3&gt;
+&lt;p&gt;Store 模式比 P2P 模式多了几个前置步骤：启动 Master Server、编写配置文件、设置环境变量。&lt;/p&gt;
+&lt;p&gt;&lt;strong&gt;Step 1&lt;/strong&gt;：启动 Mooncake Master Server&lt;/p&gt;
+&lt;p&gt;Master Server 管理分布式存储的元数据，协调各节点的连接。所有 vLLM 实例共享同一个 Master Server：&lt;/p&gt;
+&lt;pre tabindex=&#34;0&#34;&gt;&lt;code&gt;mooncake_master --port 50051
+&lt;/code&gt;&lt;/pre&gt;&lt;p&gt;&lt;strong&gt;Step 2&lt;/strong&gt;：编写 mooncake_config.json&lt;/p&gt;
+&lt;div class=&#34;highlight&#34;&gt;&lt;pre tabindex=&#34;0&#34; style=&#34;color:#272822;background-color:#fafafa;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;&#34;&gt;&lt;code class=&#34;language-json&#34; data-lang=&#34;json&#34;&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#111&#34;&gt;{&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;  &lt;span style=&#34;color:#f92672&#34;&gt;&amp;#34;mode&amp;#34;&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;:&lt;/span&gt; &lt;span style=&#34;color:#d88200&#34;&gt;&amp;#34;embedded&amp;#34;&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;,&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;  &lt;span style=&#34;color:#f92672&#34;&gt;&amp;#34;metadata_server&amp;#34;&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;:&lt;/span&gt; &lt;span style=&#34;color:#d88200&#34;&gt;&amp;#34;P2PHANDSHAKE&amp;#34;&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;,&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;  &lt;span style=&#34;color:#f92672&#34;&gt;&amp;#34;master_server_address&amp;#34;&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;:&lt;/span&gt; &lt;span style=&#34;color:#d88200&#34;&gt;&amp;#34;127.0.0.1:50051&amp;#34;&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;,&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;  &lt;span style=&#34;color:#f92672&#34;&gt;&amp;#34;global_segment_size&amp;#34;&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;:&lt;/span&gt; &lt;span style=&#34;color:#d88200&#34;&gt;&amp;#34;80GB&amp;#34;&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;,&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;  &lt;span style=&#34;color:#f92672&#34;&gt;&amp;#34;local_buffer_size&amp;#34;&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;:&lt;/span&gt; &lt;span style=&#34;color:#d88200&#34;&gt;&amp;#34;4GB&amp;#34;&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;,&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;  &lt;span style=&#34;color:#f92672&#34;&gt;&amp;#34;protocol&amp;#34;&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;:&lt;/span&gt; &lt;span style=&#34;color:#d88200&#34;&gt;&amp;#34;rdma&amp;#34;&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;,&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;  &lt;span style=&#34;color:#f92672&#34;&gt;&amp;#34;device_name&amp;#34;&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;:&lt;/span&gt; &lt;span style=&#34;color:#d88200&#34;&gt;&amp;#34;&amp;#34;&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;,&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;  &lt;span style=&#34;color:#f92672&#34;&gt;&amp;#34;enable_offload&amp;#34;&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;:&lt;/span&gt; &lt;span style=&#34;color:#00a8c8&#34;&gt;false&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#111&#34;&gt;}&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;&lt;strong&gt;Step 3&lt;/strong&gt;：设置环境变量&lt;/p&gt;
+&lt;div class=&#34;highlight&#34;&gt;&lt;pre tabindex=&#34;0&#34; style=&#34;color:#272822;background-color:#fafafa;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;&#34;&gt;&lt;code class=&#34;language-bash&#34; data-lang=&#34;bash&#34;&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#111&#34;&gt;export&lt;/span&gt; &lt;span style=&#34;color:#111&#34;&gt;MOONCAKE_CONFIG_PATH&lt;/span&gt;&lt;span style=&#34;color:#f92672&#34;&gt;=&lt;/span&gt;/path/to/mooncake_config.json
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;&lt;strong&gt;Step 4&lt;/strong&gt;：启动 vLLM&lt;/p&gt;
+&lt;div class=&#34;highlight&#34;&gt;&lt;pre tabindex=&#34;0&#34; style=&#34;color:#272822;background-color:#fafafa;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;&#34;&gt;&lt;code class=&#34;language-bash&#34; data-lang=&#34;bash&#34;&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#75715e&#34;&gt;# 所有python进程使用同一个哈希种子&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#111&#34;&gt;MOONCAKE_CONFIG_PATH&lt;/span&gt;&lt;span style=&#34;color:#f92672&#34;&gt;=&lt;/span&gt;mooncake_config.json &lt;span style=&#34;color:#8045ff&#34;&gt;\
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#111&#34;&gt;PYTHONHASHSEED&lt;/span&gt;&lt;span style=&#34;color:#f92672&#34;&gt;=&lt;/span&gt;&lt;span style=&#34;color:#ae81ff&#34;&gt;0&lt;/span&gt; &lt;span style=&#34;color:#8045ff&#34;&gt;\
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;vllm serve meta-llama/Llama-3.1-8B-Instruct &lt;span style=&#34;color:#8045ff&#34;&gt;\
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;  --kv-transfer-config &lt;span style=&#34;color:#d88200&#34;&gt;&amp;#39;{
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#d88200&#34;&gt;    &amp;#34;kv_connector&amp;#34;: &amp;#34;MooncakeStoreConnector&amp;#34;,
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#d88200&#34;&gt;    &amp;#34;kv_role&amp;#34;: &amp;#34;kv_both&amp;#34;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#d88200&#34;&gt;  }&amp;#39;&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;h3 id=&#34;94-multiconnector同时使用-p2p-和-store&#34;&gt;9.4 MultiConnector：同时使用 P2P 和 Store&lt;/h3&gt;
+&lt;p&gt;vLLM 支持组合使用多个 Connector，实现分离式 P/D+共享前缀缓存：&lt;/p&gt;
+&lt;p&gt;Prefiller 节点：&lt;/p&gt;
+&lt;div class=&#34;highlight&#34;&gt;&lt;pre tabindex=&#34;0&#34; style=&#34;color:#272822;background-color:#fafafa;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;&#34;&gt;&lt;code class=&#34;language-bash&#34; data-lang=&#34;bash&#34;&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#111&#34;&gt;MOONCAKE_CONFIG_PATH&lt;/span&gt;&lt;span style=&#34;color:#f92672&#34;&gt;=&lt;/span&gt;mooncake_config.json &lt;span style=&#34;color:#8045ff&#34;&gt;\
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#111&#34;&gt;VLLM_MOONCAKE_BOOTSTRAP_PORT&lt;/span&gt;&lt;span style=&#34;color:#f92672&#34;&gt;=&lt;/span&gt;&lt;span style=&#34;color:#ae81ff&#34;&gt;50052&lt;/span&gt; &lt;span style=&#34;color:#8045ff&#34;&gt;\
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;vllm serve meta-llama/Llama-3.1-8B-Instruct --port &lt;span style=&#34;color:#ae81ff&#34;&gt;8100&lt;/span&gt; &lt;span style=&#34;color:#8045ff&#34;&gt;\
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;  --kv-transfer-config &lt;span style=&#34;color:#d88200&#34;&gt;&amp;#39;{
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#d88200&#34;&gt;    &amp;#34;kv_connector&amp;#34;: &amp;#34;MultiConnector&amp;#34;,
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#d88200&#34;&gt;    &amp;#34;kv_role&amp;#34;: &amp;#34;kv_producer&amp;#34;,
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#d88200&#34;&gt;    &amp;#34;kv_connector_extra_config&amp;#34;: {
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#d88200&#34;&gt;        &amp;#34;connectors&amp;#34;: [
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#d88200&#34;&gt;            {&amp;#34;kv_connector&amp;#34;: &amp;#34;MooncakeConnector&amp;#34;, &amp;#34;kv_role&amp;#34;: &amp;#34;kv_producer&amp;#34;},
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#d88200&#34;&gt;            {&amp;#34;kv_connector&amp;#34;: &amp;#34;MooncakeStoreConnector&amp;#34;, &amp;#34;kv_role&amp;#34;: &amp;#34;kv_both&amp;#34;}
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#d88200&#34;&gt;        ]
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#d88200&#34;&gt;    }
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#d88200&#34;&gt;  }&amp;#39;&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;Decoder 节点：&lt;/p&gt;
+&lt;div class=&#34;highlight&#34;&gt;&lt;pre tabindex=&#34;0&#34; style=&#34;color:#272822;background-color:#fafafa;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;&#34;&gt;&lt;code class=&#34;language-bash&#34; data-lang=&#34;bash&#34;&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#111&#34;&gt;MOONCAKE_CONFIG_PATH&lt;/span&gt;&lt;span style=&#34;color:#f92672&#34;&gt;=&lt;/span&gt;mooncake_config.json &lt;span style=&#34;color:#8045ff&#34;&gt;\
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#111&#34;&gt;VLLM_MOONCAKE_BOOTSTRAP_PORT&lt;/span&gt;&lt;span style=&#34;color:#f92672&#34;&gt;=&lt;/span&gt;&lt;span style=&#34;color:#ae81ff&#34;&gt;50053&lt;/span&gt; &lt;span style=&#34;color:#8045ff&#34;&gt;\
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;vllm serve meta-llama/Llama-3.1-8B-Instruct --port &lt;span style=&#34;color:#ae81ff&#34;&gt;8200&lt;/span&gt; &lt;span style=&#34;color:#8045ff&#34;&gt;\
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;  --kv-transfer-config &lt;span style=&#34;color:#d88200&#34;&gt;&amp;#39;{
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#d88200&#34;&gt;    &amp;#34;kv_connector&amp;#34;: &amp;#34;MultiConnector&amp;#34;,
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#d88200&#34;&gt;    &amp;#34;kv_role&amp;#34;: &amp;#34;kv_consumer&amp;#34;,
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#d88200&#34;&gt;    &amp;#34;kv_connector_extra_config&amp;#34;: {
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#d88200&#34;&gt;        &amp;#34;connectors&amp;#34;: [
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#d88200&#34;&gt;            {&amp;#34;kv_connector&amp;#34;: &amp;#34;MooncakeConnector&amp;#34;, &amp;#34;kv_role&amp;#34;: &amp;#34;kv_consumer&amp;#34;},
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#d88200&#34;&gt;            {&amp;#34;kv_connector&amp;#34;: &amp;#34;MooncakeStoreConnector&amp;#34;, &amp;#34;kv_role&amp;#34;: &amp;#34;kv_consumer&amp;#34;}
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#d88200&#34;&gt;        ]
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#d88200&#34;&gt;    }
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#d88200&#34;&gt;  }&amp;#39;&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;h3 id=&#34;95-disk-offloadingssd-磁盘缓存&#34;&gt;9.5 Disk Offloading：SSD 磁盘缓存&lt;/h3&gt;
+&lt;p&gt;当 CPU 内存也不够用时，MooncakeStoreConnector 还支持SSD 磁盘 offloading——将 KV Cache 进一步溢出到 SSD，形成 GPU→CPU→SSD 的三级存储。&lt;/p&gt;
+&lt;p&gt;Disk Offloading 通常运行在standalone-store模式下：一个外部的mooncake_client进程拥有 CPU 池和 SSD 层，每个 vLLM rank 只是纯请求者。这避免了每个 rank 重复 SSD 池，并将 DirectIO 预算追踪集中在单一进程。&lt;/p&gt;
+&lt;p&gt;三端对齐要求：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;mooncake_master: 启动时加 &lt;code&gt;--enable_offload=true&lt;/code&gt;&lt;/li&gt;
+&lt;li&gt;mooncake_client（owner）：启动时加 &lt;code&gt;--enable_offload=true&lt;/code&gt; + 设置 &lt;code&gt;MOONCAKE_OFFLOAD_FILE_STORAGE_PATH&lt;/code&gt; 指定 SSD 路径&lt;/li&gt;
+&lt;li&gt;vLLM 侧：mooncake_config.json中 &lt;code&gt;&amp;quot;enable_offload&amp;quot;: true&lt;/code&gt;&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;vLLM 侧配置示例（standalone-store + SSD）：&lt;/p&gt;
+&lt;div class=&#34;highlight&#34;&gt;&lt;pre tabindex=&#34;0&#34; style=&#34;color:#272822;background-color:#fafafa;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;&#34;&gt;&lt;code class=&#34;language-json&#34; data-lang=&#34;json&#34;&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#111&#34;&gt;{&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;  &lt;span style=&#34;color:#f92672&#34;&gt;&amp;#34;mode&amp;#34;&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;:&lt;/span&gt; &lt;span style=&#34;color:#d88200&#34;&gt;&amp;#34;standalone-store&amp;#34;&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;,&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;  &lt;span style=&#34;color:#f92672&#34;&gt;&amp;#34;metadata_server&amp;#34;&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;:&lt;/span&gt; &lt;span style=&#34;color:#d88200&#34;&gt;&amp;#34;P2PHANDSHAKE&amp;#34;&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;,&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;  &lt;span style=&#34;color:#f92672&#34;&gt;&amp;#34;master_server_address&amp;#34;&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;:&lt;/span&gt; &lt;span style=&#34;color:#d88200&#34;&gt;&amp;#34;127.0.0.1:50051&amp;#34;&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;,&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;  &lt;span style=&#34;color:#f92672&#34;&gt;&amp;#34;global_segment_size&amp;#34;&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;:&lt;/span&gt; &lt;span style=&#34;color:#ae81ff&#34;&gt;0&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;,&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;  &lt;span style=&#34;color:#f92672&#34;&gt;&amp;#34;local_buffer_size&amp;#34;&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;:&lt;/span&gt; &lt;span style=&#34;color:#d88200&#34;&gt;&amp;#34;4GB&amp;#34;&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;,&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;  &lt;span style=&#34;color:#f92672&#34;&gt;&amp;#34;protocol&amp;#34;&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;:&lt;/span&gt; &lt;span style=&#34;color:#d88200&#34;&gt;&amp;#34;rdma&amp;#34;&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;,&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;  &lt;span style=&#34;color:#f92672&#34;&gt;&amp;#34;device_name&amp;#34;&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;:&lt;/span&gt; &lt;span style=&#34;color:#d88200&#34;&gt;&amp;#34;mlx5_0&amp;#34;&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;,&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;  &lt;span style=&#34;color:#f92672&#34;&gt;&amp;#34;enable_offload&amp;#34;&lt;/span&gt;&lt;span style=&#34;color:#111&#34;&gt;:&lt;/span&gt; &lt;span style=&#34;color:#00a8c8&#34;&gt;true&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#111&#34;&gt;}&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;笔者注：standalone-store模式下&lt;code&gt;global_segment_size&lt;/code&gt;必须为 0（rank 不贡献内存），由外部mooncake_client提供。可以用&lt;code&gt;MOONCAKE_PREFERRED_SEGMENT=127.0.0.1:50053&lt;/code&gt;将 rank 指向本地 owner 的 segment。SSD 的磁盘路径、淘汰策略、DirectIO 缓冲区大小等由mooncake_client侧的环境变量控制（&lt;code&gt;MOONCAKE_OFFLOAD_FILE_STORAGE_PATH&lt;/code&gt;、&lt;code&gt;MOONCAKE_BUCKET_EVICTION_POLICY&lt;/code&gt;等），与 vLLM 的 JSON 配置无关。&lt;/p&gt;
+&lt;h2 id=&#34;10-与其他-connector-的对比&#34;&gt;10. 与其他 Connector 的对比&lt;/h2&gt;
+&lt;table&gt;
+	&lt;thead&gt;
+			&lt;tr&gt;
+					&lt;th&gt;特性&lt;/th&gt;
+					&lt;th&gt;MooncakeConnector&lt;/th&gt;
+					&lt;th&gt;OffloadingConnector&lt;/th&gt;
+					&lt;th&gt;LMCacheConnector&lt;/th&gt;
+			&lt;/tr&gt;
+	&lt;/thead&gt;
+	&lt;tbody&gt;
+			&lt;tr&gt;
+					&lt;td&gt;传输目标&lt;/td&gt;
+					&lt;td&gt;远程 GPU&lt;/td&gt;
+					&lt;td&gt;本地 CPU&lt;/td&gt;
+					&lt;td&gt;远程存储&lt;/td&gt;
+			&lt;/tr&gt;
+			&lt;tr&gt;
+					&lt;td&gt;传输协议&lt;/td&gt;
+					&lt;td&gt;RDMA&lt;/td&gt;
+					&lt;td&gt;自定义内核&lt;/td&gt;
+					&lt;td&gt;NIXL&lt;/td&gt;
+			&lt;/tr&gt;
+			&lt;tr&gt;
+					&lt;td&gt;零拷贝&lt;/td&gt;
+					&lt;td&gt;是&lt;/td&gt;
+					&lt;td&gt;否&lt;/td&gt;
+					&lt;td&gt;是&lt;/td&gt;
+			&lt;/tr&gt;
+			&lt;tr&gt;
+					&lt;td&gt;分布式&lt;/td&gt;
+					&lt;td&gt;是（跨节点）&lt;/td&gt;
+					&lt;td&gt;否（单节点）&lt;/td&gt;
+					&lt;td&gt;是（跨节点）&lt;/td&gt;
+			&lt;/tr&gt;
+			&lt;tr&gt;
+					&lt;td&gt;前缀缓存&lt;/td&gt;
+					&lt;td&gt;Store 模式支持&lt;/td&gt;
+					&lt;td&gt;是（LRU/ARC）&lt;/td&gt;
+					&lt;td&gt;是（CacheBlend）&lt;/td&gt;
+			&lt;/tr&gt;
+			&lt;tr&gt;
+					&lt;td&gt;P2P 直连&lt;/td&gt;
+					&lt;td&gt;是&lt;/td&gt;
+					&lt;td&gt;否&lt;/td&gt;
+					&lt;td&gt;否&lt;/td&gt;
+			&lt;/tr&gt;
+			&lt;tr&gt;
+					&lt;td&gt;适用场景&lt;/td&gt;
+					&lt;td&gt;分离式 P/D&lt;/td&gt;
+					&lt;td&gt;单机显存扩展&lt;/td&gt;
+					&lt;td&gt;跨引擎共享&lt;/td&gt;
+			&lt;/tr&gt;
+	&lt;/tbody&gt;
+&lt;/table&gt;
+&lt;h2 id=&#34;11-配置与使用&#34;&gt;11. 配置与使用&lt;/h2&gt;
+&lt;h3 id=&#34;111-基础用法分离式-prefilldecode&#34;&gt;11.1 基础用法：分离式 Prefill/Decode&lt;/h3&gt;
+&lt;p&gt;见&lt;code&gt;mooncake_connector_usage.md&lt;/code&gt;。&lt;/p&gt;
+&lt;p&gt;代理服务（路由请求）：&lt;/p&gt;
+&lt;div class=&#34;highlight&#34;&gt;&lt;pre tabindex=&#34;0&#34; style=&#34;color:#272822;background-color:#fafafa;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;&#34;&gt;&lt;code class=&#34;language-bash&#34; data-lang=&#34;bash&#34;&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;python examples/disaggregated/mooncake_connector/mooncake_connector_proxy.py &lt;span style=&#34;color:#8045ff&#34;&gt;\
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;  --prefill http://192.168.0.2:8010 &lt;span style=&#34;color:#ae81ff&#34;&gt;8998&lt;/span&gt; &lt;span style=&#34;color:#8045ff&#34;&gt;\
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;  --decode http://192.168.0.3:8020
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;笔者注：Proxy 的&amp;ndash;prefill参数需要同时传入 Prefiller 的 bootstrap 端口（默认 8998）。Proxy 启动后会查询 Prefiller 的 Bootstrap Server，获取 engine_id 等连接信息，然后将kv_transfer_params（包含do_remote_prefill、remote_bootstrap_addr、transfer_id）注入到发给 Decoder 的请求中，协调 P2P 传输。&lt;/p&gt;
+&lt;h3 id=&#34;112-store-模式配置&#34;&gt;11.2 Store 模式配置&lt;/h3&gt;
+&lt;div class=&#34;highlight&#34;&gt;&lt;pre tabindex=&#34;0&#34; style=&#34;color:#272822;background-color:#fafafa;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;&#34;&gt;&lt;code class=&#34;language-bash&#34; data-lang=&#34;bash&#34;&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#111&#34;&gt;MOONCAKE_CONFIG_PATH&lt;/span&gt;&lt;span style=&#34;color:#f92672&#34;&gt;=&lt;/span&gt;mooncake_config.json &lt;span style=&#34;color:#8045ff&#34;&gt;\
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#111&#34;&gt;PYTHONHASHSEED&lt;/span&gt;&lt;span style=&#34;color:#f92672&#34;&gt;=&lt;/span&gt;&lt;span style=&#34;color:#ae81ff&#34;&gt;0&lt;/span&gt; &lt;span style=&#34;color:#8045ff&#34;&gt;\
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;vllm serve meta-llama/Llama-3.1-8B-Instruct &lt;span style=&#34;color:#8045ff&#34;&gt;\
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;  --kv-transfer-config &lt;span style=&#34;color:#d88200&#34;&gt;&amp;#39;{
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#d88200&#34;&gt;    &amp;#34;kv_connector&amp;#34;: &amp;#34;MooncakeStoreConnector&amp;#34;,
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#d88200&#34;&gt;    &amp;#34;kv_role&amp;#34;: &amp;#34;kv_both&amp;#34;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#d88200&#34;&gt;  }&amp;#39;&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;Store 模式的 kv_connector_extra_config 参数：&lt;/p&gt;
+&lt;table&gt;
+	&lt;thead&gt;
+			&lt;tr&gt;
+					&lt;th&gt;参数&lt;/th&gt;
+					&lt;th&gt;默认值&lt;/th&gt;
+					&lt;th&gt;说明&lt;/th&gt;
+			&lt;/tr&gt;
+	&lt;/thead&gt;
+	&lt;tbody&gt;
+			&lt;tr&gt;
+					&lt;td&gt;&lt;code&gt;load_async&lt;/code&gt;&lt;/td&gt;
+					&lt;td&gt;&lt;code&gt;true&lt;/code&gt;&lt;/td&gt;
+					&lt;td&gt;异步加载 KV Cache，提高计算与 I/O 重叠度&lt;/td&gt;
+			&lt;/tr&gt;
+			&lt;tr&gt;
+					&lt;td&gt;&lt;code&gt;lookup_async&lt;/code&gt;&lt;/td&gt;
+					&lt;td&gt;&lt;code&gt;false&lt;/code&gt;&lt;/td&gt;
+					&lt;td&gt;后台线程执行前缀缓存查找，不阻塞调度步骤。请求会等待查找完成后在后续步骤恢复&lt;/td&gt;
+			&lt;/tr&gt;
+			&lt;tr&gt;
+					&lt;td&gt;&lt;code&gt;enable_cross_layers_blocks&lt;/code&gt;&lt;/td&gt;
+					&lt;td&gt;&lt;code&gt;false&lt;/code&gt;&lt;/td&gt;
+					&lt;td&gt;启用跨层 block 打包，减少 store 操作次数&lt;/td&gt;
+			&lt;/tr&gt;
+			&lt;tr&gt;
+					&lt;td&gt;&lt;code&gt;lookup_rpc_port&lt;/code&gt;&lt;/td&gt;
+					&lt;td&gt;0&lt;/td&gt;
+					&lt;td&gt;ZMQ lookup RPC socket 的自定义端口&lt;/td&gt;
+			&lt;/tr&gt;
+			&lt;tr&gt;
+					&lt;td&gt;&lt;code&gt;cache_prefix&lt;/code&gt;&lt;/td&gt;
+					&lt;td&gt;&amp;quot;&amp;quot;&lt;/td&gt;
+					&lt;td&gt;存储键的命名空间前缀&lt;/td&gt;
+			&lt;/tr&gt;
+	&lt;/tbody&gt;
+&lt;/table&gt;
+&lt;h2 id=&#34;12-参考&#34;&gt;12. 参考&lt;/h2&gt;
+&lt;ul&gt;
+&lt;li&gt;Mooncake 项目：github.com/kvcache-ai/Mooncake — Mooncake 分布式 KV Cache 传输与存储系统&lt;/li&gt;
+&lt;li&gt;vLLM 文档：docs/features/mooncake_connector_usage.md — MooncakeConnector P2P 模式使用指南&lt;/li&gt;
+&lt;li&gt;vLLM 文档：docs/features/mooncake_store_connector_usage.md — MooncakeStoreConnector 共享存储池使用指南&lt;/li&gt;
+&lt;li&gt;vLLM 源码：vllm/distributed/kv_transfer/kv_connector/v1/mooncake/mooncake_connector.py — MooncakeConnector 主实现&lt;/li&gt;
+&lt;li&gt;vLLM 源码：vllm/distributed/kv_transfer/kv_connector/v1/mooncake/mooncake_utils.py — Bootstrap Server&lt;/li&gt;
+&lt;li&gt;vLLM 示例：examples/disaggregated/mooncake_connector/ — 分离式推理示例脚本&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;本文属于 [vLLM 技术博客系列]，欢迎持续关注。&lt;/p&gt;
+- https://zhixuan-zxli.github.io/llm/mooncake/ - </description>
+        </item>
+    
+    
+    
+        <item>
         <title>vLLM frontend to backend: AsyncLLM and Engine</title>
         <link>https://zhixuan-zxli.github.io/llm/vllm_frontend_backend/</link>
         <pubDate>Tue, 14 Jul 2026 00:00:00 +0000</pubDate>
