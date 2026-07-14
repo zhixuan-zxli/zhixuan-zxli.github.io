@@ -1,0 +1,1088 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<title>vLLM frontend to backend: AsyncLLM and Engine</title>
+
+
+
+
+<meta charset="utf-8">
+<meta name="X-UA-Compatible" content="IE=edge">
+<meta name="google-site-verification" content="">
+<meta content="width=device-width, initial-scale=1.0, maximum-scale=5, user-scalable=5" name="viewport">
+<meta content="telephone=no" name="format-detection">
+<meta name="description" content="">
+<meta name="renderer" content="webkit">
+<meta name="theme-color" content="#ffffff">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+
+
+
+
+
+    <link type="text/css" rel="stylesheet" href="/vendor/css/bootstrap.min.css">
+
+<link rel="stylesheet" href="/scss/dark-mode.min.6c9b4c2290542df75010d1640eac4339c754ccff3c9b43fc81a23c94e7e12eaf.css" integrity="sha256-bJtMIpBULfdQENFkDqxDOcdUzP88m0P8gaI8lOfhLq8=" media="screen">
+
+
+<link rel="stylesheet"
+          href="https://fonts.googleapis.com/css?family=Material+Icons">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<link rel="stylesheet" href="/css/custom.css">
+
+
+</head>
+<body>
+    	<div id="app"><div class="single-column-drawer-container" id="drawer"
+     v-bind:class="{ 'single-column-drawer-container-active': isDrawerOpen }">
+    <div class="drawer-content">
+        <div class="drawer-menu">
+            
+            
+            
+                
+                
+                
+                    
+                
+                
+                
+                <a class="a-block drawer-menu-item active" href="/llm">
+                    大模型
+                </a>
+                
+            
+                
+                
+                
+                
+                
+                <a class="a-block drawer-menu-item false" href="/life">
+                    生活随记
+                </a>
+                
+            
+            
+            <div class="toc">
+
+
+	<div class="toc-content">
+	
+		
+		
+		
+		<center>- 目录 -</center>
+		
+		
+		<ul>
+			
+				
+				
+					
+						
+						
+						
+						
+							
+								
+									<ul>
+								
+							
+						
+						
+							<li>
+								<a href="#1-http-%e5%85%a5%e5%8f%a3fastapi--openaiserving--asyncllm" class="nav-1-http-入口fastapi--openaiserving--asyncllm">
+									1. HTTP 入口：FastAPI → OpenAIServing → AsyncLLM
+								</a>
+							</li>
+						
+						
+					
+				
+			
+				
+				
+					
+						
+						
+						
+						
+							
+								
+									<ul>
+								
+							
+						
+						
+							<li>
+								<a href="#11-fastapi-route-vllmentrypointsopenaiapi_serverpy478" class="nav-11-fastapi-route-vllmentrypointsopenaiapi_serverpy478">
+									1.1 FastAPI Route (vllm/entrypoints/openai/api_server.py:478)
+								</a>
+							</li>
+						
+						
+					
+				
+			
+				
+				
+					
+						
+						
+						
+						
+						
+							<li>
+								<a href="#12-openaiservingchat-vllmentrypointsopenaiserving_chatpy224" class="nav-12-openaiservingchat-vllmentrypointsopenaiserving_chatpy224">
+									1.2 OpenAIServingChat (vllm/entrypoints/openai/serving_chat.py:224)
+								</a>
+							</li>
+						
+						
+					
+				
+			
+				
+				
+					
+						
+						
+						
+						
+						
+							<li>
+								<a href="#13-engineclient-%e5%8d%8f%e8%ae%ae-vllmengineprotocolpy" class="nav-13-engineclient-协议-vllmengineprotocolpy">
+									1.3 EngineClient 协议 (vllm/engine/protocol.py)
+								</a>
+							</li>
+						
+						
+					
+				
+			
+				
+				
+					
+						
+						
+						
+							
+								</ul>
+							
+						
+						
+						
+							<li>
+								<a href="#2-asyncllm%e5%89%8d%e7%ab%af%e8%bf%9b%e7%a8%8b%e7%9a%84%e6%8c%87%e6%8c%a5%e4%b8%ad%e5%bf%83-vllmv1engineasync_llmpy" class="nav-2-asyncllm前端进程的指挥中心-vllmv1engineasync_llmpy">
+									2. AsyncLLM：前端进程的指挥中心 (vllm/v1/engine/async_llm.py)
+								</a>
+							</li>
+						
+						
+					
+				
+			
+				
+				
+					
+						
+						
+						
+						
+							
+								
+									<ul>
+								
+							
+						
+						
+							<li>
+								<a href="#21-%e6%9e%84%e9%80%a0%e5%87%bd%e6%95%b0" class="nav-21-构造函数">
+									2.1 构造函数
+								</a>
+							</li>
+						
+						
+					
+				
+			
+				
+				
+					
+						
+						
+						
+						
+						
+							<li>
+								<a href="#22-generate%e6%a0%b8%e5%bf%83%e7%94%9f%e6%88%90%e6%b5%81%e7%a8%8b" class="nav-22-generate核心生成流程">
+									2.2 generate()：核心生成流程
+								</a>
+							</li>
+						
+						
+					
+				
+			
+				
+				
+					
+						
+						
+						
+						
+						
+							<li>
+								<a href="#23-add_request%e8%af%b7%e6%b1%82%e5%85%a5%e9%98%9f" class="nav-23-add_request请求入队">
+									2.3 add_request()：请求入队
+								</a>
+							</li>
+						
+						
+					
+				
+			
+				
+				
+					
+						
+						
+						
+						
+						
+							<li>
+								<a href="#24-output_handler%e5%90%8e%e5%8f%b0%e8%be%93%e5%87%ba%e6%b3%b5" class="nav-24-output_handler后台输出泵">
+									2.4 output_handler：后台输出泵
+								</a>
+							</li>
+						
+						
+					
+				
+			
+				
+				
+					
+						
+						
+						
+							
+								</ul>
+							
+						
+						
+						
+							<li>
+								<a href="#3-enginecoreclient%e8%b7%a8%e8%bf%9b%e7%a8%8b%e9%80%9a%e4%bf%a1%e5%b1%82-vllmv1enginecore_clientpy" class="nav-3-enginecoreclient跨进程通信层-vllmv1enginecore_clientpy">
+									3. EngineCoreClient：跨进程通信层 (vllm/v1/engine/core_client.py)
+								</a>
+							</li>
+						
+						
+					
+				
+			
+				
+				
+					
+						
+						
+						
+						
+							
+								
+									<ul>
+								
+							
+						
+						
+							<li>
+								<a href="#31-%e7%b1%bb%e7%bb%a7%e6%89%bf%e4%bd%93%e7%b3%bb" class="nav-31-类继承体系">
+									3.1 类继承体系
+								</a>
+							</li>
+						
+						
+					
+				
+			
+				
+				
+					
+						
+						
+						
+						
+						
+							<li>
+								<a href="#32-mpclient%e5%a4%9a%e8%bf%9b%e7%a8%8b%e9%80%9a%e4%bf%a1%e5%9f%ba%e7%b1%bb" class="nav-32-mpclient多进程通信基类">
+									3.2 MPClient：多进程通信基类
+								</a>
+							</li>
+						
+						
+					
+				
+			
+				
+				
+					
+						
+						
+						
+						
+						
+							<li>
+								<a href="#33-asyncmpclient%e7%94%9f%e4%ba%a7%e7%8e%af%e5%a2%83%e7%9a%84%e5%bc%82%e6%ad%a5%e5%ae%a2%e6%88%b7%e7%ab%af" class="nav-33-asyncmpclient生产环境的异步客户端">
+									3.3 AsyncMPClient：生产环境的异步客户端
+								</a>
+							</li>
+						
+						
+					
+				
+			
+				
+				
+					
+						
+						
+						
+						
+						
+							<li>
+								<a href="#34-dpasyncmpclient--dplbasyncmpclientdp%e5%b9%b6%e8%a1%8c" class="nav-34-dpasyncmpclient--dplbasyncmpclientdp并行">
+									3.4 DPAsyncMPClient &amp; DPLBAsyncMPClient：DP并行
+								</a>
+							</li>
+						
+						
+					
+				
+			
+				
+				
+					
+						
+						
+						
+						
+						
+							<li>
+								<a href="#35-dpcoordinator-vllmv1enginecoordinatorpy" class="nav-35-dpcoordinator-vllmv1enginecoordinatorpy">
+									3.5 DPCoordinator (vllm/v1/engine/coordinator.py)
+								</a>
+							</li>
+						
+						
+					
+				
+			
+				
+				
+					
+						
+						
+						
+							
+								</ul>
+							
+						
+						
+						
+							<li>
+								<a href="#4-enginecore--enginecoreproc%e5%90%8e%e7%ab%af%e8%bf%9b%e7%a8%8b%e7%9a%84%e5%bc%95%e6%93%8e%e6%a0%b8%e5%bf%83-vllmv1enginecorepy" class="nav-4-enginecore--enginecoreproc后端进程的引擎核心-vllmv1enginecorepy">
+									4. EngineCore &amp; EngineCoreProc：后端进程的引擎核心 (vllm/v1/engine/core.py)
+								</a>
+							</li>
+						
+						
+					
+				
+			
+				
+				
+					
+						
+						
+						
+						
+						
+							<li>
+								<a href="#5-executor--worker-%e6%a8%a1%e5%9e%8b%e6%89%a7%e8%a1%8c%e5%b1%82-vllmv1executor" class="nav-5-executor--worker-模型执行层-vllmv1executor">
+									5. Executor → Worker ：模型执行层 (vllm/v1/executor/)
+								</a>
+							</li>
+						
+						
+					
+				
+			
+				
+				
+					
+						
+						
+						
+						
+							
+								
+									<ul>
+								
+							
+						
+						
+							<li>
+								<a href="#51-executor-%e6%8a%bd%e8%b1%a1" class="nav-51-executor-抽象">
+									5.1 Executor 抽象
+								</a>
+							</li>
+						
+						
+					
+				
+			
+				
+				
+					
+						
+						
+						
+						
+						
+							<li>
+								<a href="#52-multiprocexecutor%e5%a4%9a-gpu-%e7%bc%96%e6%8e%92" class="nav-52-multiprocexecutor多-gpu-编排">
+									5.2 MultiprocExecutor：多 GPU 编排
+								</a>
+							</li>
+						
+						
+					
+				
+			
+				
+				
+					
+						
+						
+						
+							
+								</ul>
+							
+						
+						
+						
+							<li>
+								<a href="#6-%e5%ae%8c%e6%95%b4%e8%af%b7%e6%b1%82%e8%bf%bd%e8%b8%aa%e4%bb%8e-curl-%e5%88%b0-token" class="nav-6-完整请求追踪从-curl-到-token">
+									6. 完整请求追踪：从 curl 到 token
+								</a>
+							</li>
+						
+						
+					
+				
+			
+		</ul>
+	</div>
+
+</div>
+            
+        </div>
+    </div>
+</div>
+<transition name="fade">
+    <div id="drawer-mask" v-bind:class="{ 'single-column-drawer-mask': mounted }" v-if="isDrawerOpen" v-on:click="toggleDrawer"></div>
+</transition>
+<nav id="navBar" class="navbar sticky-top navbar-light single-column-nav-container">
+    <div id="navBackground" class="nav-background"></div>
+    <div class="container container-narrow nav-content">
+        <button id="nav_dropdown_btn" class="nav-dropdown-toggle" type="button" v-on:click="toggleDrawer">
+            <i class="material-icons">
+                menu
+            </i>
+        </button>
+        <a id="navTitle" class="navbar-brand" href="https://zhixuan-zxli.github.io/">
+            Zhixuan&#39;s Blog
+        </a>
+        
+        <button type="button" class="nav-darkmode-toggle" id="darkModeToggleButton2">
+            <i class="material-icons" id="darkModeToggleIcon2">
+                dark_mode
+            </i>
+        </button>
+        
+    </div>
+</nav>
+<div class="single-column-header-container" id="pageHead"
+     v-bind:style="{ transform: 'translateZ(0px) translateY('+.3*scrollY+'px)', opacity: 1-navOpacity }">
+    <a href="https://zhixuan-zxli.github.io/">
+        <div class="single-column-header-title">Zhixuan&#39;s Blog</div>
+        
+
+    </a>
+</div>
+
+            <div id="content">
+                <div id="streamContainer" class="stream-container">
+
+    <div class="post-list-container post-list-container-shadow">
+        <div class="post">
+            
+            
+            
+
+            <div class="post-head-wrapper-text-only"
+                
+            >
+                <div class="post-title">
+                    vLLM frontend to backend: AsyncLLM and Engine
+                    
+                    <div class="post-meta">
+                        
+                        <time itemprop="datePublished">
+                            2026-07-14 00:00
+                        </time>
+                        
+
+                        
+
+                        
+                            <i class="material-icons" style="">label</i>
+                            
+                                <a href="/tags/vllm">vLLM</a>
+                                &nbsp;
+                            
+                        
+                        
+                    </div>
+                </div>
+            </div>
+            
+            <div class="post-body-wrapper">
+                
+                <div class="post-body" v-pre>
+                
+                    <blockquote>
+<p>分解 vLLM 前端 (AsyncLLM) 和 后端 (EngineCore) 架构。
+综合自 博客 <a href="https://vllm.ai/blog/2025-09-05-anatomy-of-vllm">Anatomy of vLLM</a>（Aleksa Gordic，2025-09-05）、微信公众号文章 <a href="https://mp.weixin.qq.com/s/wfAyVE-9B-SqWr7JoC7jnQ">透过 vLLM 深入分析一次推理的完整旅程</a>，以及 vLLM 源码分析（基于 releases/v0.14.0 分支）。</p>
+</blockquote>
+<hr>
+<h2 id="1-http-入口fastapi--openaiserving--asyncllm">1. HTTP 入口：FastAPI → OpenAIServing → AsyncLLM</h2>
+<h3 id="11-fastapi-route-vllmentrypointsopenaiapi_serverpy478">1.1 FastAPI Route (<code>vllm/entrypoints/openai/api_server.py:478</code>)</h3>
+<div class="highlight"><pre tabindex="0" style="color:#272822;background-color:#fafafa;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-python" data-lang="python"><span style="display:flex;"><span><span style="color:#75af00">@router.post</span><span style="color:#111">(</span><span style="color:#d88200">&#34;/v1/chat/completions&#34;</span><span style="color:#111">,</span> <span style="color:#111">dependencies</span><span style="color:#f92672">=</span><span style="color:#111">[</span><span style="color:#111">Depends</span><span style="color:#111">(</span><span style="color:#111">validate_json_request</span><span style="color:#111">)])</span>
+</span></span><span style="display:flex;"><span><span style="color:#75af00">@with_cancellation</span>
+</span></span><span style="display:flex;"><span><span style="color:#75af00">@load_aware_call</span>
+</span></span><span style="display:flex;"><span><span style="color:#00a8c8">async</span> <span style="color:#00a8c8">def</span> <span style="color:#75af00">create_chat_completion</span><span style="color:#111">(</span><span style="color:#111">request</span><span style="color:#111">:</span> <span style="color:#111">ChatCompletionRequest</span><span style="color:#111">,</span> <span style="color:#111">raw_request</span><span style="color:#111">:</span> <span style="color:#111">Request</span><span style="color:#111">):</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#111">handler</span> <span style="color:#f92672">=</span> <span style="color:#111">chat</span><span style="color:#111">(</span><span style="color:#111">raw_request</span><span style="color:#111">)</span>  <span style="color:#75715e"># 从 app.state 获取 OpenAIServingChat</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#111">generator</span> <span style="color:#f92672">=</span> <span style="color:#00a8c8">await</span> <span style="color:#111">handler</span><span style="color:#f92672">.</span><span style="color:#111">create_chat_completion</span><span style="color:#111">(</span><span style="color:#111">request</span><span style="color:#111">,</span> <span style="color:#111">raw_request</span><span style="color:#111">)</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#00a8c8">if</span> <span style="color:#111">isinstance</span><span style="color:#111">(</span><span style="color:#111">generator</span><span style="color:#111">,</span> <span style="color:#111">ChatCompletionResponse</span><span style="color:#111">):</span>
+</span></span><span style="display:flex;"><span>        <span style="color:#00a8c8">return</span> <span style="color:#111">JSONResponse</span><span style="color:#111">(</span><span style="color:#111">content</span><span style="color:#f92672">=</span><span style="color:#111">generator</span><span style="color:#f92672">.</span><span style="color:#111">model_dump</span><span style="color:#111">())</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#00a8c8">return</span> <span style="color:#111">StreamingResponse</span><span style="color:#111">(</span><span style="color:#111">content</span><span style="color:#f92672">=</span><span style="color:#111">generator</span><span style="color:#111">,</span> <span style="color:#111">media_type</span><span style="color:#f92672">=</span><span style="color:#d88200">&#34;text/event-stream&#34;</span><span style="color:#111">)</span>
+</span></span></code></pre></div><h3 id="12-openaiservingchat-vllmentrypointsopenaiserving_chatpy224">1.2 OpenAIServingChat (<code>vllm/entrypoints/openai/serving_chat.py:224</code>)</h3>
+<p>预处理分为两个阶段：<strong>chat template 渲染 + tokenize</strong>（<code>_preprocess_chat</code>）和<strong>构造引擎请求</strong>（<code>_process_inputs</code>）。</p>
+<div class="highlight"><pre tabindex="0" style="color:#272822;background-color:#fafafa;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-python" data-lang="python"><span style="display:flex;"><span><span style="color:#00a8c8">async</span> <span style="color:#00a8c8">def</span> <span style="color:#75af00">create_chat_completion</span><span style="color:#111">(</span><span style="color:#111">self</span><span style="color:#111">,</span> <span style="color:#111">request</span><span style="color:#111">,</span> <span style="color:#111">raw_request</span><span style="color:#f92672">=</span><span style="color:#00a8c8">None</span><span style="color:#111">):</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#75715e"># 1) 模型检查 + tokenizer 获取</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#111">tokenizer</span> <span style="color:#f92672">=</span> <span style="color:#00a8c8">await</span> <span style="color:#111">self</span><span style="color:#f92672">.</span><span style="color:#111">engine_client</span><span style="color:#f92672">.</span><span style="color:#111">get_tokenizer</span><span style="color:#111">()</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#75715e"># 2a) 预处理阶段一：渲染 chat template + 分词</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#111">conversation</span><span style="color:#111">,</span> <span style="color:#111">engine_prompts</span> <span style="color:#f92672">=</span> <span style="color:#00a8c8">await</span> <span style="color:#111">self</span><span style="color:#f92672">.</span><span style="color:#111">_preprocess_chat</span><span style="color:#111">(</span>
+</span></span><span style="display:flex;"><span>        <span style="color:#111">request</span><span style="color:#111">,</span> <span style="color:#111">tokenizer</span><span style="color:#111">,</span> <span style="color:#111">request</span><span style="color:#f92672">.</span><span style="color:#111">messages</span><span style="color:#111">,</span> <span style="color:#f92672">...</span><span style="color:#111">)</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#75715e"># 2b) 预处理阶段二：封装为 EngineCoreRequest + 送入引擎</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#00a8c8">for</span> <span style="color:#111">i</span><span style="color:#111">,</span> <span style="color:#111">engine_prompt</span> <span style="color:#f92672">in</span> <span style="color:#111">enumerate</span><span style="color:#111">(</span><span style="color:#111">engine_prompts</span><span style="color:#111">):</span>
+</span></span><span style="display:flex;"><span>        <span style="color:#111">engine_request</span><span style="color:#111">,</span> <span style="color:#111">tokenization_kwargs</span> <span style="color:#f92672">=</span> <span style="color:#00a8c8">await</span> <span style="color:#111">self</span><span style="color:#f92672">.</span><span style="color:#111">_process_inputs</span><span style="color:#111">(</span>
+</span></span><span style="display:flex;"><span>            <span style="color:#111">request_id</span><span style="color:#111">,</span> <span style="color:#111">engine_prompt</span><span style="color:#111">,</span> <span style="color:#111">sampling_params</span><span style="color:#111">,</span> <span style="color:#f92672">...</span><span style="color:#111">)</span>
+</span></span><span style="display:flex;"><span>        <span style="color:#111">generator</span> <span style="color:#f92672">=</span> <span style="color:#111">self</span><span style="color:#f92672">.</span><span style="color:#111">engine_client</span><span style="color:#f92672">.</span><span style="color:#111">generate</span><span style="color:#111">(</span>
+</span></span><span style="display:flex;"><span>            <span style="color:#111">engine_request</span><span style="color:#111">,</span> <span style="color:#111">sampling_params</span><span style="color:#111">,</span> <span style="color:#111">request_id</span><span style="color:#111">,</span> <span style="color:#f92672">...</span><span style="color:#111">)</span> <span style="color:#75715e"># type: AsyncGenerator[RequestOutput, None]</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#75715e"># 3) 包装为 OpenAI 格式的 Response / SSE Stream</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#00a8c8">return</span> <span style="color:#00a8c8">await</span> <span style="color:#111">self</span><span style="color:#f92672">.</span><span style="color:#111">chat_completion_full_generator</span><span style="color:#111">(</span><span style="color:#111">request</span><span style="color:#111">,</span> <span style="color:#111">result_generator</span><span style="color:#111">,</span> <span style="color:#f92672">...</span><span style="color:#111">)</span>
+</span></span></code></pre></div><ul>
+<li>
+<p><code>_preprocess_chat()</code> — Chat Template 渲染 + 分词 → <code>TokensPrompt</code> (<code>serving_engine.py:1166</code>)</p>
+</li>
+<li>
+<p><code>_process_inputs()</code> — <code>TokensPrompt</code> → <code>EngineCoreRequest</code> (<code>serving_engine.py:1293</code>)</p>
+</li>
+</ul>
+<h3 id="13-engineclient-协议-vllmengineprotocolpy">1.3 EngineClient 协议 (<code>vllm/engine/protocol.py</code>)</h3>
+<div class="highlight"><pre tabindex="0" style="color:#272822;background-color:#fafafa;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-python" data-lang="python"><span style="display:flex;"><span><span style="color:#00a8c8">class</span> <span style="color:#75af00">EngineClient</span><span style="color:#111">(</span><span style="color:#111">ABC</span><span style="color:#111">):</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#d88200">&#34;&#34;&#34;Protocol class for Clients to Engine&#34;&#34;&#34;</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#111">vllm_config</span><span style="color:#111">:</span> <span style="color:#111">VllmConfig</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#111">input_processor</span><span style="color:#111">:</span> <span style="color:#111">InputProcessor</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#75af00">@abstractmethod</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#00a8c8">def</span> <span style="color:#75af00">generate</span><span style="color:#111">(</span><span style="color:#111">self</span><span style="color:#111">,</span> <span style="color:#111">prompt</span><span style="color:#111">,</span> <span style="color:#111">sampling_params</span><span style="color:#111">,</span> <span style="color:#111">request_id</span><span style="color:#111">,</span> <span style="color:#f92672">...</span><span style="color:#111">)</span> <span style="color:#f92672">-&gt;</span> <span style="color:#111">AsyncGenerator</span><span style="color:#111">[</span><span style="color:#111">RequestOutput</span><span style="color:#111">,</span> <span style="color:#00a8c8">None</span><span style="color:#111">]:</span>
+</span></span><span style="display:flex;"><span>        <span style="color:#d88200">&#34;&#34;&#34;Generate outputs for a request.&#34;&#34;&#34;</span>
+</span></span></code></pre></div><hr>
+<h2 id="2-asyncllm前端进程的指挥中心-vllmv1engineasync_llmpy">2. AsyncLLM：前端进程的指挥中心 (<code>vllm/v1/engine/async_llm.py</code>)</h2>
+<h3 id="21-构造函数">2.1 构造函数</h3>
+<div class="highlight"><pre tabindex="0" style="color:#272822;background-color:#fafafa;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-python" data-lang="python"><span style="display:flex;"><span><span style="color:#00a8c8">class</span> <span style="color:#75af00">AsyncLLM</span><span style="color:#111">(</span><span style="color:#111">EngineClient</span><span style="color:#111">):</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#00a8c8">def</span> <span style="color:#75af00">__init__</span><span style="color:#111">(</span><span style="color:#111">self</span><span style="color:#111">,</span> <span style="color:#111">vllm_config</span><span style="color:#111">,</span> <span style="color:#111">executor_class</span><span style="color:#111">,</span> <span style="color:#111">log_stats</span><span style="color:#111">,</span> <span style="color:#f92672">...</span><span style="color:#111">):</span>
+</span></span><span style="display:flex;"><span>        <span style="color:#75715e"># 1) Tokenizer</span>
+</span></span><span style="display:flex;"><span>        <span style="color:#111">self</span><span style="color:#f92672">.</span><span style="color:#111">tokenizer</span> <span style="color:#f92672">=</span> <span style="color:#111">cached_tokenizer_from_config</span><span style="color:#111">(</span><span style="color:#111">model_config</span><span style="color:#111">)</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>        <span style="color:#75715e"># 2) InputProcessor：原始输入 → EngineCoreRequest</span>
+</span></span><span style="display:flex;"><span>        <span style="color:#111">self</span><span style="color:#f92672">.</span><span style="color:#111">input_processor</span> <span style="color:#f92672">=</span> <span style="color:#111">InputProcessor</span><span style="color:#111">(</span><span style="color:#111">vllm_config</span><span style="color:#111">,</span> <span style="color:#111">tokenizer</span><span style="color:#111">)</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>        <span style="color:#75715e"># 3) OutputProcessor：EngineCoreOutputs → RequestOutput</span>
+</span></span><span style="display:flex;"><span>        <span style="color:#111">self</span><span style="color:#f92672">.</span><span style="color:#111">output_processor</span> <span style="color:#f92672">=</span> <span style="color:#111">OutputProcessor</span><span style="color:#111">(</span><span style="color:#111">tokenizer</span><span style="color:#111">,</span> <span style="color:#111">log_stats</span><span style="color:#111">,</span> <span style="color:#f92672">...</span><span style="color:#111">)</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>        <span style="color:#75715e"># 4) EngineCoreClient：跨进程通信桥梁（InprocClient / AsyncMPClient / DPLBAsyncMPClient）</span>
+</span></span><span style="display:flex;"><span>        <span style="color:#111">self</span><span style="color:#f92672">.</span><span style="color:#111">engine_core</span> <span style="color:#f92672">=</span> <span style="color:#111">EngineCoreClient</span><span style="color:#f92672">.</span><span style="color:#111">make_async_mp_client</span><span style="color:#111">(</span><span style="color:#111">vllm_config</span><span style="color:#111">,</span> <span style="color:#111">executor_class</span><span style="color:#111">,</span> <span style="color:#f92672">...</span><span style="color:#111">)</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>        <span style="color:#75715e"># 5) 启动 output_handler 后台 asyncio task</span>
+</span></span><span style="display:flex;"><span>        <span style="color:#111">self</span><span style="color:#f92672">.</span><span style="color:#111">_run_output_handler</span><span style="color:#111">()</span>
+</span></span></code></pre></div><h3 id="22-generate核心生成流程">2.2 generate()：核心生成流程</h3>
+<div class="highlight"><pre tabindex="0" style="color:#272822;background-color:#fafafa;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-python" data-lang="python"><span style="display:flex;"><span><span style="color:#00a8c8">async</span> <span style="color:#00a8c8">def</span> <span style="color:#75af00">generate</span><span style="color:#111">(</span><span style="color:#111">self</span><span style="color:#111">,</span> <span style="color:#111">prompt</span><span style="color:#111">,</span> <span style="color:#111">sampling_params</span><span style="color:#111">,</span> <span style="color:#111">request_id</span><span style="color:#111">,</span> <span style="color:#f92672">...</span><span style="color:#111">):</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#75715e"># 1) 创建 RequestOutputCollector（per-request async queue）</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#111">q</span> <span style="color:#f92672">=</span> <span style="color:#00a8c8">await</span> <span style="color:#111">self</span><span style="color:#f92672">.</span><span style="color:#111">add_request</span><span style="color:#111">(</span><span style="color:#111">request_id</span><span style="color:#111">,</span> <span style="color:#111">prompt</span><span style="color:#111">,</span> <span style="color:#111">sampling_params</span><span style="color:#111">,</span> <span style="color:#f92672">...</span><span style="color:#111">)</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#75715e"># 2) 循环从 queue 中拉取 RequestOutput，yield 给上层</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#111">finished</span> <span style="color:#f92672">=</span> <span style="color:#00a8c8">False</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#00a8c8">while</span> <span style="color:#f92672">not</span> <span style="color:#111">finished</span><span style="color:#111">:</span>
+</span></span><span style="display:flex;"><span>        <span style="color:#111">out</span> <span style="color:#f92672">=</span> <span style="color:#111">q</span><span style="color:#f92672">.</span><span style="color:#111">get_nowait</span><span style="color:#111">()</span> <span style="color:#f92672">or</span> <span style="color:#00a8c8">await</span> <span style="color:#111">q</span><span style="color:#f92672">.</span><span style="color:#111">get</span><span style="color:#111">()</span>
+</span></span><span style="display:flex;"><span>        <span style="color:#111">finished</span> <span style="color:#f92672">=</span> <span style="color:#111">out</span><span style="color:#f92672">.</span><span style="color:#111">finished</span>
+</span></span><span style="display:flex;"><span>        <span style="color:#00a8c8">yield</span> <span style="color:#111">out</span>  <span style="color:#75715e"># RequestOutput</span>
+</span></span></code></pre></div><h3 id="23-add_request请求入队">2.3 add_request()：请求入队</h3>
+<div class="highlight"><pre tabindex="0" style="color:#272822;background-color:#fafafa;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-python" data-lang="python"><span style="display:flex;"><span><span style="color:#00a8c8">async</span> <span style="color:#00a8c8">def</span> <span style="color:#75af00">add_request</span><span style="color:#111">(</span><span style="color:#111">self</span><span style="color:#111">,</span> <span style="color:#111">request_id</span><span style="color:#111">:</span> <span style="color:#111">str</span><span style="color:#111">,</span> <span style="color:#111">prompt</span><span style="color:#111">:</span> <span style="color:#111">EngineCoreRequest</span><span style="color:#111">,</span> <span style="color:#f92672">...</span><span style="color:#111">):</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#75715e">#</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#111">request</span> <span style="color:#f92672">=</span> <span style="color:#111">self</span><span style="color:#f92672">.</span><span style="color:#111">input_processor</span><span style="color:#f92672">.</span><span style="color:#111">process_inputs</span><span style="color:#111">(</span><span style="color:#111">request_id</span><span style="color:#111">,</span> <span style="color:#111">prompt</span><span style="color:#111">,</span> <span style="color:#f92672">...</span><span style="color:#111">)</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#111">self</span><span style="color:#f92672">.</span><span style="color:#111">_run_output_handler</span><span style="color:#111">()</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#75715e"># 注册到 OutputProcessor（前端进程）</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#111">self</span><span style="color:#f92672">.</span><span style="color:#111">output_processor</span><span style="color:#f92672">.</span><span style="color:#111">add_request</span><span style="color:#111">(</span><span style="color:#111">request</span><span style="color:#111">,</span> <span style="color:#111">prompt</span><span style="color:#111">,</span> <span style="color:#111">parent_req</span><span style="color:#111">,</span> <span style="color:#111">index</span><span style="color:#111">,</span> <span style="color:#111">queue</span><span style="color:#111">)</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#75715e"># 发送到 EngineCore（后端进程，ZMQ）</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#00a8c8">await</span> <span style="color:#111">self</span><span style="color:#f92672">.</span><span style="color:#111">engine_core</span><span style="color:#f92672">.</span><span style="color:#111">add_request_async</span><span style="color:#111">(</span><span style="color:#111">request</span><span style="color:#111">)</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#75715e">#</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#00a8c8">return</span> <span style="color:#111">queue</span> <span style="color:#75715e"># type: RequestOutputCollector</span>
+</span></span></code></pre></div><p>请求被<strong>同时</strong>注册到两个位置：<code>OutputProcessor</code>（前端，管输出）和 <code>EngineCoreClient</code>（后端，管调度执行）。</p>
+<h3 id="24-output_handler后台输出泵">2.4 output_handler：后台输出泵</h3>
+<div class="highlight"><pre tabindex="0" style="color:#272822;background-color:#fafafa;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-python" data-lang="python"><span style="display:flex;"><span><span style="color:#00a8c8">async</span> <span style="color:#00a8c8">def</span> <span style="color:#75af00">output_handler</span><span style="color:#111">():</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#00a8c8">while</span> <span style="color:#00a8c8">True</span><span style="color:#111">:</span>
+</span></span><span style="display:flex;"><span>        <span style="color:#75715e"># 1) 从 EngineCore（ZMQ output socket）拉取 EngineCoreOutputs</span>
+</span></span><span style="display:flex;"><span>        <span style="color:#111">outputs</span> <span style="color:#f92672">=</span> <span style="color:#00a8c8">await</span> <span style="color:#111">engine_core</span><span style="color:#f92672">.</span><span style="color:#111">get_output_async</span><span style="color:#111">()</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>        <span style="color:#75715e"># 2) 分块处理（避免长时间阻塞 event loop）</span>
+</span></span><span style="display:flex;"><span>        <span style="color:#00a8c8">for</span> <span style="color:#111">start</span> <span style="color:#f92672">in</span> <span style="color:#111">range</span><span style="color:#111">(</span><span style="color:#ae81ff">0</span><span style="color:#111">,</span> <span style="color:#111">num_outputs</span><span style="color:#111">,</span> <span style="color:#111">chunk_size</span><span style="color:#111">):</span>
+</span></span><span style="display:flex;"><span>            <span style="color:#111">outputs_slice</span> <span style="color:#f92672">=</span> <span style="color:#111">engine_core_outputs</span><span style="color:#111">[</span><span style="color:#111">start</span><span style="color:#111">:</span><span style="color:#111">end</span><span style="color:#111">]</span>
+</span></span><span style="display:flex;"><span>            <span style="color:#111">processed</span> <span style="color:#f92672">=</span> <span style="color:#111">output_processor</span><span style="color:#f92672">.</span><span style="color:#111">process_outputs</span><span style="color:#111">(</span><span style="color:#111">outputs_slice</span><span style="color:#111">,</span> <span style="color:#f92672">...</span><span style="color:#111">)</span>
+</span></span><span style="display:flex;"><span>            <span style="color:#75715e"># RequestOutputs 被推送到对应 request 的 queue</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>            <span style="color:#75715e"># 3) 终止需要 abort 的请求（stop string 命中）</span>
+</span></span><span style="display:flex;"><span>            <span style="color:#00a8c8">if</span> <span style="color:#111">processed</span><span style="color:#f92672">.</span><span style="color:#111">reqs_to_abort</span><span style="color:#111">:</span>
+</span></span><span style="display:flex;"><span>                <span style="color:#00a8c8">await</span> <span style="color:#111">engine_core</span><span style="color:#f92672">.</span><span style="color:#111">abort_requests_async</span><span style="color:#111">(</span><span style="color:#111">processed</span><span style="color:#f92672">.</span><span style="color:#111">reqs_to_abort</span><span style="color:#111">)</span>
+</span></span></code></pre></div><hr>
+<h2 id="3-enginecoreclient跨进程通信层-vllmv1enginecore_clientpy">3. EngineCoreClient：跨进程通信层 (<code>vllm/v1/engine/core_client.py</code>)</h2>
+<h3 id="31-类继承体系">3.1 类继承体系</h3>
+<pre tabindex="0"><code>EngineCoreClient (ABC)
+├── InprocClient          # 同进程模式（V0 兼容 / 调试用）
+│     └── 直接持有 EngineCore 实例，无 ZMQ
+├── MPClient (ABC)        # 多进程基类（ZMQ 通信）
+│     ├── SyncMPClient    # 同步模式（LLM.generate 离线推理）
+│     └── AsyncMPClient   # 异步模式（AsyncLLM 在线服务）
+│           ├── DPAsyncMPClient    # 数据并行 + 外部负载均衡
+│           └── DPLBAsyncMPClient  # 数据并行 + 内部负载均衡
+</code></pre><h3 id="32-mpclient多进程通信基类">3.2 MPClient：多进程通信基类</h3>
+<div class="highlight"><pre tabindex="0" style="color:#272822;background-color:#fafafa;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-python" data-lang="python"><span style="display:flex;"><span><span style="color:#00a8c8">class</span> <span style="color:#75af00">MPClient</span><span style="color:#111">(</span><span style="color:#111">EngineCoreClient</span><span style="color:#111">):</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#00a8c8">def</span> <span style="color:#75af00">__init__</span><span style="color:#111">(</span><span style="color:#111">self</span><span style="color:#111">,</span> <span style="color:#111">asyncio_mode</span><span style="color:#111">,</span> <span style="color:#111">vllm_config</span><span style="color:#111">,</span> <span style="color:#111">executor_class</span><span style="color:#111">,</span> <span style="color:#111">log_stats</span><span style="color:#111">,</span> <span style="color:#f92672">...</span><span style="color:#111">):</span>
+</span></span><span style="display:flex;"><span>        <span style="color:#75715e"># 序列化</span>
+</span></span><span style="display:flex;"><span>        <span style="color:#111">self</span><span style="color:#f92672">.</span><span style="color:#111">encoder</span> <span style="color:#f92672">=</span> <span style="color:#111">MsgpackEncoder</span><span style="color:#111">()</span>
+</span></span><span style="display:flex;"><span>        <span style="color:#111">self</span><span style="color:#f92672">.</span><span style="color:#111">decoder</span> <span style="color:#f92672">=</span> <span style="color:#111">MsgpackDecoder</span><span style="color:#111">(</span><span style="color:#111">EngineCoreOutputs</span><span style="color:#111">)</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>        <span style="color:#75715e"># 启动 EngineCore 进程（通过 launch_core_engines）</span>
+</span></span><span style="display:flex;"><span>        <span style="color:#111">engine_manager</span><span style="color:#111">,</span> <span style="color:#111">coordinator</span><span style="color:#111">,</span> <span style="color:#111">addresses</span> <span style="color:#f92672">=</span> <span style="color:#111">launch_core_engines</span><span style="color:#111">(</span><span style="color:#f92672">...</span><span style="color:#111">)</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>        <span style="color:#75715e"># 创建 ZMQ sockets</span>
+</span></span><span style="display:flex;"><span>        <span style="color:#111">self</span><span style="color:#f92672">.</span><span style="color:#111">input_socket</span> <span style="color:#f92672">=</span> <span style="color:#111">make_zmq_socket</span><span style="color:#111">(</span><span style="color:#111">ctx</span><span style="color:#111">,</span> <span style="color:#111">input_address</span><span style="color:#111">,</span> <span style="color:#111">zmq</span><span style="color:#f92672">.</span><span style="color:#111">ROUTER</span><span style="color:#111">,</span> <span style="color:#111">bind</span><span style="color:#f92672">=</span><span style="color:#00a8c8">True</span><span style="color:#111">)</span>
+</span></span><span style="display:flex;"><span>        <span style="color:#111">self</span><span style="color:#f92672">.</span><span style="color:#111">output_socket</span> <span style="color:#f92672">=</span> <span style="color:#111">make_zmq_socket</span><span style="color:#111">(</span><span style="color:#111">ctx</span><span style="color:#111">,</span> <span style="color:#111">output_address</span><span style="color:#111">,</span> <span style="color:#111">zmq</span><span style="color:#f92672">.</span><span style="color:#111">PULL</span><span style="color:#111">)</span>
+</span></span></code></pre></div><h3 id="33-asyncmpclient生产环境的异步客户端">3.3 AsyncMPClient：生产环境的异步客户端</h3>
+<div class="highlight"><pre tabindex="0" style="color:#272822;background-color:#fafafa;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-python" data-lang="python"><span style="display:flex;"><span><span style="color:#00a8c8">class</span> <span style="color:#75af00">AsyncMPClient</span><span style="color:#111">(</span><span style="color:#111">MPClient</span><span style="color:#111">):</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#00a8c8">def</span> <span style="color:#75af00">__init__</span><span style="color:#111">(</span><span style="color:#111">self</span><span style="color:#111">,</span> <span style="color:#f92672">...</span><span style="color:#111">):</span>
+</span></span><span style="display:flex;"><span>        <span style="color:#111">self</span><span style="color:#f92672">.</span><span style="color:#111">outputs_queue</span> <span style="color:#f92672">=</span> <span style="color:#111">asyncio</span><span style="color:#f92672">.</span><span style="color:#111">Queue</span><span style="color:#111">[</span><span style="color:#111">EngineCoreOutputs</span> <span style="color:#f92672">|</span> <span style="color:#75af00">Exception</span><span style="color:#111">]()</span>
+</span></span><span style="display:flex;"><span>        <span style="color:#111">self</span><span style="color:#f92672">.</span><span style="color:#111">_ensure_output_queue_task</span><span style="color:#111">()</span>  <span style="color:#75715e"># 后台 asyncio task 从 output_socket 读取</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#00a8c8">async</span> <span style="color:#00a8c8">def</span> <span style="color:#75af00">get_output_async</span><span style="color:#111">(</span><span style="color:#111">self</span><span style="color:#111">)</span> <span style="color:#f92672">-&gt;</span> <span style="color:#111">EngineCoreOutputs</span><span style="color:#111">:</span>
+</span></span><span style="display:flex;"><span>        <span style="color:#d88200">&#34;&#34;&#34;被 AsyncLLM.output_handler 调用&#34;&#34;&#34;</span>
+</span></span><span style="display:flex;"><span>        <span style="color:#00a8c8">return</span> <span style="color:#00a8c8">await</span> <span style="color:#111">self</span><span style="color:#f92672">.</span><span style="color:#111">outputs_queue</span><span style="color:#f92672">.</span><span style="color:#111">get</span><span style="color:#111">()</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#00a8c8">async</span> <span style="color:#00a8c8">def</span> <span style="color:#75af00">add_request_async</span><span style="color:#111">(</span><span style="color:#111">self</span><span style="color:#111">,</span> <span style="color:#111">request</span><span style="color:#111">:</span> <span style="color:#111">EngineCoreRequest</span><span style="color:#111">)</span> <span style="color:#f92672">-&gt;</span> <span style="color:#00a8c8">None</span><span style="color:#111">:</span>
+</span></span><span style="display:flex;"><span>        <span style="color:#d88200">&#34;&#34;&#34;发送 ADD 请求到 EngineCore&#34;&#34;&#34;</span>
+</span></span><span style="display:flex;"><span>        <span style="color:#00a8c8">await</span> <span style="color:#111">self</span><span style="color:#f92672">.</span><span style="color:#111">_send_input</span><span style="color:#111">(</span><span style="color:#111">EngineCoreRequestType</span><span style="color:#f92672">.</span><span style="color:#111">ADD</span><span style="color:#111">,</span> <span style="color:#111">request</span><span style="color:#111">)</span>
+</span></span></code></pre></div><h3 id="34-dpasyncmpclient--dplbasyncmpclientdp并行">3.4 DPAsyncMPClient &amp; DPLBAsyncMPClient：DP并行</h3>
+<div class="highlight"><pre tabindex="0" style="color:#272822;background-color:#fafafa;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-python" data-lang="python"><span style="display:flex;"><span><span style="color:#00a8c8">class</span> <span style="color:#75af00">DPAsyncMPClient</span><span style="color:#111">(</span><span style="color:#111">AsyncMPClient</span><span style="color:#111">):</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#d88200">&#34;&#34;&#34;多 EngineCore 实例，外部负载均衡&#34;&#34;&#34;</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#00a8c8">class</span> <span style="color:#75af00">DPLBAsyncMPClient</span><span style="color:#111">(</span><span style="color:#111">DPAsyncMPClient</span><span style="color:#111">):</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#d88200">&#34;&#34;&#34;多 EngineCore 实例，内部负载均衡&#34;&#34;&#34;</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#00a8c8">def</span> <span style="color:#75af00">get_core_engine_for_request</span><span style="color:#111">(</span><span style="color:#111">self</span><span style="color:#111">,</span> <span style="color:#111">request</span><span style="color:#111">):</span>
+</span></span><span style="display:flex;"><span>        <span style="color:#75715e"># 从所有 engine 中选择负载最低的</span>
+</span></span><span style="display:flex;"><span>        <span style="color:#75715e"># score = waiting * 4 + running</span>
+</span></span></code></pre></div><h3 id="35-dpcoordinator-vllmv1enginecoordinatorpy">3.5 DPCoordinator (<code>vllm/v1/engine/coordinator.py</code>)</h3>
+<pre tabindex="0"><code>DPCoordinator（独立进程，DP &gt; 1 时启动）
+├── 收集各 DP engine rank 的 stats（waiting/running counts）
+├── 广播 stats 给所有 frontend process（用于 LB 决策）
+├── 追踪 &#34;request wave&#34; 和 running state
+└── 收到 FIRST_REQ 消息时广播 START_DP_WAVE 唤醒 engines
+</code></pre><hr>
+<h2 id="4-enginecore--enginecoreproc后端进程的引擎核心-vllmv1enginecorepy">4. EngineCore &amp; EngineCoreProc：后端进程的引擎核心 (<code>vllm/v1/engine/core.py</code>)</h2>
+<p><strong>类层次</strong></p>
+<pre tabindex="0"><code>EngineCore                      # 引擎核心逻辑（调度 + 执行 + 后处理）
+└── EngineCoreProc              # ZMQ 封装 → 作为独立进程运行
+     └── DPEngineCoreProc       # DP并行 / MoE
+</code></pre><p><strong>EngineCore 构造函数</strong></p>
+<div class="highlight"><pre tabindex="0" style="color:#272822;background-color:#fafafa;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-python" data-lang="python"><span style="display:flex;"><span><span style="color:#00a8c8">class</span> <span style="color:#75af00">EngineCore</span><span style="color:#111">:</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#00a8c8">def</span> <span style="color:#75af00">__init__</span><span style="color:#111">(</span><span style="color:#111">self</span><span style="color:#111">,</span> <span style="color:#111">vllm_config</span><span style="color:#111">,</span> <span style="color:#111">executor_class</span><span style="color:#111">,</span> <span style="color:#111">log_stats</span><span style="color:#111">,</span> <span style="color:#f92672">...</span><span style="color:#111">):</span>
+</span></span><span style="display:flex;"><span>        <span style="color:#75715e"># 1) Model Executor（UniProc / MultiProc / RayDistributed）</span>
+</span></span><span style="display:flex;"><span>        <span style="color:#111">self</span><span style="color:#f92672">.</span><span style="color:#111">model_executor</span> <span style="color:#f92672">=</span> <span style="color:#111">executor_class</span><span style="color:#111">(</span><span style="color:#111">vllm_config</span><span style="color:#111">)</span>
+</span></span><span style="display:flex;"><span>        <span style="color:#75715e"># 4) Scheduler（FCFS 或 Priority，含 KV cache manager）</span>
+</span></span><span style="display:flex;"><span>        <span style="color:#111">self</span><span style="color:#f92672">.</span><span style="color:#111">scheduler</span> <span style="color:#f92672">=</span> <span style="color:#111">Scheduler</span><span style="color:#111">(</span><span style="color:#111">vllm_config</span><span style="color:#111">,</span> <span style="color:#111">kv_cache_config</span><span style="color:#111">,</span> <span style="color:#f92672">...</span><span style="color:#111">)</span>
+</span></span></code></pre></div><p><strong><code>step()</code></strong>：Schedule -&gt; Execute -&gt; Sample -&gt; Update</p>
+<p><strong>EngineCoreProc：ZMQ 封装的进程模式</strong></p>
+<div class="highlight"><pre tabindex="0" style="color:#272822;background-color:#fafafa;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-python" data-lang="python"><span style="display:flex;"><span><span style="color:#00a8c8">class</span> <span style="color:#75af00">EngineCoreProc</span><span style="color:#111">(</span><span style="color:#111">EngineCore</span><span style="color:#111">):</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#d88200">&#34;&#34;&#34;ZMQ-wrapper for running EngineCore in background process.&#34;&#34;&#34;</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#00a8c8">def</span> <span style="color:#75af00">__init__</span><span style="color:#111">(</span><span style="color:#111">self</span><span style="color:#111">,</span> <span style="color:#111">vllm_config</span><span style="color:#111">,</span> <span style="color:#111">handshake_address</span><span style="color:#111">,</span> <span style="color:#111">executor_class</span><span style="color:#111">,</span> <span style="color:#f92672">...</span><span style="color:#111">):</span>
+</span></span><span style="display:flex;"><span>        <span style="color:#75715e"># 三队列架构</span>
+</span></span><span style="display:flex;"><span>        <span style="color:#111">self</span><span style="color:#f92672">.</span><span style="color:#111">input_queue</span> <span style="color:#f92672">=</span> <span style="color:#111">queue</span><span style="color:#f92672">.</span><span style="color:#111">Queue</span><span style="color:#111">()</span>    <span style="color:#75715e"># 接收来自 input thread 的请求</span>
+</span></span><span style="display:flex;"><span>        <span style="color:#111">self</span><span style="color:#f92672">.</span><span style="color:#111">output_queue</span> <span style="color:#f92672">=</span> <span style="color:#111">queue</span><span style="color:#f92672">.</span><span style="color:#111">Queue</span><span style="color:#111">()</span>   <span style="color:#75715e"># 输出到 output thread</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>        <span style="color:#75715e"># 启动 handshake（ZMQ DEALER）</span>
+</span></span><span style="display:flex;"><span>        <span style="color:#00a8c8">with</span> <span style="color:#111">self</span><span style="color:#f92672">.</span><span style="color:#111">_perform_handshakes</span><span style="color:#111">(</span><span style="color:#f92672">...</span><span style="color:#111">)</span> <span style="color:#00a8c8">as</span> <span style="color:#111">addresses</span><span style="color:#111">:</span>
+</span></span><span style="display:flex;"><span>            <span style="color:#75715e"># 初始化父类 EngineCore</span>
+</span></span><span style="display:flex;"><span>            <span style="color:#111">super</span><span style="color:#111">()</span><span style="color:#f92672">.</span><span style="color:#75af00">__init__</span><span style="color:#111">(</span><span style="color:#111">vllm_config</span><span style="color:#111">,</span> <span style="color:#111">executor_class</span><span style="color:#111">,</span> <span style="color:#f92672">...</span><span style="color:#111">)</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>            <span style="color:#75715e"># input thread：ZMQ input socket → input_queue</span>
+</span></span><span style="display:flex;"><span>            <span style="color:#111">input_thread</span> <span style="color:#f92672">=</span> <span style="color:#111">threading</span><span style="color:#f92672">.</span><span style="color:#111">Thread</span><span style="color:#111">(</span><span style="color:#111">target</span><span style="color:#f92672">=</span><span style="color:#111">self</span><span style="color:#f92672">.</span><span style="color:#111">process_input_sockets</span><span style="color:#111">,</span> <span style="color:#f92672">...</span><span style="color:#111">)</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>            <span style="color:#75715e"># output thread：output_queue → ZMQ output socket</span>
+</span></span><span style="display:flex;"><span>            <span style="color:#111">self</span><span style="color:#f92672">.</span><span style="color:#111">output_thread</span> <span style="color:#f92672">=</span> <span style="color:#111">threading</span><span style="color:#f92672">.</span><span style="color:#111">Thread</span><span style="color:#111">(</span><span style="color:#111">target</span><span style="color:#f92672">=</span><span style="color:#111">self</span><span style="color:#f92672">.</span><span style="color:#111">process_output_sockets</span><span style="color:#111">,</span> <span style="color:#f92672">...</span><span style="color:#111">)</span>
+</span></span><span style="display:flex;"><span>            
+</span></span><span style="display:flex;"><span>    <span style="color:#00a8c8">def</span> <span style="color:#75af00">run_engine_core</span><span style="color:#111">(</span><span style="color:#f92672">*</span><span style="color:#111">args</span><span style="color:#111">,</span> <span style="color:#111">dp_rank</span><span style="color:#111">:</span> <span style="color:#111">int</span> <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span><span style="color:#111">,</span> <span style="color:#111">local_dp_rank</span><span style="color:#111">:</span> <span style="color:#111">int</span> <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span><span style="color:#111">,</span> <span style="color:#f92672">**</span><span style="color:#111">kwargs</span><span style="color:#111">):</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>        <span style="color:#111">engine_core</span><span style="color:#111">:</span> <span style="color:#111">EngineCoreProc</span> <span style="color:#f92672">|</span> <span style="color:#00a8c8">None</span> <span style="color:#f92672">=</span> <span style="color:#00a8c8">None</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>        <span style="color:#00a8c8">if</span> <span style="color:#111">data_parallel</span> <span style="color:#f92672">and</span> <span style="color:#111">vllm_config</span><span style="color:#f92672">.</span><span style="color:#111">model_config</span><span style="color:#f92672">.</span><span style="color:#111">is_moe</span><span style="color:#111">:</span>
+</span></span><span style="display:flex;"><span>            <span style="color:#75715e"># Set data parallel rank for this engine process.</span>
+</span></span><span style="display:flex;"><span>            <span style="color:#111">parallel_config</span><span style="color:#f92672">.</span><span style="color:#111">data_parallel_rank</span> <span style="color:#f92672">=</span> <span style="color:#111">dp_rank</span>
+</span></span><span style="display:flex;"><span>            <span style="color:#111">engine_core</span> <span style="color:#f92672">=</span> <span style="color:#111">DPEngineCoreProc</span><span style="color:#111">(</span><span style="color:#f92672">*</span><span style="color:#111">args</span><span style="color:#111">,</span> <span style="color:#f92672">**</span><span style="color:#111">kwargs</span><span style="color:#111">)</span>
+</span></span><span style="display:flex;"><span>        <span style="color:#00a8c8">else</span><span style="color:#111">:</span>
+</span></span><span style="display:flex;"><span>            <span style="color:#111">engine_core</span> <span style="color:#f92672">=</span> <span style="color:#111">EngineCoreProc</span><span style="color:#111">(</span><span style="color:#f92672">*</span><span style="color:#111">args</span><span style="color:#111">,</span> <span style="color:#111">engine_index</span><span style="color:#f92672">=</span><span style="color:#111">dp_rank</span><span style="color:#111">,</span> <span style="color:#f92672">**</span><span style="color:#111">kwargs</span><span style="color:#111">)</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>        <span style="color:#111">engine_core</span><span style="color:#f92672">.</span><span style="color:#111">run_busy_loop</span><span style="color:#111">()</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#00a8c8">def</span> <span style="color:#75af00">run_busy_loop</span><span style="color:#111">(</span><span style="color:#111">self</span><span style="color:#111">):</span>
+</span></span><span style="display:flex;"><span>        <span style="color:#00a8c8">while</span> <span style="color:#00a8c8">True</span><span style="color:#111">:</span>
+</span></span><span style="display:flex;"><span>            <span style="color:#75715e"># 1) 从 input_queue 拉取请求，加入 scheduler</span>
+</span></span><span style="display:flex;"><span>            <span style="color:#111">self</span><span style="color:#f92672">.</span><span style="color:#111">_process_input_queue</span><span style="color:#111">()</span>
+</span></span><span style="display:flex;"><span>            <span style="color:#75715e"># 2) 执行一步引擎循环</span>
+</span></span><span style="display:flex;"><span>            <span style="color:#111">self</span><span style="color:#f92672">.</span><span style="color:#111">_process_engine_step</span><span style="color:#111">()</span>
+</span></span></code></pre></div><hr>
+<h2 id="5-executor--worker-模型执行层-vllmv1executor">5. Executor → Worker ：模型执行层 (<code>vllm/v1/executor/</code>)</h2>
+<h3 id="51-executor-抽象">5.1 Executor 抽象</h3>
+<div class="highlight"><pre tabindex="0" style="color:#272822;background-color:#fafafa;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-python" data-lang="python"><span style="display:flex;"><span><span style="color:#00a8c8">class</span> <span style="color:#75af00">Executor</span><span style="color:#111">(</span><span style="color:#111">ABC</span><span style="color:#111">):</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#d88200">&#34;&#34;&#34;An executor is responsible for executing the model on one or more devices.&#34;&#34;&#34;</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#75af00">@staticmethod</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#00a8c8">def</span> <span style="color:#75af00">get_class</span><span style="color:#111">(</span><span style="color:#111">vllm_config</span><span style="color:#111">)</span> <span style="color:#f92672">-&gt;</span> <span style="color:#111">type</span><span style="color:#111">[</span><span style="color:#d88200">&#34;Executor&#34;</span><span style="color:#111">]:</span>
+</span></span><span style="display:flex;"><span>        <span style="color:#00a8c8">if</span> <span style="color:#111">backend</span> <span style="color:#f92672">==</span> <span style="color:#d88200">&#34;mp&#34;</span><span style="color:#111">:</span>
+</span></span><span style="display:flex;"><span>            <span style="color:#00a8c8">return</span> <span style="color:#111">MultiprocExecutor</span>  <span style="color:#75715e"># 多 GPU（TP/PP），本地 multiprocessing</span>
+</span></span><span style="display:flex;"><span>        <span style="color:#00a8c8">elif</span> <span style="color:#111">backend</span> <span style="color:#f92672">==</span> <span style="color:#d88200">&#34;ray&#34;</span><span style="color:#111">:</span>
+</span></span><span style="display:flex;"><span>            <span style="color:#00a8c8">return</span> <span style="color:#111">RayDistributedExecutor</span>  <span style="color:#75715e"># 分布式，Ray 编排</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#75af00">@abstractmethod</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#00a8c8">def</span> <span style="color:#75af00">execute_model</span><span style="color:#111">(</span><span style="color:#111">self</span><span style="color:#111">,</span> <span style="color:#111">scheduler_output</span><span style="color:#111">,</span> <span style="color:#111">non_block</span><span style="color:#f92672">=</span><span style="color:#00a8c8">False</span><span style="color:#111">):</span>
+</span></span><span style="display:flex;"><span>        <span style="color:#d88200">&#34;&#34;&#34;执行一次模型前向 + 采样&#34;&#34;&#34;</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#75af00">@abstractmethod</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#00a8c8">def</span> <span style="color:#75af00">collective_rpc</span><span style="color:#111">(</span><span style="color:#111">self</span><span style="color:#111">,</span> <span style="color:#111">method</span><span style="color:#111">,</span> <span style="color:#111">timeout</span><span style="color:#111">,</span> <span style="color:#111">args</span><span style="color:#111">,</span> <span style="color:#111">kwargs</span><span style="color:#111">):</span>
+</span></span><span style="display:flex;"><span>        <span style="color:#d88200">&#34;&#34;&#34;在所有 worker 上执行 RPC 调用&#34;&#34;&#34;</span>
+</span></span></code></pre></div><p><strong>Executor 对比</strong>：</p>
+<table>
+	<thead>
+			<tr>
+					<th>Executor</th>
+					<th>Workers</th>
+					<th>通信方式</th>
+					<th>适用场景</th>
+			</tr>
+	</thead>
+	<tbody>
+			<tr>
+					<td><code>UniProcExecutor</code></td>
+					<td>1 个 Worker（同进程）</td>
+					<td>直接调用</td>
+					<td>单 GPU 调试 / 小模型</td>
+			</tr>
+			<tr>
+					<td><code>MultiprocExecutor</code></td>
+					<td>N 个 Worker（独立进程）</td>
+					<td><code>rpc_broadcast_mq</code>（共享内存队列）</td>
+					<td>单机多 GPU（TP/PP）</td>
+			</tr>
+			<tr>
+					<td><code>RayDistributedExecutor</code></td>
+					<td>N 个 Ray Actor</td>
+					<td>Ray</td>
+					<td>多机分布式</td>
+			</tr>
+	</tbody>
+</table>
+<h3 id="52-multiprocexecutor多-gpu-编排">5.2 MultiprocExecutor：多 GPU 编排</h3>
+<div class="highlight"><pre tabindex="0" style="color:#272822;background-color:#fafafa;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-python" data-lang="python"><span style="display:flex;"><span><span style="color:#00a8c8">class</span> <span style="color:#75af00">MultiprocExecutor</span><span style="color:#111">(</span><span style="color:#111">Executor</span><span style="color:#111">):</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#00a8c8">def</span> <span style="color:#75af00">__init__</span><span style="color:#111">(</span><span style="color:#111">self</span><span style="color:#111">,</span> <span style="color:#111">vllm_config</span><span style="color:#111">):</span>
+</span></span><span style="display:flex;"><span>        <span style="color:#75715e"># 为每个 rank 创建 WorkerProc 子进程</span>
+</span></span><span style="display:flex;"><span>        <span style="color:#00a8c8">for</span> <span style="color:#111">rank</span> <span style="color:#f92672">in</span> <span style="color:#111">range</span><span style="color:#111">(</span><span style="color:#111">world_size</span><span style="color:#111">):</span>
+</span></span><span style="display:flex;"><span>            <span style="color:#111">WorkerProc</span><span style="color:#f92672">.</span><span style="color:#111">make_worker_process</span><span style="color:#111">(</span><span style="color:#111">rank</span><span style="color:#111">,</span> <span style="color:#f92672">...</span><span style="color:#111">)</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#00a8c8">def</span> <span style="color:#75af00">execute_model</span><span style="color:#111">(</span><span style="color:#111">self</span><span style="color:#111">,</span> <span style="color:#111">scheduler_output</span><span style="color:#111">,</span> <span style="color:#111">non_block</span><span style="color:#f92672">=</span><span style="color:#00a8c8">False</span><span style="color:#111">):</span>
+</span></span><span style="display:flex;"><span>        <span style="color:#00a8c8">return</span> <span style="color:#111">self</span><span style="color:#f92672">.</span><span style="color:#111">collective_rpc</span><span style="color:#111">(</span>
+</span></span><span style="display:flex;"><span>            <span style="color:#d88200">&#34;execute_model&#34;</span><span style="color:#111">,</span> 
+</span></span><span style="display:flex;"><span>            <span style="color:#111">args</span><span style="color:#f92672">=</span><span style="color:#111">(</span><span style="color:#111">scheduler_output</span><span style="color:#111">),</span>
+</span></span><span style="display:flex;"><span>            <span style="color:#f92672">...</span>
+</span></span><span style="display:flex;"><span>        <span style="color:#111">)</span>
+</span></span></code></pre></div><hr>
+<h2 id="6-完整请求追踪从-curl-到-token">6. 完整请求追踪：从 curl 到 token</h2>
+<p>以下以 <code>POST /v1/chat/completions</code> 为例：</p>
+<pre tabindex="0"><code>Client: curl -X POST http://localhost:8000/v1/chat/completions ...
+
+  │
+  ▼
+① FastAPI (api_server.py:490)
+  create_chat_completion(request, raw_request)
+    → handler = app.state.openai_serving_chat
+    → handler.create_chat_completion(request, raw_request)
+  │
+  ▼
+② OpenAIServingChat (serving_chat.py:224)
+  create_chat_completion():
+    → _preprocess_chat()        # Chat template → tokenize → EngineCoreRequest
+    → engine_client.generate()  # → AsyncLLM.generate()
+  │
+  ▼
+③ AsyncLLM.generate() (async_llm.py:389)
+    → add_request():
+        input_processor.process_inputs()  # → EngineCoreRequest
+        output_processor.add_request()    # 注册 output handler 侧状态
+        engine_core.add_request_async()   # 发送 ZMQ 消息
+    → 循环 yield RequestOutput（从 RequestOutputCollector 拉取）
+  │
+  ▼  [ZMQ: ADD request via input_socket]
+  │
+④ EngineCoreProc.process_input_sockets() (core.py:1068)
+  input thread: ZMQ recv → msgpack decode → preprocess_add_request()
+    preprocess_add_request()
+      └─ Request.from_engine_core_request()
+    input_queue.put_nowait((ADD, req))
+  │
+  ▼
+⑤ EngineCoreProc.run_busy_loop() (core.py:948)
+  _process_input_queue():
+    → input_queue.get() → _handle_client_request(ADD)
+    → scheduler.add_request(request)  # → waiting queue
+  _process_engine_step():
+    → step_fn() → EngineCore.step()
+  │
+  ▼
+⑥ EngineCore.step() (core.py:370)
+  scheduler.schedule()
+    → 遍历 running queue（decode 请求，分配 1 KV block）
+    → 遍历 waiting queue（prefill 请求，满足 token budget 时调度）
+    → allocate_slots()：从 free_block_queue 分配 KV cache blocks
+    → 返回 SchedulerOutput
+  │
+  ▼
+⑦ model_executor.execute_model(scheduler_output)
+    → MultiprocExecutor: rpc_broadcast_mq → 各 Worker 进程
+    → Worker → GPUModelRunner.execute_model()
+  │
+  ▼
+⑧ scheduler.update_from_output(scheduler_output, model_output)
+    → 将 new_token_ids 追加到各 Request
+    → check stop conditions（EOS / length / stop string）
+    → FINISHED 请求：free KV blocks → 标记完成
+    → 构造 EngineCoreOutputs
+  │
+  ▼
+⑨ EngineCoreProc.process_output_sockets() (core.py:1149)
+  output thread: output_queue.get() → msgpack encode → ZMQ PUSH
+  │
+  ▼  [ZMQ: EngineCoreOutputs via output_socket]
+  │
+⑩ AsyncMPClient.process_outputs_socket()
+  ZMQ recv → msgpack decode → outputs_queue.put_nowait()
+  │
+  ▼
+⑪ AsyncLLM output_handler()
+  outputs_queue.get() → OutputProcessor.process_outputs()
+    → IncrementalDetokenizer：增量反分词
+    → LogprobsProcessor：logprobs 计算
+    → 构造 RequestOutput → queue.put()（RequestOutputCollector）
+  │
+  ▼
+⑫ AsyncLLM.generate() yield
+    → OpenAIServingChat.chat_completion_stream_generator()
+        → 转换为 ChatCompletionStreamResponse
+        → SSE format: &#34;data: {...}\n\n&#34;
+    → StreamingResponse → Client
+</code></pre>
+                    
+                    <HR width="100%" id="EOF">
+		    <p style="color:#777;">最后修改于 2026-07-14</p>
+                    
+                </div>
+            </div>
+            
+            
+            <nav class="post-pagination">
+
+                
+                <a class="newer-posts" href="/life/reading_2026/">
+			下回<br>读书 2026
+                </a>
+                
+                
+                
+                <a class="older-posts" href="/llm/adapt_attn/">
+			上回<br>Attention in vLLM: Cache and Computation
+                </a>
+                
+            </nav>
+            <div class="post-comment-wrapper">
+                
+
+
+
+
+
+
+
+
+
+
+
+
+            </div>
+        </div>
+    </div>
+
+
+                    </div>
+            </div><div id="sideContainer" class="side-container">
+    
+    <a class="a-block nav-head false" href="https://zhixuan-zxli.github.io/">
+    
+        <div class="nav-title">
+            Zhixuan&#39;s Blog
+        </div>
+        
+    </a>
+
+    <div class="nav-link-list">
+        
+        
+            
+            
+            
+                
+            
+            
+            
+            <a class="a-block nav-link-item active" href="/llm">
+                大模型
+            </a>
+            
+        
+            
+            
+            
+            
+            
+            <a class="a-block nav-link-item false" href="/life">
+                生活随记
+            </a>
+            
+        
+    </div>
+
+    
+
+    <div class="nav-footer">
+        
+Hugo Theme <a href="https://github.com/amazingrise/hugo-theme-diary">Diary</a> by <a href="https://risehere.net/">Rise</a>
+<br>
+移植自 <a href="https://mak1t0.cc/" target="_blank" rel="noreferrer noopener">Makito</a>'s <a href="https://github.com/SumiMakito/hexo-theme-journal/" target="_blank" rel="noreferrer noopener">Journal.</a> <br>
+<br>
+
+&copy;
+	
+	2026 Zhixuan&#39;s Blog
+	
+
+    </div>
+    
+</div><div id="extraContainer" class="extra-container">
+    <div class="toc-wrapper">
+        
+
+        
+    </div>
+    <div class="pagination">
+        <a id="globalBackToTop" class="pagination-action animated-visibility" href="#top"
+            :class="{ invisible: scrollY == 0 }">
+            <i class="material-icons pagination-action-icon">
+                keyboard_arrow_up
+            </i>
+        </a>
+        
+        <a type="button" class="pagination-action" id="darkModeToggleButton">
+            <span class="material-icons pagination-action-icon" id="darkModeToggleIcon">
+                dark_mode
+            </span>
+        </a>
+        
+        
+    </div>
+</div>
+
+<div id="single-column-footer">
+Hugo Theme <a href="https://github.com/amazingrise/hugo-theme-diary">Diary</a> by <a href="https://risehere.net/">Rise</a>
+<br>
+移植自 <a href="https://mak1t0.cc/" target="_blank" rel="noreferrer noopener">Makito</a>'s <a href="https://github.com/SumiMakito/hexo-theme-journal/" target="_blank" rel="noreferrer noopener">Journal.</a> <br>
+<br>
+
+&copy;
+	
+	2026 Zhixuan&#39;s Blog
+	
+</div>
+            </div>
+    
+    <script src="/js/journal.js"></script></body>
+</html>
