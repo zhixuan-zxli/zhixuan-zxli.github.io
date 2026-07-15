@@ -146,8 +146,8 @@
 						
 						
 							<li>
-								<a href="#summary-timeline-per-step" class="nav-summary-timeline-per-step">
-									Summary timeline per step
+								<a href="#11-terminology--token-counts-on-a-request" class="nav-11-terminology--token-counts-on-a-request">
+									1.1. Terminology — token counts on a Request
 								</a>
 							</li>
 						
@@ -164,8 +164,8 @@
 						
 						
 							<li>
-								<a href="#11-add_request--request-enters-the-system" class="nav-11-add_request--request-enters-the-system">
-									1.1. add_request — request enters the system
+								<a href="#12-call-stack-per-enginecore-step" class="nav-12-call-stack-per-enginecore-step">
+									1.2. Call stack per EngineCore step
 								</a>
 							</li>
 						
@@ -182,8 +182,26 @@
 						
 						
 							<li>
-								<a href="#12-schedule--called-each-iteration-by-enginecore" class="nav-12-schedule--called-each-iteration-by-enginecore">
-									1.2. schedule() — called each iteration by EngineCore
+								<a href="#13-add_request--request-enters-the-system" class="nav-13-add_request--request-enters-the-system">
+									1.3. add_request — request enters the system
+								</a>
+							</li>
+						
+						
+					
+				
+			
+				
+				
+					
+						
+						
+						
+						
+						
+							<li>
+								<a href="#14-schedule--the-two-pass-loop" class="nav-14-schedule--the-two-pass-loop">
+									1.4. schedule() — the two-pass loop
 								</a>
 							</li>
 						
@@ -239,11 +257,69 @@
 						
 						
 						
+							
+								</ul>
+							
+						
 						
 						
 							<li>
-								<a href="#output-construction" class="nav-output-construction">
-									Output construction
+								<a href="#15-_update_after_schedule" class="nav-15-_update_after_schedule">
+									1.5. _update_after_schedule
+								</a>
+							</li>
+						
+						
+					
+				
+			
+				
+				
+					
+						
+						
+						
+						
+						
+							<li>
+								<a href="#16-kv-connector--scheduler-side-hooks" class="nav-16-kv-connector--scheduler-side-hooks">
+									1.6. KV connector — scheduler-side hooks
+								</a>
+							</li>
+						
+						
+					
+				
+			
+				
+				
+					
+						
+						
+						
+						
+						
+							<li>
+								<a href="#17-update_from_outputscheduler_output-model_runner_output" class="nav-17-update_from_outputscheduler_output-model_runner_output">
+									1.7. update_from_output(scheduler_output, model_runner_output)
+								</a>
+							</li>
+						
+						
+					
+				
+			
+				
+				
+					
+						
+						
+						
+						
+						
+							<li>
+								<a href="#18-disaggregation-lifecycle-scheduler-view" class="nav-18-disaggregation-lifecycle-scheduler-view">
+									1.8. Disaggregation lifecycle (scheduler view)
 								</a>
 							</li>
 						
@@ -264,66 +340,8 @@
 						
 						
 							<li>
-								<a href="#13-model-execution-outside-scheduler" class="nav-13-model-execution-outside-scheduler">
-									1.3. Model execution (outside Scheduler)
-								</a>
-							</li>
-						
-						
-					
-				
-			
-				
-				
-					
-						
-						
-						
-						
-						
-							<li>
-								<a href="#14-update_from_outputscheduler_output-model_runner_output" class="nav-14-update_from_outputscheduler_output-model_runner_output">
-									1.4. update_from_output(scheduler_output, model_runner_output)
-								</a>
-							</li>
-						
-						
-					
-				
-			
-				
-				
-					
-						
-						
-						
-						
-						
-							<li>
-								<a href="#15-disaggregation" class="nav-15-disaggregation">
-									1.5. Disaggregation
-								</a>
-							</li>
-						
-						
-					
-				
-			
-				
-				
-					
-						
-						
-						
-							
-								</ul>
-							
-						
-						
-						
-							<li>
-								<a href="#2-disaggregated-prefill" class="nav-2-disaggregated-prefill">
-									2. Disaggregated Prefill
+								<a href="#2-connector" class="nav-2-connector">
+									2. Connector
 								</a>
 							</li>
 						
@@ -418,8 +436,8 @@
 						
 						
 							<li>
-								<a href="#25-note-on-omni-npu" class="nav-25-note-on-omni-npu">
-									2.5. Note on omni-npu
+								<a href="#25-llmdatadist" class="nav-25-llmdatadist">
+									2.5. LLMDataDist
 								</a>
 							</li>
 						
@@ -508,46 +526,132 @@
                 <div class="post-body" v-pre>
                 
                     <h2 id="1-scheduler">1. Scheduler</h2>
-<p><code>Scheduler</code> (vllm/v1/core/sched/scheduler.py) is the central resource allocator for vLLM&rsquo;s v1 engine. Each iteration it decides which requests run, how many tokens each gets, and which KV cache blocks to (re-)use. It owns two queues — <code>self.waiting</code> and <code>self.running</code> — plus a <code>KVCacheManager</code> for block allocation. The scheduler has no notion of a distinct &ldquo;prefill phase&rdquo; or &ldquo;decode phase&rdquo;; every request is simply tracked by <code>num_computed_tokens</code> and <code>num_tokens_with_spec</code>, and the scheduler&rsquo;s job is to close the gap between the two.</p>
-<h3 id="summary-timeline-per-step">Summary timeline per step</h3>
-<p>See <code>EngineCore.step()</code>:</p>
-<pre tabindex="0"><code>EngineCore loop:
-  scheduler.schedule()
-    ├─ allocate KV blocks for running + new requests
-    ├─ build SchedulerOutput
-    └─ _update_after_schedule()   ← advance num_computed_tokens, clear finished_req_ids
-
-  model_executor.execute_model(scheduler_output)
-
-  model_executor.sample_tokens()
-
-  scheduler.update_from_output(scheduler_output, model_output)
-    ├─ adjust num_computed_tokens for rejected spec tokens
-    ├─ append new output tokens, check stop
-    ├─ free finished requests
-    └─ return EngineCoreOutputs to frontend
-</code></pre><p>The split between <code>_update_after_schedule</code> and <code>update_from_output</code> is deliberate: the former eagerly advances token counts (enabling chunked prefill pipelining), while <strong>the latter corrects any over-estimates</strong> (e.g. spec decoding rejections) once the model result is known.</p>
-<h3 id="11-add_request--request-enters-the-system">1.1. <code>add_request</code> — request enters the system</h3>
-<p>A <code>Request</code> is added to <code>self.waiting</code> queue and registered in <code>self.requests</code>. Status: <code>WAITING</code>.</p>
-<h3 id="12-schedule--called-each-iteration-by-enginecore">1.2. <code>schedule()</code> — called each iteration by <code>EngineCore</code></h3>
-<p>The main loop runs in two sequential passes, sharing a single <code>token_budget</code>:</p>
-<pre tabindex="0"><code>token_budget = max_num_scheduled_tokens
-
-Pass 1 — running requests
-Pass 2 — waiting requests  (skipped entirely if any preemption occurred in Pass 1)
+<p><code>Scheduler</code> (<code>vllm/v1/core/sched/scheduler.py</code>) is the central resource allocator for vLLM&rsquo;s v1 engine. Each iteration it decides which requests run, how many tokens each gets, and which KV cache blocks to (re-)use. It owns two queues — <code>self.waiting</code> and <code>self.running</code> — plus a <code>KVCacheManager</code> for block allocation and an optional <code>KVConnectorBase_V1</code> for cross-node KV transfer. The scheduler has no notion of a distinct &ldquo;prefill phase&rdquo; or &ldquo;decode phase&rdquo;; every request is simply tracked by <code>num_computed_tokens</code> and <code>num_tokens_with_spec</code>, and the scheduler&rsquo;s job is to close the gap between them.</p>
+<h3 id="11-terminology--token-counts-on-a-request">1.1. Terminology — token counts on a <code>Request</code></h3>
+<p>The scheduling algorithm is intentionally uniform across prefill, chunked prefill, decode, and speculative decoding. That uniformity depends on a handful of per-request counters. All of them live on <code>Request</code> (<code>vllm/v1/request.py</code>):</p>
+<table>
+	<thead>
+			<tr>
+					<th>Field</th>
+					<th>Meaning</th>
+			</tr>
+	</thead>
+	<tbody>
+			<tr>
+					<td><code>num_prompt_tokens</code></td>
+					<td>Length of the initial prompt. Immutable after admission.</td>
+			</tr>
+			<tr>
+					<td><code>num_tokens</code></td>
+					<td><code>len(prompt) + len(output_token_ids)</code> — everything already &ldquo;committed&rdquo; to the request. Property, not a stored field.</td>
+			</tr>
+			<tr>
+					<td><code>num_tokens_with_spec</code></td>
+					<td><code>num_tokens + len(spec_token_ids)</code> — the target the scheduler tries to catch up to this step.</td>
+			</tr>
+			<tr>
+					<td><code>num_computed_tokens</code></td>
+					<td>Tokens whose KV has been (or is being) produced. Advanced <em>eagerly</em> by <code>_update_after_schedule</code> using the <em>scheduled</em> count; corrected downward by <code>update_from_output</code> when spec-decode draft tokens are rejected or a KV load fails.</td>
+			</tr>
+			<tr>
+					<td><code>num_new_tokens</code></td>
+					<td>Per-step delta the scheduler assigns to this request. Starts as <code>num_tokens_with_spec + num_output_placeholders - num_computed_tokens</code>, then is clipped by <code>token_budget</code>, <code>long_prefill_token_threshold</code>, and <code>max_model_len - 1 - num_computed_tokens</code>.</td>
+			</tr>
+			<tr>
+					<td><code>num_output_placeholders</code></td>
+					<td>Async-scheduling reservation: tokens that have been scheduled but whose sample has not yet come back. Included optimistically in <code>num_computed_tokens</code>; corrected on rejection.</td>
+			</tr>
+			<tr>
+					<td><code>num_external_computed_tokens</code></td>
+					<td>Tokens claimed from a remote KV cache via connector (P/D disaggregation). Recorded when <code>get_num_new_matched_tokens</code> returns a non-zero count.</td>
+			</tr>
+			<tr>
+					<td><code>num_cached_tokens</code></td>
+					<td>Tokens with prefix-cache hits (local + external), stamped once when the request first runs.</td>
+			</tr>
+	</tbody>
+</table>
+<p>Loop invariant: each step tries to shrink <code>num_tokens_with_spec - num_computed_tokens</code>. Ordinary decode has gap = 1 (+ any spec drafts); prompt prefill has gap = many, and chunked prefill slices it across steps.</p>
+<h3 id="12-call-stack-per-enginecore-step">1.2. Call stack per <code>EngineCore</code> step</h3>
+<p>The whole per-iteration flow, with the scheduler methods that matter (<code>[§n.n]</code> cross-references the sections below; KV-connector hooks are highlighted with <code>▶</code>):</p>
+<pre tabindex="0"><code>EngineCore.step()
+│
+├── Scheduler.schedule()                                                          [§1.4]
+│   │
+│   ├── Pass 1 — RUNNING queue
+│   │   └── kv_cache_manager.allocate_slots(...)                                  (may preempt)
+│   │
+│   ├── Pass 2 — WAITING queue                                                    (skipped if Pass 1 preempted)
+│   │   ├── if status == WAITING_FOR_REMOTE_KVS:
+│   │   │       _update_waiting_for_remote_kv(request)                            [§1.6]
+│   │   │       └── (re-enters as WAITING or PREEMPTED once transfer done)
+│   │   ├── if request.num_computed_tokens == 0:                                   (first-touch path)
+│   │   │   ├── new_computed_blocks, num_local_hit
+│   │   │   │       = kv_cache_manager.get_computed_blocks(request)
+│   │   │   └── ▶ connector.get_num_new_matched_tokens(request, num_local_hit)    [§1.6]
+│   │   │           → (ext_tokens, load_kv_async)
+│   │   ├── else: (resumed after async KV recv — num_computed_tokens already set)
+│   │   ├── num_new_tokens = (0 if load_kv_async else num_tokens - num_computed)
+│   │   ├── kv_cache_manager.allocate_slots(...)
+│   │   ├── ▶ connector.update_state_after_alloc(request, blocks, ext_tokens)     [§1.6]
+│   │   └── if load_kv_async: status = WAITING_FOR_REMOTE_KVS; skip
+│   │
+│   ├── Build SchedulerOutput
+│   │
+│   ├── ▶ connector.build_connector_meta(scheduler_output)                        [§1.6]
+│   │       → scheduler_output.kv_connector_metadata
+│   │
+│   └── _update_after_schedule(scheduler_output) (eager advance)                  [§1.5]
+│
+├── model_executor.execute_model(scheduler_output)
+│   ├── worker binds kv_connector_metadata, kicks off start_load_kv (if any)
+│   ├── forward + sample
+│   └── returns ModelRunnerOutput
+│         { sampled_token_ids, logprobs, pooler_output,
+│           kv_connector_output: { finished_sending, finished_recving,
+│                                  invalid_block_ids, kv_connector_stats } }
+│
+└── Scheduler.update_from_output(scheduler_output, model_runner_output)           [§1.7]
+    │
+    ├── Phase A — KV-load failures
+    │
+    ├── Phase B — per-request reconciliation (loop over num_scheduled_tokens)
+    │   ├── Correct num_accepted, num_rejected,                                   (spec-decode correction)
+    │   │           num_computed_tokens, num_output_placeholders
+    │   ├── _update_request_with_output(req, generated_ids)
+    │   ├── if stopped: _free_request(req)
+    │   │       └── ▶ connector.request_finished(...)                             [§1.6]
+    │   └── build EngineCoreOutput per client
+    │
+    ├── Phase C — post-loop
+    │   └── _update_from_kv_xfer_finished(kv_connector_output)                    [§1.6]
+    │       └── ▶ connector.update_connector_output(...)
+    │
+    └── return dict[client_index → EngineCoreOutputs] to frontend
+</code></pre><p>The split <code>_update_after_schedule</code> ⇄ <code>update_from_output</code> is deliberate: the former eagerly advances counters so the <em>next</em> step can plan against the current forward pass (chunked prefill, async scheduling); the latter <strong>corrects any over-estimates</strong> — spec-decode rejections and failed KV loads — once the model result is known.</p>
+<h3 id="13-add_request--request-enters-the-system">1.3. <code>add_request</code> — request enters the system</h3>
+<p>A <code>Request</code> is constructed from an <code>EngineCoreRequest</code>, pushed onto <code>self.waiting</code>, and registered in <code>self.requests</code>. Status: <code>WAITING</code>. <code>num_computed_tokens = 0</code>; <code>num_cached_tokens = -1</code> (sentinel — filled in on first scheduling).</p>
+<h3 id="14-schedule--the-two-pass-loop">1.4. <code>schedule()</code> — the two-pass loop</h3>
+<p>The main loop runs in two sequential passes, sharing a single <code>token_budget = max_num_scheduled_tokens</code>:</p>
+<pre tabindex="0"><code>Pass 1 — running requests
+Pass 2 — waiting requests   (skipped entirely if any preemption occurred in Pass 1)
 </code></pre><h4 id="pass-1-running-requests">Pass 1: running requests</h4>
-<p>Iterates <code>self.running</code> in priority order. For each request, the number of new tokens to schedule is:</p>
+<p>Iterates <code>self.running</code> in queue order. For each request, the number of new tokens to schedule is:</p>
 <div class="highlight"><pre tabindex="0" style="color:#272822;background-color:#fafafa;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-python" data-lang="python"><span style="display:flex;"><span><span style="color:#111">num_new_tokens</span> <span style="color:#f92672">=</span> <span style="color:#111">request</span><span style="color:#f92672">.</span><span style="color:#111">num_tokens_with_spec</span> \
 </span></span><span style="display:flex;"><span>               <span style="color:#f92672">+</span> <span style="color:#111">request</span><span style="color:#f92672">.</span><span style="color:#111">num_output_placeholders</span> \
 </span></span><span style="display:flex;"><span>               <span style="color:#f92672">-</span> <span style="color:#111">request</span><span style="color:#f92672">.</span><span style="color:#111">num_computed_tokens</span>
-</span></span></code></pre></div><p><code>num_tokens_with_spec</code> includes any speculative draft tokens, so this correctly handles both ordinary decoding (gap = 1) and chunked prefill continuation (gap = many).</p>
-<p><strong>KV block allocation and preemption.</strong> Omitted. See the posts on KV cache / model runner.</p>
+</span></span><span style="display:flex;"><span><span style="color:#111">num_new_tokens</span> <span style="color:#f92672">=</span> <span style="color:#111">min</span><span style="color:#111">(</span><span style="color:#111">num_new_tokens</span><span style="color:#111">,</span>
+</span></span><span style="display:flex;"><span>                     <span style="color:#111">long_prefill_token_threshold</span><span style="color:#111">,</span>
+</span></span><span style="display:flex;"><span>                     <span style="color:#111">token_budget</span><span style="color:#111">,</span>
+</span></span><span style="display:flex;"><span>                     <span style="color:#111">max_model_len</span> <span style="color:#f92672">-</span> <span style="color:#ae81ff">1</span> <span style="color:#f92672">-</span> <span style="color:#111">request</span><span style="color:#f92672">.</span><span style="color:#111">num_computed_tokens</span><span style="color:#111">)</span>
+</span></span></code></pre></div><p><code>num_tokens_with_spec</code> includes speculative draft tokens, so this same formula covers ordinary decoding (gap = 1), chunked-prefill continuation (gap = many), and spec decoding (gap = 1 + drafts).</p>
+<p><strong>KV block allocation and preemption.</strong> Omitted here — see the posts on KV cache / model runner. If <code>allocate_slots</code> cannot find room, the scheduler preempts the lowest-priority running request and retries.</p>
 <h4 id="pass-2-waiting-requests">Pass 2: waiting requests</h4>
-<p>Skipped entirely if any preemption happened in Pass 1 (to avoid starving running requests further). Otherwise, pops from <code>self.waiting</code> in order. Several checks can cause a request to be deferred (re-inserted at the head of the queue via <code>skipped_waiting_requests</code>) rather than scheduled:</p>
+<p>Skipped entirely if any preemption happened in Pass 1 (to avoid starving running requests further). Otherwise, peeks from <code>self.waiting</code> in order. Several checks can defer a request (re-inserted at the head of the queue via <code>skipped_waiting_requests</code>) rather than schedule it:</p>
 <ul>
-<li><strong><code>WAITING_FOR_REMOTE_KVS</code></strong>: KV transfer from a remote prefill node is still in flight. The request is skipped until <code>finished_recving_kv_req_ids</code> signals completion.</li>
+<li><strong><code>WAITING_FOR_REMOTE_KVS</code></strong>: KV transfer from a remote prefill node is still in flight. <code>_update_waiting_for_remote_kv</code> is called; the request is either woken (status flipped back to <code>WAITING</code>/<code>PREEMPTED</code>) or re-parked.</li>
 </ul>
-<p>For requests that pass these checks, the scheduler resolves the prefix cache hit count:</p>
+<p>For requests that survive the checks, the scheduler resolves prefix-cache hits (only for first-touch requests — resumed async-load ones already have <code>num_computed_tokens &gt; 0</code>):</p>
 <div class="highlight"><pre tabindex="0" style="color:#272822;background-color:#fafafa;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-python" data-lang="python"><span style="display:flex;"><span><span style="color:#75715e"># Local prefix cache hit</span>
 </span></span><span style="display:flex;"><span><span style="color:#111">new_computed_blocks</span><span style="color:#111">,</span> <span style="color:#111">num_local_hit</span> <span style="color:#f92672">=</span> <span style="color:#111">kv_cache_manager</span><span style="color:#f92672">.</span><span style="color:#111">get_computed_blocks</span><span style="color:#111">(</span><span style="color:#111">request</span><span style="color:#111">)</span>
 </span></span><span style="display:flex;"><span>
@@ -555,48 +659,104 @@ Pass 2 — waiting requests  (skipped entirely if any preemption occurred in Pas
 </span></span><span style="display:flex;"><span><span style="color:#111">ext_tokens</span><span style="color:#111">,</span> <span style="color:#111">load_kv_async</span> <span style="color:#f92672">=</span> <span style="color:#111">connector</span><span style="color:#f92672">.</span><span style="color:#111">get_num_new_matched_tokens</span><span style="color:#111">(</span><span style="color:#111">request</span><span style="color:#111">,</span> <span style="color:#111">num_local_hit</span><span style="color:#111">)</span>
 </span></span><span style="display:flex;"><span>
 </span></span><span style="display:flex;"><span><span style="color:#111">num_computed_tokens</span> <span style="color:#f92672">=</span> <span style="color:#111">num_local_hit</span> <span style="color:#f92672">+</span> <span style="color:#111">ext_tokens</span>
-</span></span><span style="display:flex;"><span><span style="color:#111">num_new_tokens</span> <span style="color:#f92672">=</span> <span style="color:#111">request</span><span style="color:#f92672">.</span><span style="color:#111">num_tokens</span> <span style="color:#f92672">-</span> <span style="color:#111">num_computed_tokens</span>
-</span></span></code></pre></div><p>If <code>load_kv_async</code> is True (the remote blocks aren&rsquo;t available yet), the scheduler allocates KV memory speculatively, transitions the request to <code>WAITING_FOR_REMOTE_KVS</code>, and skips it to the next step.</p>
-<h4 id="output-construction">Output construction</h4>
-<p>After both passes, a <code>SchedulerOutput</code> is assembled with:</p>
-<ul>
-<li><code>scheduled_new_reqs</code> / <code>scheduled_resumed_reqs</code> / <code>scheduled_running_reqs</code></li>
-<li><code>num_scheduled_tokens</code> per request</li>
-<li><code>req_to_new_blocks</code> — block assignments for the model runner</li>
-<li><code>preempted_req_ids</code> — so workers can free cached state</li>
-<li><code>finished_req_ids</code> — requests that completed since the previous step</li>
-</ul>
-<p><code>_update_after_schedule</code> is then called to advance each request&rsquo;s <code>num_computed_tokens</code> by the scheduled amount, enabling the next step&rsquo;s scheduling to see the updated positions without waiting for the model.</p>
-<h3 id="13-model-execution-outside-scheduler">1.3. Model execution (outside <code>Scheduler</code>)</h3>
-<p><code>EngineCore</code> calls <code>model_executor.execute_model(scheduler_output)</code>. Workers run the model and produce a <code>ModelRunnerOutput</code>.</p>
-<h3 id="14-update_from_outputscheduler_output-model_runner_output">1.4. <code>update_from_output(scheduler_output, model_runner_output)</code></h3>
-<p>This is where the scheduler reconciles with what the model actually produced:</p>
+</span></span><span style="display:flex;"><span><span style="color:#111">num_new_tokens</span> <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span> <span style="color:#00a8c8">if</span> <span style="color:#111">load_kv_async</span> <span style="color:#00a8c8">else</span> <span style="color:#111">request</span><span style="color:#f92672">.</span><span style="color:#111">num_tokens</span> <span style="color:#f92672">-</span> <span style="color:#111">num_computed_tokens</span>
+</span></span></code></pre></div><p>If <code>load_kv_async</code> is True (the remote KV isn&rsquo;t here yet), the scheduler still calls <code>allocate_slots</code> — reserving destination blocks — then registers them with the connector via <code>update_state_after_alloc</code> and parks the request as <code>WAITING_FOR_REMOTE_KVS</code>. No forward-pass work is scheduled for the request this step.</p>
+<p>Otherwise, after a successful <code>allocate_slots</code>, the request transitions <code>WAITING → RUNNING</code> (or <code>PREEMPTED → RUNNING</code> for a resumption), and the sync-load path lets <code>update_state_after_alloc</code> note the reserved blocks.</p>
+<h3 id="15-_update_after_schedule">1.5. <code>_update_after_schedule</code></h3>
+<div class="highlight"><pre tabindex="0" style="color:#272822;background-color:#fafafa;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-python" data-lang="python"><span style="display:flex;"><span><span style="color:#00a8c8">def</span> <span style="color:#75af00">_update_after_schedule</span><span style="color:#111">(</span><span style="color:#111">self</span><span style="color:#111">,</span> <span style="color:#111">scheduler_output</span><span style="color:#111">):</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#111">num_scheduled_tokens</span> <span style="color:#f92672">=</span> <span style="color:#111">scheduler_output</span><span style="color:#f92672">.</span><span style="color:#111">num_scheduled_tokens</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#00a8c8">for</span> <span style="color:#111">req_id</span><span style="color:#111">,</span> <span style="color:#111">n</span> <span style="color:#f92672">in</span> <span style="color:#111">num_scheduled_tokens</span><span style="color:#f92672">.</span><span style="color:#111">items</span><span style="color:#111">():</span>
+</span></span><span style="display:flex;"><span>        <span style="color:#111">request</span> <span style="color:#f92672">=</span> <span style="color:#111">self</span><span style="color:#f92672">.</span><span style="color:#111">requests</span><span style="color:#111">[</span><span style="color:#111">req_id</span><span style="color:#111">]</span>
+</span></span><span style="display:flex;"><span>        <span style="color:#111">request</span><span style="color:#f92672">.</span><span style="color:#111">num_computed_tokens</span> <span style="color:#f92672">+=</span> <span style="color:#111">n</span>         <span style="color:#75715e"># eager advance</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#111">self</span><span style="color:#f92672">.</span><span style="color:#111">finished_req_ids</span> <span style="color:#f92672">=</span> <span style="color:#111">set</span><span style="color:#111">()</span>                <span style="color:#75715e"># wiped so it doesn&#39;t leak into the next output</span>
+</span></span></code></pre></div><p>Things to notice:</p>
 <ol>
-<li><strong>Handles failed KV loads</strong> (<code>_handle_invalid_blocks</code>) — adjusts <code>num_computed_tokens</code> back for affected requests.</li>
-<li><strong>For each scheduled request</strong> (iterating <code>num_scheduled_tokens</code>):
-<ul>
-<li>Gets the sampled/generated token IDs from <code>model_runner_output</code></li>
-<li><strong>Spec decoding correction</strong>: if draft tokens were rejected, decrements <code>request.num_computed_tokens</code> by <code>num_rejected</code> (undoing the over-advancement from <code>_update_after_schedule</code>)</li>
-<li>Calls <code>_update_request_with_output()</code> to append new tokens and check stop conditions</li>
-<li>If stopped: calls <code>_free_request()</code> to release KV blocks, moves request out of <code>self.running</code></li>
-<li>Builds <code>EngineCoreOutput</code> per client</li>
-</ul>
-</li>
-<li>Processes finished KV transfers (<code>_update_from_kv_xfer_finished</code>)</li>
-<li>Publishes KV cache events</li>
-<li>Returns <code>EngineCoreOutputs</code> (tokens, logprobs, finish reasons) to the engine</li>
+<li><strong>Eager, not correct.</strong> The advance uses the <em>scheduled</em> count, not what the model actually accepts. Spec-decode rejection unwinds it in <code>update_from_output</code>. Doing the advance here lets the next <code>schedule()</code> see a chunked-prefill request as &ldquo;already partially computed&rdquo; without waiting for the model — this is what enables both chunked prefill and async scheduling to keep the GPU busy.</li>
+<li><strong><code>finished_req_ids</code> reset.</strong> The set is populated by <code>_free_request</code> during Phase B of the <em>previous</em> <code>update_from_output</code>, read once by this step&rsquo;s <code>SchedulerOutput</code>, and then cleared here in preparation for the next step.</li>
 </ol>
-<h3 id="15-disaggregation">1.5. Disaggregation</h3>
-<p><strong>Prefill</strong></p>
-<p>A waiting request is scheduled with <code>load_kv_async=False</code> and its connector metadata built.</p>
-<p><strong>Decode</strong> (3 rounds)</p>
+<h3 id="16-kv-connector--scheduler-side-hooks">1.6. KV connector — scheduler-side hooks</h3>
+<p>At the five hook points marked <code>▶</code> in the call stack, the scheduler talks to <code>KVConnectorBase_V1</code> (role = <code>SCHEDULER</code>). All are pure planning — no tensors, no GPU touching.</p>
+<p><strong><code>get_num_new_matched_tokens(request, num_local_hit) → (ext_tokens, load_kv_async)</code></strong></p>
+<p><strong><code>update_state_after_alloc(request, blocks, num_external_tokens)</code></strong></p>
+<p><strong><code>build_connector_meta(scheduler_output) → KVConnectorMetadata</code></strong></p>
+<p><strong><code>_update_waiting_for_remote_kv(request) → bool</code></strong> (scheduler-internal, connector-driven)</p>
+<p>Runs at the top of the Pass-2 body when a request is <code>WAITING_FOR_REMOTE_KVS</code>. Returns True iff the transfer completed since the last step — the check reads <code>self.finished_recving_kv_req_ids</code>, which was populated by the <em>previous</em> <code>update_from_output</code>. On success:</p>
+<div class="highlight"><pre tabindex="0" style="color:#272822;background-color:#fafafa;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-python" data-lang="python"><span style="display:flex;"><span><span style="color:#111">(</span><span style="color:#111">block_ids</span><span style="color:#111">,)</span> <span style="color:#f92672">=</span> <span style="color:#111">self</span><span style="color:#f92672">.</span><span style="color:#111">kv_cache_manager</span><span style="color:#f92672">.</span><span style="color:#111">get_block_ids</span><span style="color:#111">(</span><span style="color:#111">request</span><span style="color:#f92672">.</span><span style="color:#111">request_id</span><span style="color:#111">)</span>
+</span></span><span style="display:flex;"><span><span style="color:#111">num_computed</span> <span style="color:#f92672">=</span> <span style="color:#111">min</span><span style="color:#111">(</span><span style="color:#111">len</span><span style="color:#111">(</span><span style="color:#111">block_ids</span><span style="color:#111">)</span> <span style="color:#f92672">*</span> <span style="color:#111">self</span><span style="color:#f92672">.</span><span style="color:#111">block_size</span><span style="color:#111">,</span> <span style="color:#111">request</span><span style="color:#f92672">.</span><span style="color:#111">num_tokens</span><span style="color:#111">)</span>
+</span></span><span style="display:flex;"><span><span style="color:#00a8c8">if</span> <span style="color:#111">num_computed</span> <span style="color:#f92672">==</span> <span style="color:#111">request</span><span style="color:#f92672">.</span><span style="color:#111">num_tokens</span><span style="color:#111">:</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#111">num_computed</span> <span style="color:#f92672">-=</span> <span style="color:#ae81ff">1</span>                                <span style="color:#75715e"># leave at least one token to sample</span>
+</span></span><span style="display:flex;"><span><span style="color:#111">self</span><span style="color:#f92672">.</span><span style="color:#111">kv_cache_manager</span><span style="color:#f92672">.</span><span style="color:#111">cache_blocks</span><span style="color:#111">(</span><span style="color:#111">request</span><span style="color:#111">,</span> <span style="color:#111">num_computed</span><span style="color:#111">)</span>
+</span></span><span style="display:flex;"><span><span style="color:#111">request</span><span style="color:#f92672">.</span><span style="color:#111">num_computed_tokens</span> <span style="color:#f92672">=</span> <span style="color:#111">num_computed</span>
+</span></span></code></pre></div><p>The request is then flipped back to <code>WAITING</code> (or <code>PREEMPTED</code> for a resumption) and re-enters normal Pass-2 scheduling in the <em>same</em> step, taking the <code>else</code> branch that skips <code>get_computed_blocks</code> — the blocks are already there.</p>
+<p><strong><code>_update_from_kv_xfer_finished(kv_connector_output)</code></strong> (Phase C of <code>update_from_output</code>)</p>
+<div class="highlight"><pre tabindex="0" style="color:#272822;background-color:#fafafa;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-python" data-lang="python"><span style="display:flex;"><span><span style="color:#00a8c8">if</span> <span style="color:#111">self</span><span style="color:#f92672">.</span><span style="color:#111">connector</span> <span style="color:#f92672">is</span> <span style="color:#f92672">not</span> <span style="color:#00a8c8">None</span><span style="color:#111">:</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#111">self</span><span style="color:#f92672">.</span><span style="color:#111">connector</span><span style="color:#f92672">.</span><span style="color:#111">update_connector_output</span><span style="color:#111">(</span><span style="color:#111">kv_connector_output</span><span style="color:#111">)</span>
+</span></span><span style="display:flex;"><span><span style="color:#00a8c8">for</span> <span style="color:#111">req_id</span> <span style="color:#f92672">in</span> <span style="color:#111">kv_connector_output</span><span style="color:#f92672">.</span><span style="color:#111">finished_recving</span> <span style="color:#f92672">or</span> <span style="color:#111">():</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#111">self</span><span style="color:#f92672">.</span><span style="color:#111">finished_recving_kv_req_ids</span><span style="color:#f92672">.</span><span style="color:#111">add</span><span style="color:#111">(</span><span style="color:#111">req_id</span><span style="color:#111">)</span>     <span style="color:#75715e"># picked up next schedule()</span>
+</span></span><span style="display:flex;"><span><span style="color:#00a8c8">for</span> <span style="color:#111">req_id</span> <span style="color:#f92672">in</span> <span style="color:#111">kv_connector_output</span><span style="color:#f92672">.</span><span style="color:#111">finished_sending</span> <span style="color:#f92672">or</span> <span style="color:#111">():</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#111">self</span><span style="color:#f92672">.</span><span style="color:#111">_free_blocks</span><span style="color:#111">(</span><span style="color:#111">self</span><span style="color:#f92672">.</span><span style="color:#111">requests</span><span style="color:#111">[</span><span style="color:#111">req_id</span><span style="color:#111">])</span>         <span style="color:#75715e"># producer side: release deferred blocks</span>
+</span></span></code></pre></div><p>Two directions:</p>
 <ul>
-<li>Round 1: the waiting request is scheduled with <code>num_ext_tokens &gt; 0</code> and <code>load_kv_async=True</code>; its status is set to <code>WAITING_FOR_REMOTE_KVS</code>. <code>start_load_kv</code> is triggered by the model executor.</li>
-<li>Round 2: the request parks as <code>WAITING_FOR_REMOTE_KVS</code>. When the transfer completes, <code>update_from_output</code> signals the scheduler via <code>finished_recving_kv_req_ids</code>.</li>
-<li>Round 3: <code>_update_waiting_for_remote_kv</code> caches the received blocks, sets <code>num_computed_tokens</code>, and the request is scheduled normally as a running request.</li>
+<li><strong><code>finished_recving</code></strong> on the <em>consumer</em> (decode) node: unblocks <code>_update_waiting_for_remote_kv</code> next step.</li>
+<li><strong><code>finished_sending</code></strong> on the <em>producer</em> (prefill) node: releases blocks that <code>request_finished(...)</code> had deferred (i.e. blocks that were held past request completion until the peer confirmed receipt).</li>
+</ul>
+<p><strong><code>request_finished(request, block_ids) → (delay_free_blocks, kv_transfer_params)</code></strong> (called from <code>_free_request</code>)</p>
+<p>The connector&rsquo;s chance to <em>hold on to</em> KV blocks past request finish. Returning <code>delay_free_blocks=True</code> skips the immediate <code>_free_blocks</code>; the blocks are freed later when <code>finished_sending</code> reports the peer has consumed them. <code>kv_transfer_params</code> (block ids, cluster id, host:port, DP rank, …) is shipped back with the <code>EngineCoreOutput</code> so the decode side can locate the source.</p>
+<h3 id="17-update_from_outputscheduler_output-model_runner_output">1.7. <code>update_from_output(scheduler_output, model_runner_output)</code></h3>
+<p>Three phases: fault handling, per-request reconciliation, post-loop bookkeeping.</p>
+<p><strong>Phase B — Per-request reconciliation.</strong> For each <code>(req_id, n_sched)</code> in <code>scheduler_output.num_scheduled_tokens</code>:</p>
+<ol>
+<li>
+<p><strong>Spec-decode correction.</strong> If draft tokens were scheduled for this request:</p>
+<div class="highlight"><pre tabindex="0" style="color:#272822;background-color:#fafafa;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-python" data-lang="python"><span style="display:flex;"><span><span style="color:#111">num_draft</span>    <span style="color:#f92672">=</span> <span style="color:#111">len</span><span style="color:#111">(</span><span style="color:#111">scheduled_spec_token_ids</span><span style="color:#111">)</span>
+</span></span><span style="display:flex;"><span><span style="color:#111">num_accepted</span> <span style="color:#f92672">=</span> <span style="color:#111">len</span><span style="color:#111">(</span><span style="color:#111">generated_token_ids</span><span style="color:#111">)</span> <span style="color:#f92672">-</span> <span style="color:#ae81ff">1</span>        <span style="color:#75715e"># sampler emits accepted + 1 bonus</span>
+</span></span><span style="display:flex;"><span><span style="color:#111">num_rejected</span> <span style="color:#f92672">=</span> <span style="color:#111">num_draft</span> <span style="color:#f92672">-</span> <span style="color:#111">num_accepted</span>
+</span></span><span style="display:flex;"><span><span style="color:#00a8c8">if</span> <span style="color:#111">request</span><span style="color:#f92672">.</span><span style="color:#111">num_computed_tokens</span> <span style="color:#f92672">&gt;</span> <span style="color:#ae81ff">0</span><span style="color:#111">:</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#111">request</span><span style="color:#f92672">.</span><span style="color:#111">num_computed_tokens</span>     <span style="color:#f92672">-=</span> <span style="color:#111">num_rejected</span>
+</span></span><span style="display:flex;"><span><span style="color:#00a8c8">if</span> <span style="color:#111">request</span><span style="color:#f92672">.</span><span style="color:#111">num_output_placeholders</span> <span style="color:#f92672">&gt;</span> <span style="color:#ae81ff">0</span><span style="color:#111">:</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#111">request</span><span style="color:#f92672">.</span><span style="color:#111">num_output_placeholders</span> <span style="color:#f92672">-=</span> <span style="color:#111">num_rejected</span>
+</span></span></code></pre></div><p>This undoes the over-advancement that <code>_update_after_schedule</code> did with the (optimistic) scheduled count.</p>
+</li>
+<li>
+<p><strong>Append &amp; stop-check</strong> via <code>_update_request_with_output</code>:</p>
+<div class="highlight"><pre tabindex="0" style="color:#272822;background-color:#fafafa;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-python" data-lang="python"><span style="display:flex;"><span><span style="color:#00a8c8">for</span> <span style="color:#111">tok</span> <span style="color:#f92672">in</span> <span style="color:#111">new_token_ids</span><span style="color:#111">:</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#111">request</span><span style="color:#f92672">.</span><span style="color:#111">append_output_token_ids</span><span style="color:#111">(</span><span style="color:#111">tok</span><span style="color:#111">)</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#00a8c8">if</span> <span style="color:#111">check_stop</span><span style="color:#111">(</span><span style="color:#111">request</span><span style="color:#111">,</span> <span style="color:#111">self</span><span style="color:#f92672">.</span><span style="color:#111">max_model_len</span><span style="color:#111">):</span>
+</span></span><span style="display:flex;"><span>        <span style="color:#111">stopped</span> <span style="color:#f92672">=</span> <span style="color:#00a8c8">True</span>
+</span></span><span style="display:flex;"><span>        <span style="color:#00a8c8">del</span> <span style="color:#111">new_token_ids</span><span style="color:#111">[</span><span style="color:#111">num_new</span><span style="color:#111">:]</span>                <span style="color:#75715e"># trim tokens after the stop</span>
+</span></span><span style="display:flex;"><span>        <span style="color:#00a8c8">break</span>
+</span></span></code></pre></div><p><code>check_stop</code> inspects EOS, <code>max_tokens</code>, <code>stop_token_ids</code>, <code>stop_str</code>, and <code>max_model_len</code>.</p>
+</li>
+<li>
+<p><strong>On stop</strong>, <code>_free_request</code>:</p>
+<div class="highlight"><pre tabindex="0" style="color:#272822;background-color:#fafafa;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-python" data-lang="python"><span style="display:flex;"><span><span style="color:#111">delay_free_blocks</span><span style="color:#111">,</span> <span style="color:#111">kv_xfer_params</span> <span style="color:#f92672">=</span> <span style="color:#111">self</span><span style="color:#f92672">.</span><span style="color:#111">_connector_finished</span><span style="color:#111">(</span><span style="color:#111">request</span><span style="color:#111">)</span>
+</span></span><span style="display:flex;"><span><span style="color:#111">self</span><span style="color:#f92672">.</span><span style="color:#111">encoder_cache_manager</span><span style="color:#f92672">.</span><span style="color:#111">free</span><span style="color:#111">(</span><span style="color:#111">request</span><span style="color:#111">)</span>
+</span></span><span style="display:flex;"><span><span style="color:#111">self</span><span style="color:#f92672">.</span><span style="color:#111">finished_req_ids</span><span style="color:#f92672">.</span><span style="color:#111">add</span><span style="color:#111">(</span><span style="color:#111">request</span><span style="color:#f92672">.</span><span style="color:#111">request_id</span><span style="color:#111">)</span>     <span style="color:#75715e"># → next SchedulerOutput.finished_req_ids</span>
+</span></span><span style="display:flex;"><span><span style="color:#00a8c8">if</span> <span style="color:#f92672">not</span> <span style="color:#111">delay_free_blocks</span><span style="color:#111">:</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#111">self</span><span style="color:#f92672">.</span><span style="color:#111">_free_blocks</span><span style="color:#111">(</span><span style="color:#111">request</span><span style="color:#111">)</span>                    <span style="color:#75715e"># kv_cache_manager.free + del self.requests[id]</span>
+</span></span></code></pre></div><p><code>kv_xfer_params</code> is threaded back into <code>EngineCoreOutput</code> for this request so the frontend can pass it to the decode side.</p>
+</li>
+<li>
+<p><strong>Emit <code>EngineCoreOutput</code></strong> for the client: new tokens, logprobs, pooler output, <code>kv_transfer_params</code>, finish reason, <code>num_cached_tokens</code>, structured-output events.</p>
+</li>
+</ol>
+<p><strong>Phase C — Post-loop.</strong></p>
+<ul>
+<li>Remove stopped requests from <code>self.running</code> / <code>self.waiting</code>.</li>
+<li><code>_update_from_kv_xfer_finished(kv_connector_output)</code> — see §1.6.</li>
+<li>Drain KV cache events from both the KV cache manager and the connector; publish a <code>KVEventBatch</code> on <code>self.kv_event_publisher</code>.</li>
+<li>Aggregate finished-request sets per client, attach <code>SchedulerStats</code> + <code>SpecDecodingStats</code> + <code>KVConnectorStats</code>, and return <code>dict[client_index → EngineCoreOutputs]</code>.</li>
+</ul>
+<h3 id="18-disaggregation-lifecycle-scheduler-view">1.8. Disaggregation lifecycle (scheduler view)</h3>
+<p><strong>Prefill node.</strong> A waiting request is scheduled with <code>load_kv_async=False</code> and its connector metadata built. When the prefill finishes, <code>request_finished</code> returns <code>delay_free_blocks=True</code>; blocks are kept alive until <code>finished_sending</code> arrives from the peer via <code>_update_from_kv_xfer_finished</code>.</p>
+<p><strong>Decode node</strong> (three rounds):</p>
+<ul>
+<li><strong>Round 1</strong> — <code>schedule()</code>: waiting request gets <code>ext_tokens &gt; 0</code> and <code>load_kv_async=True</code> from <code>get_num_new_matched_tokens</code>. <code>allocate_slots</code> reserves destination blocks; <code>update_state_after_alloc</code> registers them with the connector; status flips to <code>WAITING_FOR_REMOTE_KVS</code>. <code>build_connector_meta</code> packages the pending pull; <code>execute_model</code> kicks off <code>start_load_kv</code> on the worker.</li>
+<li><strong>Round 2</strong> — <code>update_from_output</code>: <code>_update_from_kv_xfer_finished</code> sees the request id in <code>kv_connector_output.finished_recving</code> and puts it in <code>self.finished_recving_kv_req_ids</code>.</li>
+<li><strong>Round 3</strong> — <code>schedule()</code>: Pass 2&rsquo;s <code>_update_waiting_for_remote_kv</code> finds the request in <code>finished_recving_kv_req_ids</code>, calls <code>cache_blocks</code>, sets <code>num_computed_tokens = min(len(blocks) * block_size, num_tokens) - (0 or 1)</code>, and flips status back to <code>WAITING</code>. Same step, the <code>else</code>-branch schedules only the residual tokens beyond the received KV prefix.</li>
 </ul>
 <hr>
-<h2 id="2-disaggregated-prefill">2. Disaggregated Prefill</h2>
+<h2 id="2-connector">2. Connector</h2>
 <p>In standard (aggregated) inference, every GPU does both prefill (processing the full prompt) and decode (generating one token at a time). The problem is that these two phases have very different compute profiles: prefill is compute-bound (long sequences), decode is memory-bandwidth-bound (single tokens). Running them together causes head-of-line blocking and GPU underutilization.</p>
 <p>Disaggregated prefill splits these into separate nodes. A <strong>prefill node</strong> runs the full forward pass over the prompt, then ships its KV cache to a <strong>decode node</strong>, which starts autoregressive generation from that already-computed state.</p>
 <h3 id="21-connector-interface-kvconnectorbase_v1">2.1. Connector Interface: <code>KVConnectorBase_V1</code></h3>
@@ -708,8 +868,7 @@ Scheduler step N+1 (or later):
   request.num_computed_tokens = N     # now &gt; 0
   request.status = WAITING            # re-enters scheduling via the else-branch
 </code></pre><p>The <code>else</code> branch in <code>scheduler.py:548</code> is only reached on the second scheduling attempt after <code>num_computed_tokens</code> has been written by <code>_update_waiting_for_remote_kv</code>. It skips <code>get_computed_blocks</code> entirely — the blocks are already allocated and cached — and schedules only the residual tokens beyond the received KV prefix.</p>
-<h3 id="25-note-on-omni-npu">2.5. Note on <code>omni-npu</code></h3>
-<p><code>omni-npu</code> is an out-of-tree vLLM platform plugin for Ascend NPUs. It implements the KV connector interface as <code>LLMDataDistConnector</code> (<code>omni_npu/connector/llmdatadist_connector_v1.py</code>), which splits into four internal classes depending on the node role:</p>
+<h3 id="25-llmdatadist">2.5. <code>LLMDataDist</code></h3>
 <table>
 	<thead>
 			<tr>
@@ -744,6 +903,15 @@ Scheduler step N+1 (or later):
 <li><code>kv_transfer_params</code> — additional routing info (DP rank, PP partition)</li>
 </ul>
 <p><strong>Block lifetime on the prefill node.</strong> <code>PrefillConnectorScheduler.request_finished()</code> returns <code>delay_free_blocks=True</code>, so the scheduler does not immediately release the prefill&rsquo;s KV blocks. Instead, <code>PrefillConnectorWorker</code> keeps them alive until the decode node confirms receipt via a ZMQ message. The maximum hold time is <code>BLOCK_RELEASE_DELAY = 600 s</code>.</p>
+<p><strong>End-to-end sequence of <code>LLMDataDist</code></strong></p>
+<ol>
+<li>Prefill worker <code>register_kv_caches</code> → native runtime pins memory + advertises <code>BlocksCacheKey(cluster_id, model_id)</code>; listener already up from init.</li>
+<li>Request finishes prefill → scheduler returns <code>kv_transfer_params</code> (block ids + cluster id + host:port) to decode via the vLLM control plane.</li>
+<li>Decode <code>update_state_after_alloc</code> stores it; <code>build_connector_metadata</code> hands it to decode worker.</li>
+<li>Decode worker <code>_read_blocks</code> → <code>datadist_manager.pull_kv</code> → (link on demand via register_link if needed) → <code>cache_manager.pull_blocks(...)</code> — <strong>RDMA READ happens here, entirely native.</strong></li>
+<li>Decode ZMQ-pushes the remote_request_id back to prefill&rsquo;s <code>get_pulled_kv_req_list</code> (line 495-511).</li>
+<li>Prefill&rsquo;s <code>get_finished</code> matches it against <code>requests_finish_time</code> and reports the send as done, freeing blocks.</li>
+</ol>
 
                     
                     <HR width="100%" id="EOF">
