@@ -41,8 +41,8 @@
 &lt;ul&gt;
 &lt;li&gt;&lt;a href=&#34;https://vllm.ai/blog/2025-09-05-anatomy-of-vllm&#34;&gt;Inside vLLM: Anatomy of a High-Throughput LLM Inference System&lt;/a&gt; ⭐️ ✅&lt;/li&gt;
 &lt;li&gt;&lt;a href=&#34;https://mp.weixin.qq.com/s/wfAyVE-9B-SqWr7JoC7jnQ&#34;&gt;透过 vLLM 深入分析一次推理的完整旅程：从 HTTP 请求到 Token 流出&lt;/a&gt; ✅&lt;/li&gt;
-&lt;li&gt;Async scheduling: PR 29957 &amp;amp; 32951&lt;/li&gt;
-&lt;li&gt;&lt;a href=&#34;https://mp.weixin.qq.com/s/kxoaqZsBsl0kKT5pPyD09Q&#34;&gt;vLLM Mooncake KV Connector详解：让KV Cache在GPU之间“瞬移”&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;Async scheduling: PR 29957 &amp;amp; 32951 ✅&lt;/li&gt;
+&lt;li&gt;&lt;a href=&#34;https://mp.weixin.qq.com/s/kxoaqZsBsl0kKT5pPyD09Q&#34;&gt;vLLM Mooncake KV Connector详解：让KV Cache在GPU之间“瞬移”&lt;/a&gt; ✅&lt;/li&gt;
 &lt;/ul&gt;
 - https://zhixuan-zxli.github.io/llm/reading_2026/ - </description>
         </item>
