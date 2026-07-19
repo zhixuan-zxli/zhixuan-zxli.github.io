@@ -10,9 +10,16 @@
 		
 		
 		
-			<lastBuildDate>Tue, 14 Jul 2026 00:00:00 +0000</lastBuildDate>
+			<lastBuildDate>Sun, 19 Jul 2026 00:00:00 +0000</lastBuildDate>
 		
 			<atom:link href="https://zhixuan-zxli.github.io/tags/vllm/index.xml" rel="self" type="application/rss+xml" />
+			<item>
+				<title>Zero-bubble async scheduling for spec decoding</title>
+				<link>https://zhixuan-zxli.github.io/llm/async_scheduling/</link>
+				<pubDate>Sun, 19 Jul 2026 00:00:00 +0000</pubDate>
+				<guid>https://zhixuan-zxli.github.io/llm/async_scheduling/</guid>
+				<description>&lt;blockquote&gt;&#xA;&lt;p&gt;&lt;strong&gt;vLLM PR #32951&lt;/strong&gt; (refactor of #29957) — how the CPU stops waiting on the GPU&#xA;when async scheduling meets spec decoding.&lt;/p&gt;&#xA;&lt;/blockquote&gt;&#xA;&lt;h2 id=&#34;recap-async-scheduling-without-spec-decode&#34;&gt;Recap: async scheduling without spec decode&lt;/h2&gt;&#xA;&lt;ul&gt;&#xA;&lt;li&gt;Scheduler runs &lt;strong&gt;one step ahead&lt;/strong&gt;: while the GPU executes step &lt;em&gt;N&lt;/em&gt;, the CPU&#xA;prepares step &lt;em&gt;N+1&lt;/em&gt;.&lt;/li&gt;&#xA;&lt;li&gt;Sampled tokens of step &lt;em&gt;N&lt;/em&gt; are &lt;strong&gt;not needed&lt;/strong&gt; to prepare &lt;em&gt;N+1&lt;/em&gt; — the CPU&#xA;writes &lt;code&gt;-1&lt;/code&gt; &lt;strong&gt;placeholders&lt;/strong&gt; and patches them later.&lt;/li&gt;&#xA;&lt;li&gt;CPU prep of &lt;em&gt;N+1&lt;/em&gt; fully overlaps GPU execution of &lt;em&gt;N&lt;/em&gt; → no bubble.&lt;/li&gt;&#xA;&lt;/ul&gt;&#xA;&lt;p&gt;&lt;strong&gt;Spec decode breaks this&lt;/strong&gt;: to prepare step &lt;em&gt;N+1&lt;/em&gt;, the CPU must know how many&#xA;draft tokens were &lt;strong&gt;accepted&lt;/strong&gt; in step &lt;em&gt;N&lt;/em&gt; (rejection sampler output), because&#xA;&lt;code&gt;num_computed_tokens&lt;/code&gt;, &lt;code&gt;seq_lens&lt;/code&gt;, &lt;code&gt;positions&lt;/code&gt;, &lt;code&gt;slot_mapping&lt;/code&gt; all depend on it.&lt;/p&gt;</description>
+			</item>
 			<item>
 				<title>Mooncake KV Connector</title>
 				<link>https://zhixuan-zxli.github.io/llm/mooncake/</link>

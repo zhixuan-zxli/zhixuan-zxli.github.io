@@ -10,7 +10,7 @@
 		
 		
 		
-			<lastBuildDate>Tue, 14 Jul 2026 00:00:00 +0000</lastBuildDate>
+			<lastBuildDate>Sun, 19 Jul 2026 00:00:00 +0000</lastBuildDate>
 		
 			<atom:link href="https://zhixuan-zxli.github.io/llm/index.xml" rel="self" type="application/rss+xml" />
 			<item>
@@ -19,6 +19,13 @@
 				<pubDate>Sun, 28 Jun 2026 00:00:00 +0000</pubDate>
 				<guid>https://zhixuan-zxli.github.io/llm/reading_2026/</guid>
 				<description>&lt;h3 id=&#34;deepseek-v4&#34;&gt;Deepseek V4&lt;/h3&gt;&#xA;&lt;ul&gt;&#xA;&lt;li&gt;&lt;a href=&#34;https://arxiv.org/abs/2606.19348&#34;&gt;DeepSeek-V4: Towards Highly Efficient Million-Token Context Intelligence&lt;/a&gt; ✅&lt;/li&gt;&#xA;&lt;li&gt;&lt;a href=&#34;https://arxiv.org/abs/2512.24880&#34;&gt;mHC: Manifold-Constrained Hyper-Connections&lt;/a&gt; ✅&lt;/li&gt;&#xA;&lt;li&gt;&lt;a href=&#34;https://github.com/deepseek-ai/DeepSpec/blob/main/DSpark_paper.pdf&#34;&gt;DSpark: Confidence-Scheduled Speculative Decoding with  Semi-Autoregressive Generation&lt;/a&gt; ✅&lt;/li&gt;&#xA;&lt;li&gt;DFlash: Block Diffusion for Flash Speculative Decoding ✅&lt;/li&gt;&#xA;&lt;/ul&gt;&#xA;&lt;h3 id=&#34;glm-52&#34;&gt;GLM 5.2&lt;/h3&gt;&#xA;&lt;ul&gt;&#xA;&lt;li&gt;&lt;a href=&#34;https://arxiv.org/pdf/2602.15763&#34;&gt;GLM-5: from Vibe Coding to Agentic Engineering&lt;/a&gt; ✅&lt;/li&gt;&#xA;&lt;li&gt;&lt;a href=&#34;https://z.ai/blog/glm-5.2&#34;&gt;GLM-5.2: Built for Long-Horizon Tasks&lt;/a&gt; ✅&lt;/li&gt;&#xA;&lt;li&gt;&lt;a href=&#34;https://arxiv.org/pdf/2603.12201&#34;&gt;IndexShare&lt;/a&gt; ✅&lt;/li&gt;&#xA;&lt;/ul&gt;&#xA;&lt;h3 id=&#34;others&#34;&gt;Others&lt;/h3&gt;&#xA;&lt;ul&gt;&#xA;&lt;li&gt;&lt;a href=&#34;https://lilianweng.github.io/posts/2026-06-24-scaling-laws/&#34;&gt;Lil&amp;rsquo;Log: Scaling Laws, Carefully&lt;/a&gt;&lt;/li&gt;&#xA;&lt;li&gt;&lt;a href=&#34;https://thinkingmachines.ai/blog/on-policy-distillation&#34;&gt;On-Policy Distillation&lt;/a&gt; ✅&lt;/li&gt;&#xA;&lt;li&gt;mini-sglang&lt;/li&gt;&#xA;&lt;/ul&gt;&#xA;&lt;h3 id=&#34;vllm&#34;&gt;vLLM&lt;/h3&gt;&#xA;&lt;ul&gt;&#xA;&lt;li&gt;&lt;a href=&#34;https://vllm.ai/blog/2025-09-05-anatomy-of-vllm&#34;&gt;Inside vLLM: Anatomy of a High-Throughput LLM Inference System&lt;/a&gt; ⭐️ ✅&lt;/li&gt;&#xA;&lt;li&gt;&lt;a href=&#34;https://mp.weixin.qq.com/s/wfAyVE-9B-SqWr7JoC7jnQ&#34;&gt;透过 vLLM 深入分析一次推理的完整旅程：从 HTTP 请求到 Token 流出&lt;/a&gt; ✅&lt;/li&gt;&#xA;&lt;li&gt;Async scheduling: PR 29957 &amp;amp; 32951&lt;/li&gt;&#xA;&lt;li&gt;&lt;a href=&#34;https://mp.weixin.qq.com/s/kxoaqZsBsl0kKT5pPyD09Q&#34;&gt;vLLM Mooncake KV Connector详解：让KV Cache在GPU之间“瞬移”&lt;/a&gt;&lt;/li&gt;&#xA;&lt;/ul&gt;</description>
+			</item>
+			<item>
+				<title>Zero-bubble async scheduling for spec decoding</title>
+				<link>https://zhixuan-zxli.github.io/llm/async_scheduling/</link>
+				<pubDate>Sun, 19 Jul 2026 00:00:00 +0000</pubDate>
+				<guid>https://zhixuan-zxli.github.io/llm/async_scheduling/</guid>
+				<description>&lt;blockquote&gt;&#xA;&lt;p&gt;&lt;strong&gt;vLLM PR #32951&lt;/strong&gt; (refactor of #29957) — how the CPU stops waiting on the GPU&#xA;when async scheduling meets spec decoding.&lt;/p&gt;&#xA;&lt;/blockquote&gt;&#xA;&lt;h2 id=&#34;recap-async-scheduling-without-spec-decode&#34;&gt;Recap: async scheduling without spec decode&lt;/h2&gt;&#xA;&lt;ul&gt;&#xA;&lt;li&gt;Scheduler runs &lt;strong&gt;one step ahead&lt;/strong&gt;: while the GPU executes step &lt;em&gt;N&lt;/em&gt;, the CPU&#xA;prepares step &lt;em&gt;N+1&lt;/em&gt;.&lt;/li&gt;&#xA;&lt;li&gt;Sampled tokens of step &lt;em&gt;N&lt;/em&gt; are &lt;strong&gt;not needed&lt;/strong&gt; to prepare &lt;em&gt;N+1&lt;/em&gt; — the CPU&#xA;writes &lt;code&gt;-1&lt;/code&gt; &lt;strong&gt;placeholders&lt;/strong&gt; and patches them later.&lt;/li&gt;&#xA;&lt;li&gt;CPU prep of &lt;em&gt;N+1&lt;/em&gt; fully overlaps GPU execution of &lt;em&gt;N&lt;/em&gt; → no bubble.&lt;/li&gt;&#xA;&lt;/ul&gt;&#xA;&lt;p&gt;&lt;strong&gt;Spec decode breaks this&lt;/strong&gt;: to prepare step &lt;em&gt;N+1&lt;/em&gt;, the CPU must know how many&#xA;draft tokens were &lt;strong&gt;accepted&lt;/strong&gt; in step &lt;em&gt;N&lt;/em&gt; (rejection sampler output), because&#xA;&lt;code&gt;num_computed_tokens&lt;/code&gt;, &lt;code&gt;seq_lens&lt;/code&gt;, &lt;code&gt;positions&lt;/code&gt;, &lt;code&gt;slot_mapping&lt;/code&gt; all depend on it.&lt;/p&gt;</description>
 			</item>
 			<item>
 				<title>Mooncake KV Connector</title>

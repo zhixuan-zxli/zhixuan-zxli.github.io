@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <html lang="en"><head>
-<title>读书 2026</title>
+<title>Zero-bubble async scheduling for spec decoding</title>
 
 
 
@@ -74,9 +74,11 @@
                 
                 
                 
+                    
                 
                 
-                <a class="a-block drawer-menu-item false" href="/llm">
+                
+                <a class="a-block drawer-menu-item active" href="/llm">
                     大模型
                 </a>
                 
@@ -84,11 +86,9 @@
                 
                 
                 
-                    
                 
                 
-                
-                <a class="a-block drawer-menu-item active" href="/life">
+                <a class="a-block drawer-menu-item false" href="/life">
                     生活随记
                 </a>
                 
@@ -119,15 +119,11 @@
 									<ul>
 								
 							
-								
-									<ul>
-								
-							
 						
 						
 							<li>
-								<a href="#5%e6%9c%88" class="nav-5月">
-									5月
+								<a href="#recap-async-scheduling-without-spec-decode" class="nav-recap-async-scheduling-without-spec-decode">
+									Recap: async scheduling without spec decode
 								</a>
 							</li>
 						
@@ -144,8 +140,8 @@
 						
 						
 							<li>
-								<a href="#6%e6%9c%88" class="nav-6月">
-									6月
+								<a href="#the-fix-three-mechanisms" class="nav-the-fix-three-mechanisms">
+									The fix: three mechanisms
 								</a>
 							</li>
 						
@@ -162,8 +158,8 @@
 						
 						
 							<li>
-								<a href="#7%e6%9c%88" class="nav-7月">
-									7月
+								<a href="#timeline" class="nav-timeline">
+									Timeline
 								</a>
 							</li>
 						
@@ -224,12 +220,12 @@
                 
             >
                 <div class="post-title">
-                    读书 2026
+                    Zero-bubble async scheduling for spec decoding
                     
                     <div class="post-meta">
                         
                         <time itemprop="datePublished">
-                            2026-06-28 00:00
+                            2026-07-19 00:00
                         </time>
                         
 
@@ -238,7 +234,7 @@
                         
                             <i class="material-icons" style="">label</i>
                             
-                                <a href="/tags/reading">Reading</a>
+                                <a href="/tags/vllm">vLLM</a>
                                 &nbsp;
                             
                         
@@ -251,31 +247,56 @@
                 
                 <div class="post-body" v-pre>
                 
-                    <h3 id="5月">5月</h3>
+                    <blockquote>
+<p><strong>vLLM PR #32951</strong> (refactor of #29957) — how the CPU stops waiting on the GPU
+when async scheduling meets spec decoding.</p>
+</blockquote>
+<h2 id="recap-async-scheduling-without-spec-decode">Recap: async scheduling without spec decode</h2>
 <ul>
-<li><em>正常人</em>， 萨莉・鲁尼 ✅</li>
+<li>Scheduler runs <strong>one step ahead</strong>: while the GPU executes step <em>N</em>, the CPU
+prepares step <em>N+1</em>.</li>
+<li>Sampled tokens of step <em>N</em> are <strong>not needed</strong> to prepare <em>N+1</em> — the CPU
+writes <code>-1</code> <strong>placeholders</strong> and patches them later.</li>
+<li>CPU prep of <em>N+1</em> fully overlaps GPU execution of <em>N</em> → no bubble.</li>
 </ul>
-<h3 id="6月">6月</h3>
-<ul>
-<li><em>机器人之梦</em> ✅</li>
-<li><em>窄门</em>，纪德 ✅</li>
-<li><em>爱的艺术</em>，爱里希・弗洛姆 ✅
+<p><strong>Spec decode breaks this</strong>: to prepare step <em>N+1</em>, the CPU must know how many
+draft tokens were <strong>accepted</strong> in step <em>N</em> (rejection sampler output), because
+<code>num_computed_tokens</code>, <code>seq_lens</code>, <code>positions</code>, <code>slot_mapping</code> all depend on it.</p>
+<hr>
+<h2 id="the-fix-three-mechanisms">The fix: three mechanisms</h2>
 <ol>
-<li>爱是将一个人生命里的事物给予出去，从而体验到自身的能力和生命的强壮、丰饶。</li>
-<li>爱的元素包括：照顾【在意你】、责任【愿意回应你】、尊重【不占有你】和了解【看见真实的你】。</li>
-<li>爱需要克服<strong>自恋</strong>，即只按照事物对自己有用或有害来体验它们。它的反面是客观性，是将客观图像和根据一己欲望与恐惧所形成的图像区分开来的能力。</li>
+<li><strong>Optimistic CPU prep</strong> — <code>_update_states</code> assumes <em>all</em> drafts accepted;
+emits <code>-1</code> placeholders for <code>prev_num_draft_len</code> tokens and a
+<code>deferred_spec_decode_corrections</code> closure instead of syncing.
+<code>_prepare_inputs</code> builds <code>optimistic_seq_lens_cpu</code>.</li>
+<li><strong>GPU-side correction</strong> — <code>update_num_computed_tokens_for_batch_change</code>
+repairs <code>num_computed_tokens</code> / <code>num_accepted_tokens</code> <strong>on the GPU</strong> using
+last step&rsquo;s <code>valid_sampled_token_count_gpu</code> (never left the device).
+<code>positions</code>, <code>seq_lens</code>, <code>slot_mapping</code> (<code>_compute_slot_mapping_kernel</code>,
+triton) are now computed GPU-side from the corrected values.</li>
+<li><strong>Deferred CPU correction</strong> — after <code>execute_model</code> has <em>launched</em> step
+N+1&rsquo;s kernels, the closure runs <code>_get_valid_sampled_token_count()</code> and fixes
+CPU bookkeeping (<code>req_state.num_computed_tokens</code>,
+<code>input_batch.num_computed_tokens_cpu</code>). The sync overlaps GPU work.</li>
 </ol>
-</li>
-</ul>
-<h3 id="7月">7月</h3>
+<hr>
+<h2 id="timeline">Timeline</h2>
 <ul>
-<li><em>小王子</em> ✅</li>
-<li><em>撒哈拉的故事</em>，三毛</li>
+<li>vLLM 0.14: bubbles between &ldquo;target fwd N&rdquo; &amp; &ldquo;samp N&rdquo;, and between &ldquo;MTP N&rdquo; &amp; &ldquo;target fwd N+1&rdquo;; blocking and redundant D2H copies</li>
 </ul>
+<img src="../async_scheduling-1.drawio.svg" alt="Async-1" style="width: auto; height: 50%;"/>
+<ul>
+<li>openPangu 2.0: remove the first buble and the redundant copy</li>
+</ul>
+<img src="../async_scheduling-2.drawio.svg" alt="Async-2" style="width: auto; height: 50%;"/>
+<ul>
+<li>vLLM 0.25: remove the blocking D2H from the critical path; GPU correction done by Triton kernel; CPU correction is deferred</li>
+</ul>
+<img src="../async_scheduling-3.drawio.svg" alt="Async-3" style="width: auto; height: 50%;"/>
 
                     
                     <HR width="100%" id="EOF">
-		    <p style="color:#777;">最后修改于 2026-06-28</p>
+		    <p style="color:#777;">最后修改于 2026-07-19</p>
                     
                 </div>
             </div>
@@ -284,14 +305,14 @@
             <nav class="post-pagination">
 
                 
-                <a class="newer-posts" href="/llm/reading_2026/">
-			下回<br>Reading List 2026
+                <a class="newer-posts" href="/life/reading_2026/">
+			下回<br>读书 2026
                 </a>
                 
                 
                 
-                <a class="older-posts" href="/llm/async_scheduling/">
-			上回<br>Zero-bubble async scheduling for spec decoding
+                <a class="older-posts" href="/llm/mooncake/">
+			上回<br>Mooncake KV Connector
                 </a>
                 
             </nav>
@@ -331,9 +352,11 @@
             
             
             
+                
             
             
-            <a class="a-block nav-link-item false" href="/llm">
+            
+            <a class="a-block nav-link-item active" href="/llm">
                 大模型
             </a>
             
@@ -341,11 +364,9 @@
             
             
             
-                
             
             
-            
-            <a class="a-block nav-link-item active" href="/life">
+            <a class="a-block nav-link-item false" href="/life">
                 生活随记
             </a>
             

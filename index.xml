@@ -6,7 +6,7 @@
     <description>Recent content in 至轩的博客 on Zhixuan&#39;s Blog</description>
     <generator>Hugo -- gohugo.io</generator>
     <language>zh</language>
-    <lastBuildDate>Tue, 14 Jul 2026 00:00:00 +0000</lastBuildDate>
+    <lastBuildDate>Sun, 19 Jul 2026 00:00:00 +0000</lastBuildDate>
     
         <atom:link href="https://zhixuan-zxli.github.io/index.xml" rel="self" type="application/rss+xml" />
     
@@ -77,6 +77,63 @@
 &lt;li&gt;&lt;em&gt;撒哈拉的故事&lt;/em&gt;，三毛&lt;/li&gt;
 &lt;/ul&gt;
 - https://zhixuan-zxli.github.io/life/reading_2026/ - </description>
+        </item>
+    
+    
+    
+        <item>
+        <title>Zero-bubble async scheduling for spec decoding</title>
+        <link>https://zhixuan-zxli.github.io/llm/async_scheduling/</link>
+        <pubDate>Sun, 19 Jul 2026 00:00:00 +0000</pubDate>
+        
+        <guid>https://zhixuan-zxli.github.io/llm/async_scheduling/</guid>
+        <description>Zhixuan&#39;s Blog https://zhixuan-zxli.github.io/llm/async_scheduling/ -&lt;blockquote&gt;
+&lt;p&gt;&lt;strong&gt;vLLM PR #32951&lt;/strong&gt; (refactor of #29957) — how the CPU stops waiting on the GPU
+when async scheduling meets spec decoding.&lt;/p&gt;
+&lt;/blockquote&gt;
+&lt;h2 id=&#34;recap-async-scheduling-without-spec-decode&#34;&gt;Recap: async scheduling without spec decode&lt;/h2&gt;
+&lt;ul&gt;
+&lt;li&gt;Scheduler runs &lt;strong&gt;one step ahead&lt;/strong&gt;: while the GPU executes step &lt;em&gt;N&lt;/em&gt;, the CPU
+prepares step &lt;em&gt;N+1&lt;/em&gt;.&lt;/li&gt;
+&lt;li&gt;Sampled tokens of step &lt;em&gt;N&lt;/em&gt; are &lt;strong&gt;not needed&lt;/strong&gt; to prepare &lt;em&gt;N+1&lt;/em&gt; — the CPU
+writes &lt;code&gt;-1&lt;/code&gt; &lt;strong&gt;placeholders&lt;/strong&gt; and patches them later.&lt;/li&gt;
+&lt;li&gt;CPU prep of &lt;em&gt;N+1&lt;/em&gt; fully overlaps GPU execution of &lt;em&gt;N&lt;/em&gt; → no bubble.&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;&lt;strong&gt;Spec decode breaks this&lt;/strong&gt;: to prepare step &lt;em&gt;N+1&lt;/em&gt;, the CPU must know how many
+draft tokens were &lt;strong&gt;accepted&lt;/strong&gt; in step &lt;em&gt;N&lt;/em&gt; (rejection sampler output), because
+&lt;code&gt;num_computed_tokens&lt;/code&gt;, &lt;code&gt;seq_lens&lt;/code&gt;, &lt;code&gt;positions&lt;/code&gt;, &lt;code&gt;slot_mapping&lt;/code&gt; all depend on it.&lt;/p&gt;
+&lt;hr&gt;
+&lt;h2 id=&#34;the-fix-three-mechanisms&#34;&gt;The fix: three mechanisms&lt;/h2&gt;
+&lt;ol&gt;
+&lt;li&gt;&lt;strong&gt;Optimistic CPU prep&lt;/strong&gt; — &lt;code&gt;_update_states&lt;/code&gt; assumes &lt;em&gt;all&lt;/em&gt; drafts accepted;
+emits &lt;code&gt;-1&lt;/code&gt; placeholders for &lt;code&gt;prev_num_draft_len&lt;/code&gt; tokens and a
+&lt;code&gt;deferred_spec_decode_corrections&lt;/code&gt; closure instead of syncing.
+&lt;code&gt;_prepare_inputs&lt;/code&gt; builds &lt;code&gt;optimistic_seq_lens_cpu&lt;/code&gt;.&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;GPU-side correction&lt;/strong&gt; — &lt;code&gt;update_num_computed_tokens_for_batch_change&lt;/code&gt;
+repairs &lt;code&gt;num_computed_tokens&lt;/code&gt; / &lt;code&gt;num_accepted_tokens&lt;/code&gt; &lt;strong&gt;on the GPU&lt;/strong&gt; using
+last step&amp;rsquo;s &lt;code&gt;valid_sampled_token_count_gpu&lt;/code&gt; (never left the device).
+&lt;code&gt;positions&lt;/code&gt;, &lt;code&gt;seq_lens&lt;/code&gt;, &lt;code&gt;slot_mapping&lt;/code&gt; (&lt;code&gt;_compute_slot_mapping_kernel&lt;/code&gt;,
+triton) are now computed GPU-side from the corrected values.&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;Deferred CPU correction&lt;/strong&gt; — after &lt;code&gt;execute_model&lt;/code&gt; has &lt;em&gt;launched&lt;/em&gt; step
+N+1&amp;rsquo;s kernels, the closure runs &lt;code&gt;_get_valid_sampled_token_count()&lt;/code&gt; and fixes
+CPU bookkeeping (&lt;code&gt;req_state.num_computed_tokens&lt;/code&gt;,
+&lt;code&gt;input_batch.num_computed_tokens_cpu&lt;/code&gt;). The sync overlaps GPU work.&lt;/li&gt;
+&lt;/ol&gt;
+&lt;hr&gt;
+&lt;h2 id=&#34;timeline&#34;&gt;Timeline&lt;/h2&gt;
+&lt;ul&gt;
+&lt;li&gt;vLLM 0.14: bubbles between &amp;ldquo;target fwd N&amp;rdquo; &amp;amp; &amp;ldquo;samp N&amp;rdquo;, and between &amp;ldquo;MTP N&amp;rdquo; &amp;amp; &amp;ldquo;target fwd N+1&amp;rdquo;; blocking and redundant D2H copies&lt;/li&gt;
+&lt;/ul&gt;
+&lt;img src=&#34;../async_scheduling-1.drawio.svg&#34; alt=&#34;Async-1&#34; style=&#34;width: auto; height: 50%;&#34;/&gt;
+&lt;ul&gt;
+&lt;li&gt;openPangu 2.0: remove the first buble and the redundant copy&lt;/li&gt;
+&lt;/ul&gt;
+&lt;img src=&#34;../async_scheduling-2.drawio.svg&#34; alt=&#34;Async-2&#34; style=&#34;width: auto; height: 50%;&#34;/&gt;
+&lt;ul&gt;
+&lt;li&gt;vLLM 0.25: remove the blocking D2H from the critical path; GPU correction done by Triton kernel; CPU correction is deferred&lt;/li&gt;
+&lt;/ul&gt;
+&lt;img src=&#34;../async_scheduling-3.drawio.svg&#34; alt=&#34;Async-3&#34; style=&#34;width: auto; height: 50%;&#34;/&gt;
+- https://zhixuan-zxli.github.io/llm/async_scheduling/ - </description>
         </item>
     
     
