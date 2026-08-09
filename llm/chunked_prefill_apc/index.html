@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <html lang="en"><head>
-<title>Zero-bubble async scheduling for spec decoding</title>
+<title>Chunked Prefill and Prefix Caching</title>
 
 
 
@@ -97,79 +97,6 @@
             <div class="toc">
 
 
-	<div class="toc-content">
-	
-		
-		
-		
-		<center>- 目录 -</center>
-		
-		
-		<ul>
-			
-				
-				
-					
-						
-						
-						
-						
-							
-								
-									<ul>
-								
-							
-						
-						
-							<li>
-								<a href="#recap-async-scheduling-without-spec-decode" class="nav-recap-async-scheduling-without-spec-decode">
-									Recap: async scheduling without spec decode
-								</a>
-							</li>
-						
-						
-					
-				
-			
-				
-				
-					
-						
-						
-						
-						
-						
-							<li>
-								<a href="#the-fix-three-mechanisms" class="nav-the-fix-three-mechanisms">
-									The fix: three mechanisms
-								</a>
-							</li>
-						
-						
-					
-				
-			
-				
-				
-					
-						
-						
-						
-						
-						
-							<li>
-								<a href="#timeline" class="nav-timeline">
-									Timeline
-								</a>
-							</li>
-						
-						
-					
-				
-			
-		</ul>
-	</div>
-
 </div>
             
         </div>
@@ -220,12 +147,12 @@
                 
             >
                 <div class="post-title">
-                    Zero-bubble async scheduling for spec decoding
+                    Chunked Prefill and Prefix Caching
                     
                     <div class="post-meta">
                         
                         <time itemprop="datePublished">
-                            2026-07-19 00:00
+                            2026-08-09 00:00
                         </time>
                         
 
@@ -247,56 +174,11 @@
                 
                 <div class="post-body" v-pre>
                 
-                    <blockquote>
-<p><strong>vLLM PR #32951</strong> (refactor of #29957) — how the CPU stops waiting on the GPU
-when async scheduling meets spec decoding.</p>
-</blockquote>
-<h2 id="recap-async-scheduling-without-spec-decode">Recap: async scheduling without spec decode</h2>
-<ul>
-<li>Scheduler runs <strong>one step ahead</strong>: while the GPU executes step <em>N</em>, the CPU
-prepares step <em>N+1</em>.</li>
-<li>Sampled tokens of step <em>N</em> are <strong>not needed</strong> to prepare <em>N+1</em> — the CPU
-writes <code>-1</code> <strong>placeholders</strong> and patches them later.</li>
-<li>CPU prep of <em>N+1</em> fully overlaps GPU execution of <em>N</em> → no bubble.</li>
-</ul>
-<p><strong>Spec decode breaks this</strong>: to prepare step <em>N+1</em>, the CPU must know how many
-draft tokens were <strong>accepted</strong> in step <em>N</em> (rejection sampler output), because
-<code>num_computed_tokens</code>, <code>seq_lens</code>, <code>positions</code>, <code>slot_mapping</code> all depend on it.</p>
-<hr>
-<h2 id="the-fix-three-mechanisms">The fix: three mechanisms</h2>
-<ol>
-<li><strong>Optimistic CPU prep</strong> — <code>_update_states</code> assumes <em>all</em> drafts accepted;
-emits <code>-1</code> placeholders for <code>prev_num_draft_len</code> tokens and a
-<code>deferred_spec_decode_corrections</code> closure instead of syncing.
-<code>_prepare_inputs</code> builds <code>optimistic_seq_lens_cpu</code>.</li>
-<li><strong>GPU-side correction</strong> — <code>update_num_computed_tokens_for_batch_change</code>
-repairs <code>num_computed_tokens</code> / <code>num_accepted_tokens</code> <strong>on the GPU</strong> using
-last step&rsquo;s <code>valid_sampled_token_count_gpu</code> (never left the device).
-<code>positions</code>, <code>seq_lens</code>, <code>slot_mapping</code> (<code>_compute_slot_mapping_kernel</code>,
-triton) are now computed GPU-side from the corrected values.</li>
-<li><strong>Deferred CPU correction</strong> — after <code>execute_model</code> has <em>launched</em> step
-N+1&rsquo;s kernels, the closure runs <code>_get_valid_sampled_token_count()</code> and fixes
-CPU bookkeeping (<code>req_state.num_computed_tokens</code>,
-<code>input_batch.num_computed_tokens_cpu</code>). The sync overlaps GPU work.</li>
-</ol>
-<hr>
-<h2 id="timeline">Timeline</h2>
-<ul>
-<li>vLLM 0.14: bubbles between &ldquo;target fwd N&rdquo; &amp; &ldquo;samp N&rdquo;, and between &ldquo;MTP N&rdquo; &amp; &ldquo;target fwd N+1&rdquo;; blocking and redundant D2H copies</li>
-</ul>
-<img src="../../assets/LLM/async_scheduling-1.drawio.svg" alt="Async-1" style="width: auto; height: 50%;"/>
-<ul>
-<li>openPangu 2.0: remove the first buble and the redundant copy</li>
-</ul>
-<img src="../../assets/LLM/async_scheduling-2.drawio.svg" alt="Async-2" style="width: auto; height: 50%;"/>
-<ul>
-<li>vLLM 0.25: remove the blocking D2H from the critical path; GPU correction done by Triton kernel; CPU correction is deferred</li>
-</ul>
-<img src="../../assets/LLM/async_scheduling-3.drawio.svg" alt="Async-3" style="width: auto; height: 50%;"/>
+                    <p><a href="/slides/chunked_prefill_apc.html">Click to view the presentation slides</a></p>
 
                     
                     <HR width="100%" id="EOF">
-		    <p style="color:#777;">最后修改于 2026-07-19</p>
+		    <p style="color:#777;">最后修改于 2026-08-09</p>
                     
                 </div>
             </div>
@@ -305,14 +187,14 @@ CPU bookkeeping (<code>req_state.num_computed_tokens</code>,
             <nav class="post-pagination">
 
                 
-                <a class="newer-posts" href="/llm/causal_conv/">
-			下回<br>Causal Convolution: Cache, Computation and Sequence Parallelism
+                <a class="newer-posts" href="/llm/kda_chunk_fwd_kernels/">
+			下回<br>Chunk KDA Kernels
                 </a>
                 
                 
                 
-                <a class="older-posts" href="/llm/mooncake/">
-			上回<br>Mooncake KV Connector
+                <a class="older-posts" href="/llm/mooncake_connector/">
+			上回<br>Mooncake Connector - Architecture
                 </a>
                 
             </nav>

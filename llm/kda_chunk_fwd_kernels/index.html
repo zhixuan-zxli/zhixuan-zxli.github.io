@@ -1,0 +1,1018 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<title>Chunk KDA Kernels</title>
+
+
+
+
+<meta charset="utf-8">
+<meta name="X-UA-Compatible" content="IE=edge">
+<meta name="google-site-verification" content="">
+<meta content="width=device-width, initial-scale=1.0, maximum-scale=5, user-scalable=5" name="viewport">
+<meta content="telephone=no" name="format-detection">
+<meta name="description" content="">
+<meta name="renderer" content="webkit">
+<meta name="theme-color" content="#ffffff">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+
+
+
+
+
+    <link type="text/css" rel="stylesheet" href="/vendor/css/bootstrap.min.css">
+
+<link rel="stylesheet" href="/scss/dark-mode.min.6c9b4c2290542df75010d1640eac4339c754ccff3c9b43fc81a23c94e7e12eaf.css" integrity="sha256-bJtMIpBULfdQENFkDqxDOcdUzP88m0P8gaI8lOfhLq8=" media="screen">
+
+
+<link rel="stylesheet"
+          href="https://fonts.googleapis.com/css?family=Material+Icons">
+
+
+
+
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.13.13/dist/katex.min.css" integrity="sha384-RZU/ijkSsFbcmivfdRBQDtwuwVqK7GMOw6IMvKyeWL2K5UAlyp6WonmB8m7Jd0Hn" crossorigin="anonymous">
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.13.13/dist/katex.min.js" integrity="sha384-pK1WpvzWVBQiP0/GjnvRxV4mOb0oxFuyRxJlk6vVw146n3egcN5C925NCP7a7BY8" crossorigin="anonymous"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.13.13/dist/contrib/auto-render.min.js" integrity="sha384-vZTG03m+2yp6N6BNi5iM4rW4oIwk5DfcNdFfxkk9ZWpDriOkXX8voJBFrAO7MpVl" crossorigin="anonymous"></script>
+<script>
+    document.addEventListener("DOMContentLoaded", function() {
+        renderMathInElement(document.body, {
+          
+          
+          delimiters: [
+              {left: '$$', right: '$$', display: true},
+              {left: '$', right: '$', display: false},
+              {left: '\\(', right: '\\)', display: false},
+              {left: '\\[', right: '\\]', display: true}
+          ],
+          
+          throwOnError : false
+        });
+    });
+</script>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<link rel="stylesheet" href="/css/custom.css">
+
+
+</head>
+<body>
+    	<div id="app"><div class="single-column-drawer-container" id="drawer"
+     v-bind:class="{ 'single-column-drawer-container-active': isDrawerOpen }">
+    <div class="drawer-content">
+        <div class="drawer-menu">
+            
+            
+            
+                
+                
+                
+                    
+                
+                
+                
+                <a class="a-block drawer-menu-item active" href="/llm">
+                    大模型
+                </a>
+                
+            
+                
+                
+                
+                
+                
+                <a class="a-block drawer-menu-item false" href="/life">
+                    生活随记
+                </a>
+                
+            
+            
+            <div class="toc">
+
+
+	<div class="toc-content">
+	
+		
+		
+		
+		<center>- 目录 -</center>
+		
+		
+		<ul>
+			
+				
+				
+					
+						
+						
+						
+						
+						
+							<li>
+								<a href="#chunk_kda_fwd-kernel-walkthrough" class="nav-chunk_kda_fwd-kernel-walkthrough">
+									chunk_kda_fwd Kernel Walkthrough
+								</a>
+							</li>
+						
+						
+					
+				
+			
+				
+				
+					
+						
+						
+						
+						
+							
+								
+									<ul>
+								
+							
+						
+						
+							<li>
+								<a href="#notation-and-global-shapes" class="nav-notation-and-global-shapes">
+									Notation and global shapes
+								</a>
+							</li>
+						
+						
+					
+				
+			
+				
+				
+					
+						
+						
+						
+						
+						
+							<li>
+								<a href="#1-gate-preparation--one-of-two-paths" class="nav-1-gate-preparation--one-of-two-paths">
+									1. Gate preparation — one of two paths
+								</a>
+							</li>
+						
+						
+					
+				
+			
+				
+				
+					
+						
+						
+						
+						
+							
+								
+									<ul>
+								
+							
+						
+						
+							<li>
+								<a href="#1a-use_gate_in_kerneltrue--kda_gate_chunk_cumsum_vector_kernel" class="nav-1a-use_gate_in_kerneltrue--kda_gate_chunk_cumsum_vector_kernel">
+									1a. use_gate_in_kernel=True → kda_gate_chunk_cumsum_vector_kernel
+								</a>
+							</li>
+						
+						
+					
+				
+			
+				
+				
+					
+						
+						
+						
+						
+						
+							<li>
+								<a href="#1b-use_gate_in_kernelfalse-default--chunk_local_cumsum_vector_kernel" class="nav-1b-use_gate_in_kernelfalse-default--chunk_local_cumsum_vector_kernel">
+									1b. use_gate_in_kernel=False (default) → chunk_local_cumsum_vector_kernel
+								</a>
+							</li>
+						
+						
+					
+				
+			
+				
+				
+					
+						
+						
+						
+							
+								</ul>
+							
+						
+						
+						
+							<li>
+								<a href="#2-intra-chunk-chunk_kda_fwd_intra-flaopskdachunk_intrapy818" class="nav-2-intra-chunk-chunk_kda_fwd_intra-flaopskdachunk_intrapy818">
+									2. Intra-chunk: chunk_kda_fwd_intra (fla/ops/kda/chunk_intra.py:818)
+								</a>
+							</li>
+						
+						
+					
+				
+			
+				
+				
+					
+						
+						
+						
+						
+							
+								
+									<ul>
+								
+							
+						
+						
+							<li>
+								<a href="#2a-diagonal-sub-blocks--chunk_kda_fwd_kernel_intra_token_parallel-default-or-chunk_kda_fwd_kernel_intra_sub_chunk-safe_gate" class="nav-2a-diagonal-sub-blocks--chunk_kda_fwd_kernel_intra_token_parallel-default-or-chunk_kda_fwd_kernel_intra_sub_chunk-safe_gate">
+									2a. Diagonal sub-blocks — chunk_kda_fwd_kernel_intra_token_parallel (default) or chunk_kda_fwd_kernel_intra_sub_chunk (safe_gate)
+								</a>
+							</li>
+						
+						
+					
+				
+			
+				
+				
+					
+						
+						
+						
+						
+						
+							<li>
+								<a href="#2b-off-diagonal-blocks--merged-inverse--chunk_kda_fwd_kernel_inter_solve_fused" class="nav-2b-off-diagonal-blocks--merged-inverse--chunk_kda_fwd_kernel_inter_solve_fused">
+									2b. Off-diagonal blocks &#43; merged inverse — chunk_kda_fwd_kernel_inter_solve_fused
+								</a>
+							</li>
+						
+						
+					
+				
+			
+				
+				
+					
+						
+						
+						
+						
+						
+							<li>
+								<a href="#2c-wy-representation--recompute_w_u_fwd_kda_kernel" class="nav-2c-wy-representation--recompute_w_u_fwd_kda_kernel">
+									2c. WY representation — recompute_w_u_fwd_kda_kernel
+								</a>
+							</li>
+						
+						
+					
+				
+			
+				
+				
+					
+						
+						
+						
+							
+								</ul>
+							
+						
+						
+						
+							<li>
+								<a href="#3-cp-pre-processing--only-when-cp_context-is-not-none" class="nav-3-cp-pre-processing--only-when-cp_context-is-not-none">
+									3. CP pre-processing — only when cp_context is not None
+								</a>
+							</li>
+						
+						
+					
+				
+			
+				
+				
+					
+						
+						
+						
+						
+							
+								
+									<ul>
+								
+							
+						
+						
+							<li>
+								<a href="#3a-pre_process_fwd_kernel_merged-skip-on-is_last_rank" class="nav-3a-pre_process_fwd_kernel_merged-skip-on-is_last_rank">
+									3a. pre_process_fwd_kernel_merged (skip on is_last_rank)
+								</a>
+							</li>
+						
+						
+					
+				
+			
+				
+				
+					
+						
+						
+						
+						
+						
+							<li>
+								<a href="#3b-all_gather_into_tensor" class="nav-3b-all_gather_into_tensor">
+									3b. all_gather_into_tensor
+								</a>
+							</li>
+						
+						
+					
+				
+			
+				
+				
+					
+						
+						
+						
+						
+						
+							<li>
+								<a href="#3c-merge_fwd_bwd_kernel-with-forwardtrue-skip-on-is_first_rank" class="nav-3c-merge_fwd_bwd_kernel-with-forwardtrue-skip-on-is_first_rank">
+									3c. merge_fwd_bwd_kernel with FORWARD=True (skip on is_first_rank)
+								</a>
+							</li>
+						
+						
+					
+				
+			
+				
+				
+					
+						
+						
+						
+						
+						
+							<li>
+								<a href="#3d-compress_h0-flaopscpchunk_delta_hpy923--pure-torch" class="nav-3d-compress_h0-flaopscpchunk_delta_hpy923--pure-torch">
+									3d. compress_h0 (fla/ops/cp/chunk_delta_h.py:923) — pure torch
+								</a>
+							</li>
+						
+						
+					
+				
+			
+				
+				
+					
+						
+						
+						
+							
+								</ul>
+							
+						
+						
+						
+							<li>
+								<a href="#4-inter-chunk-state-recurrence--chunk_gated_delta_rule_fwd_h" class="nav-4-inter-chunk-state-recurrence--chunk_gated_delta_rule_fwd_h">
+									4. Inter-chunk state recurrence — chunk_gated_delta_rule_fwd_h
+								</a>
+							</li>
+						
+						
+					
+				
+			
+				
+				
+					
+						
+						
+						
+						
+						
+							<li>
+								<a href="#5-output-projection--chunk_gla_fwd_o_gk--chunk_gla_fwd_kernel_o" class="nav-5-output-projection--chunk_gla_fwd_o_gk--chunk_gla_fwd_kernel_o">
+									5. Output projection — chunk_gla_fwd_o_gk → chunk_gla_fwd_kernel_o
+								</a>
+							</li>
+						
+						
+					
+				
+			
+				
+				
+					
+						
+						
+						
+						
+						
+							<li>
+								<a href="#summary-of-program-division-patterns" class="nav-summary-of-program-division-patterns">
+									Summary of program-division patterns
+								</a>
+							</li>
+						
+						
+					
+				
+			
+				
+				
+					
+						
+						
+						
+						
+						
+							<li>
+								<a href="#cp-flow-recap" class="nav-cp-flow-recap">
+									CP flow recap
+								</a>
+							</li>
+						
+						
+					
+				
+			
+		</ul>
+	</div>
+
+</div>
+            
+        </div>
+    </div>
+</div>
+<transition name="fade">
+    <div id="drawer-mask" v-bind:class="{ 'single-column-drawer-mask': mounted }" v-if="isDrawerOpen" v-on:click="toggleDrawer"></div>
+</transition>
+<nav id="navBar" class="navbar sticky-top navbar-light single-column-nav-container">
+    <div id="navBackground" class="nav-background"></div>
+    <div class="container container-narrow nav-content">
+        <button id="nav_dropdown_btn" class="nav-dropdown-toggle" type="button" v-on:click="toggleDrawer">
+            <i class="material-icons">
+                menu
+            </i>
+        </button>
+        <a id="navTitle" class="navbar-brand" href="https://zhixuan-zxli.github.io/">
+            Zhixuan&#39;s Blog
+        </a>
+        
+        <button type="button" class="nav-darkmode-toggle" id="darkModeToggleButton2">
+            <i class="material-icons" id="darkModeToggleIcon2">
+                dark_mode
+            </i>
+        </button>
+        
+    </div>
+</nav>
+<div class="single-column-header-container" id="pageHead"
+     v-bind:style="{ transform: 'translateZ(0px) translateY('+.3*scrollY+'px)', opacity: 1-navOpacity }">
+    <a href="https://zhixuan-zxli.github.io/">
+        <div class="single-column-header-title">Zhixuan&#39;s Blog</div>
+        
+
+    </a>
+</div>
+
+            <div id="content">
+                <div id="streamContainer" class="stream-container">
+
+    <div class="post-list-container post-list-container-shadow">
+        <div class="post">
+            
+            
+            
+
+            <div class="post-head-wrapper-text-only"
+                
+            >
+                <div class="post-title">
+                    Chunk KDA Kernels
+                    
+                    <div class="post-meta">
+                        
+                        <time itemprop="datePublished">
+                            2026-08-09 00:00
+                        </time>
+                        
+
+                        
+
+                        
+                            <i class="material-icons" style="">label</i>
+                            
+                                <a href="/tags/vllm">vLLM</a>
+                                &nbsp;
+                            
+                                <a href="/tags/kda">KDA</a>
+                                &nbsp;
+                            
+                        
+                        
+                    </div>
+                </div>
+            </div>
+            
+            <div class="post-body-wrapper">
+                
+                <div class="post-body" v-pre>
+                
+                    <h1 id="chunk_kda_fwd-kernel-walkthrough"><code>chunk_kda_fwd</code> Kernel Walkthrough</h1>
+<p>A kernel-by-kernel analysis of <code>chunk_kda_fwd</code> (<code>fla/ops/kda/chunk_fwd.py:20</code>), focused on the KDA path and context parallelism (CP). For each Triton kernel: a reference torch implementation, input/output shapes, and the grid layout.</p>
+<h2 id="notation-and-global-shapes">Notation and global shapes</h2>
+<ul>
+<li>$q, k \in \mathbb{R}^{B \times T \times H \times K}$ — queries/keys, $H$ q/k heads, head dim $K$</li>
+<li>$v \in \mathbb{R}^{B \times T \times H_V \times V}$ — values, $H_V = H \cdot G$ value heads (GQA group size $G$), value dim $V$</li>
+<li>$g \in \mathbb{R}^{B \times T \times H_V \times K}$ — per-channel log-decay gate (per value head)</li>
+<li>$\beta \in \mathbb{R}^{B \times T \times H_V}$ — delta-rule write strength</li>
+<li>$\text{BT} = \text{chunk\_size}$ (default 64), $\text{BC} = 16$ (sub-chunk), $\text{NC} = \text{BT}/\text{BC}$ (4 when BT=64)</li>
+<li>$\text{RCP\_LN2} = 1/\ln 2$ — scaling that turns $\exp(\cdot)$ into $\exp_2(\cdot)$ for kernel speed</li>
+</ul>
+<p>The KDA recurrence being chunked is (per value head, dropping batch):</p>
+$$
+S_t = \exp(g_t) \odot S_{t-1} + \beta_t \, k_t \otimes \bigl(v_t - k_t^\top S_{t-1}\bigr), \qquad o_t = q_t^\top S_t
+$$<p>where $\odot$ is element-wise (channel-wise) gate, $\otimes$ is the outer product $k \otimes v = k v^\top \in \mathbb{R}^{K \times V}$.</p>
+<hr>
+<h2 id="1-gate-preparation--one-of-two-paths">1. Gate preparation — one of two paths</h2>
+<h3 id="1a-use_gate_in_kerneltrue--kda_gate_chunk_cumsum_vector_kernel">1a. <code>use_gate_in_kernel=True</code> → <code>kda_gate_chunk_cumsum_vector_kernel</code></h3>
+<p>File: <code>fla/ops/kda/gate.py:375</code>. Fuses activation + bias + chunk-local cumsum.</p>
+<p><strong>Torch reference</strong></p>
+<div class="highlight"><pre tabindex="0" style="color:#272822;background-color:#fafafa;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-python" data-lang="python"><span style="display:flex;"><span><span style="color:#75715e"># g_raw: [B, T, H, K], A_log: [H], dt_bias: [H*K] or None</span>
+</span></span><span style="display:flex;"><span><span style="color:#111">g</span> <span style="color:#f92672">=</span> <span style="color:#111">g_raw</span> <span style="color:#f92672">+</span> <span style="color:#111">dt_bias</span><span style="color:#f92672">.</span><span style="color:#111">view</span><span style="color:#111">(</span><span style="color:#111">H</span><span style="color:#111">,</span> <span style="color:#111">K</span><span style="color:#111">)</span> <span style="color:#00a8c8">if</span> <span style="color:#111">dt_bias</span> <span style="color:#f92672">is</span> <span style="color:#f92672">not</span> <span style="color:#00a8c8">None</span> <span style="color:#00a8c8">else</span> <span style="color:#111">g_raw</span>
+</span></span><span style="display:flex;"><span><span style="color:#111">g</span> <span style="color:#f92672">=</span> <span style="color:#f92672">-</span><span style="color:#111">A_log</span><span style="color:#f92672">.</span><span style="color:#111">exp</span><span style="color:#111">()</span><span style="color:#f92672">.</span><span style="color:#111">view</span><span style="color:#111">(</span><span style="color:#111">H</span><span style="color:#111">,</span> <span style="color:#ae81ff">1</span><span style="color:#111">)</span> <span style="color:#f92672">*</span> <span style="color:#111">F</span><span style="color:#f92672">.</span><span style="color:#111">softplus</span><span style="color:#111">(</span><span style="color:#111">g</span><span style="color:#111">)</span>        <span style="color:#75715e"># [B, T, H, K], in log2 space</span>
+</span></span><span style="display:flex;"><span><span style="color:#111">g</span> <span style="color:#f92672">=</span> <span style="color:#111">g</span> <span style="color:#f92672">*</span> <span style="color:#111">RCP_LN2</span>                                    <span style="color:#75715e"># convert to log2 base</span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># chunk-local cumsum along T with chunk_size=BT</span>
+</span></span><span style="display:flex;"><span><span style="color:#111">g</span> <span style="color:#f92672">=</span> <span style="color:#111">g</span><span style="color:#f92672">.</span><span style="color:#111">view</span><span style="color:#111">(</span><span style="color:#111">B</span><span style="color:#111">,</span> <span style="color:#111">NT</span><span style="color:#111">,</span> <span style="color:#111">BT</span><span style="color:#111">,</span> <span style="color:#111">H</span><span style="color:#111">,</span> <span style="color:#111">K</span><span style="color:#111">)</span><span style="color:#f92672">.</span><span style="color:#111">cumsum</span><span style="color:#111">(</span><span style="color:#111">dim</span><span style="color:#f92672">=</span><span style="color:#ae81ff">2</span><span style="color:#111">)</span><span style="color:#f92672">.</span><span style="color:#111">view</span><span style="color:#111">(</span><span style="color:#111">B</span><span style="color:#111">,</span> <span style="color:#111">T</span><span style="color:#111">,</span> <span style="color:#111">H</span><span style="color:#111">,</span> <span style="color:#111">K</span><span style="color:#111">)</span>
+</span></span></code></pre></div><p><strong>Mathematical formula</strong></p>
+$$
+g_{t,k} \leftarrow \frac{1}{\ln 2} \sum_{\tau = \lfloor t/\text{BT}\rfloor \cdot \text{BT}}^{t} -\exp(A_{\text{log}}) \cdot \text{softplus}(g_{\tau,k} + b_k)
+$$<p><strong>Shapes</strong> — in: $g[B,T,H,K],\; A_{\text{log}}[H],\; dt\_bias[H*K]?$; out: $g[B,T,H,K]$ (fp32).</p>
+<p><strong>Grid</strong>: <code>(cdiv(K, BS), NT, B*H)</code> — <code>i_s</code> tiles the $K$ dim, <code>i_t</code> is the chunk, <code>i_bh</code> is batch×head. Each program computes a $[\text{BT}, \text{BS}]$ tile, applies bias and $-\exp(A_{\text{log}}) \cdot \text{softplus}(\cdot)$, then <code>tl.cumsum</code> along the BT axis.</p>
+<h3 id="1b-use_gate_in_kernelfalse-default--chunk_local_cumsum_vector_kernel">1b. <code>use_gate_in_kernel=False</code> (default) → <code>chunk_local_cumsum_vector_kernel</code></h3>
+<p>File: <code>fla/ops/utils/cumsum.py:90</code>. Skips activation — assumes <code>g</code> is already the log-decay; just rescales by $\text{RCP\_LN2}$ and chunk-cumsums.</p>
+<p><strong>Torch reference</strong></p>
+<div class="highlight"><pre tabindex="0" style="color:#272822;background-color:#fafafa;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-python" data-lang="python"><span style="display:flex;"><span><span style="color:#111">g</span> <span style="color:#f92672">=</span> <span style="color:#111">(</span><span style="color:#111">g</span> <span style="color:#f92672">*</span> <span style="color:#111">RCP_LN2</span><span style="color:#111">)</span><span style="color:#f92672">.</span><span style="color:#111">view</span><span style="color:#111">(</span><span style="color:#111">B</span><span style="color:#111">,</span> <span style="color:#111">NT</span><span style="color:#111">,</span> <span style="color:#111">BT</span><span style="color:#111">,</span> <span style="color:#111">H</span><span style="color:#111">,</span> <span style="color:#111">K</span><span style="color:#111">)</span><span style="color:#f92672">.</span><span style="color:#111">cumsum</span><span style="color:#111">(</span><span style="color:#111">dim</span><span style="color:#f92672">=</span><span style="color:#ae81ff">2</span><span style="color:#111">)</span><span style="color:#f92672">.</span><span style="color:#111">view</span><span style="color:#111">(</span><span style="color:#111">B</span><span style="color:#111">,</span> <span style="color:#111">T</span><span style="color:#111">,</span> <span style="color:#111">H</span><span style="color:#111">,</span> <span style="color:#111">K</span><span style="color:#111">)</span>
+</span></span></code></pre></div><p><strong>Mathematical formula</strong></p>
+$$
+g_{t,k} \leftarrow \frac{1}{\ln 2} \sum_{\tau = \lfloor t/\text{BT}\rfloor \cdot \text{BT}}^{t} g_{\tau,k}
+$$<p><strong>Shapes</strong> — in/out: $[B, T, H, K]$ (here $H$ is $H_V$ because $g$ has value-head dim).</p>
+<p><strong>Grid</strong>: <code>(cdiv(S, BS), NT, B*H)</code> with $S = K$. Same tiling as 1a but no activation, just <code>tl.cumsum</code> and scale.</p>
+<hr>
+<h2 id="2-intra-chunk-chunk_kda_fwd_intra-flaopskdachunk_intrapy818">2. Intra-chunk: <code>chunk_kda_fwd_intra</code> (<code>fla/ops/kda/chunk_intra.py:818</code>)</h2>
+<p>Returns $w, u, q_g, k_g, A_{qk}, A_{kk}$. Internally calls three Triton kernels.</p>
+<h3 id="2a-diagonal-sub-blocks--chunk_kda_fwd_kernel_intra_token_parallel-default-or-chunk_kda_fwd_kernel_intra_sub_chunk-safe_gate">2a. Diagonal sub-blocks — <code>chunk_kda_fwd_kernel_intra_token_parallel</code> (default) or <code>chunk_kda_fwd_kernel_intra_sub_chunk</code> (safe_gate)</h3>
+<p>These compute the diagonal $\text{BC} \times \text{BC}$ blocks of the intra-chunk attention matrices:</p>
+<ul>
+<li>$A_{qk}[i, j] = \text{scale} \cdot (q_i \odot \exp(g_i - g_j)) \cdot k_j$ for $j \le i$ (lower-triangular), diagonal sub-chunks only</li>
+<li>$A_{kk}[i, j] = \beta_i \cdot (k_i \odot \exp(g_i - g_j)) \cdot k_j$ for $j < i$ (strictly lower, since diagonal is consumed by the solve)</li>
+</ul>
+<p>The $A_{kk}$ diagonal blocks are stored separately in <code>Akkd</code> (fp32) for precision during the triangular solve.</p>
+<p><strong>Torch reference</strong> (matches the loop in <code>naive_chunk_kda</code>, <code>fla/ops/kda/naive.py:127-136</code>)</p>
+<div class="highlight"><pre tabindex="0" style="color:#272822;background-color:#fafafa;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-python" data-lang="python"><span style="display:flex;"><span><span style="color:#75715e"># A_qq: [B, HV, NT, BT, BT] (only diagonal BC-blocks filled)</span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># A_kk: [B, HV, NT, BT, BC] (only the strictly-lower part of the diagonal BC-block, fp32)</span>
+</span></span><span style="display:flex;"><span><span style="color:#00a8c8">for</span> <span style="color:#111">i</span> <span style="color:#f92672">in</span> <span style="color:#111">range</span><span style="color:#111">(</span><span style="color:#111">BT</span><span style="color:#111">):</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#111">k_i</span> <span style="color:#f92672">=</span> <span style="color:#111">k</span><span style="color:#111">[</span><span style="color:#f92672">...</span><span style="color:#111">,</span> <span style="color:#111">i</span><span style="color:#111">,</span> <span style="color:#111">:]</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#111">g_i</span> <span style="color:#f92672">=</span> <span style="color:#111">g</span><span style="color:#111">[</span><span style="color:#f92672">...</span><span style="color:#111">,</span> <span style="color:#111">i</span><span style="color:#111">:</span><span style="color:#111">i</span><span style="color:#f92672">+</span><span style="color:#ae81ff">1</span><span style="color:#111">,</span> <span style="color:#111">:]</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#111">Aqk_diag</span><span style="color:#111">[</span><span style="color:#f92672">...</span><span style="color:#111">,</span> <span style="color:#111">i</span><span style="color:#111">]</span> <span style="color:#f92672">=</span> <span style="color:#111">(</span><span style="color:#111">q</span> <span style="color:#f92672">*</span> <span style="color:#111">exp</span><span style="color:#111">(</span><span style="color:#111">g</span> <span style="color:#f92672">-</span> <span style="color:#111">g_i</span><span style="color:#111">))</span><span style="color:#f92672">.</span><span style="color:#111">sum</span><span style="color:#111">(</span><span style="color:#f92672">-</span><span style="color:#ae81ff">1</span><span style="color:#111">)</span> <span style="color:#f92672">@</span> <span style="color:#111">k_i</span><span style="color:#f92672">.</span><span style="color:#111">T</span>   <span style="color:#75715e"># only j in same sub-chunk</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#111">Akk_diag</span><span style="color:#111">[</span><span style="color:#f92672">...</span><span style="color:#111">,</span> <span style="color:#111">i</span><span style="color:#111">]</span> <span style="color:#f92672">=</span> <span style="color:#111">(</span><span style="color:#111">k</span> <span style="color:#f92672">*</span> <span style="color:#111">exp</span><span style="color:#111">(</span><span style="color:#111">g</span> <span style="color:#f92672">-</span> <span style="color:#111">g_i</span><span style="color:#111">))</span><span style="color:#f92672">.</span><span style="color:#111">sum</span><span style="color:#111">(</span><span style="color:#f92672">-</span><span style="color:#ae81ff">1</span><span style="color:#111">)</span> <span style="color:#f92672">@</span> <span style="color:#111">k_i</span><span style="color:#f92672">.</span><span style="color:#111">T</span> <span style="color:#f92672">*</span> <span style="color:#111">beta</span><span style="color:#111">[</span><span style="color:#f92672">...</span><span style="color:#111">,</span> <span style="color:#111">i</span><span style="color:#111">]</span>
+</span></span><span style="display:flex;"><span><span style="color:#111">Akk_diag</span> <span style="color:#f92672">=</span> <span style="color:#111">Akk_diag</span><span style="color:#f92672">.</span><span style="color:#111">masked_fill</span><span style="color:#111">(</span><span style="color:#111">mask_upper_or_diag</span><span style="color:#111">,</span> <span style="color:#ae81ff">0</span><span style="color:#111">)</span>
+</span></span></code></pre></div><p><strong>Mathematical formula</strong> (for tokens $i, j$ in the same sub-chunk)</p>
+$$
+A_{qk}[i, j] = \begin{cases} \text{scale} \cdot \sum_d q_{i,d} \, k_{j,d} \, \exp_2(g_{i,d} - g_{j,d}) & j \le i \\ 0 & \text{otherwise} \end{cases}
+$$$$
+A_{kk}[i, j] = \begin{cases} \beta_i \cdot \sum_d k_{i,d} \, k_{j,d} \, \exp_2(g_{i,d} - g_{j,d}) & j < i \\ 0 & \text{otherwise} \end{cases}
+$$<p>The kernel then computes the diagonal inverse $(I + \text{tril}(A_{kk}^{\text{diag}}))^{-1}$ via forward substitution in registers.</p>
+<p><strong>Shapes</strong>:</p>
+<ul>
+<li>in: $q, k, g_k[B, T, H/H_V, K]$, $\beta[B, T, H_V]$, $\text{scale}$</li>
+<li>out: $A_{qk}[B, T, H_V, \text{BT}]$ (lower-triangular row of the chunk matrix, q.dtype), $A_{kkd}[B, T, H_V, \text{BC}]$ (fp32)</li>
+</ul>
+<p><strong>Grid for <code>chunk_kda_fwd_kernel_intra_token_parallel</code></strong> (<code>fla/ops/kda/chunk_intra_token_parallel.py:33</code>): <code>(B*T, cdiv(HV, BH))</code> — one program per (token, head-group). Each program loads $q_t, k_t, \beta_t$ and loops over $j$ from sub-chunk start to $i_t$, doing one token row of $A_{qk}$/$A_{kk}$. This &ldquo;token-parallel&rdquo; layout avoids wasted compute on padded tokens in varlen.</p>
+<p><strong>Grid for <code>chunk_kda_fwd_kernel_intra_sub_chunk</code></strong> (<code>fla/ops/kda/chunk_intra.py:683</code>): <code>(NT, NC, B*HV)</code> — one program per (chunk, sub-chunk, batch×value-head). Loads a $[\text{BC}, \text{BK}]$ tile of $q, k, g$, computes $b_{A_{qk}} = (q \odot g_q) \cdot (k \odot g_k)^\top \cdot \text{scale}$, $b_{A_{kk}} = (k \odot g_q) \cdot (k \odot g_k)^\top \cdot \beta$, masks to lower-triangular, writes to $A_{qk}$/$A_{kkd}$, then runs an in-register forward-substitution to invert $(I + \text{tril}(A_{kk}))$ for this BC-block. Uses <code>gather</code> for the reference gate row when hardware supports it (numerical stability).</p>
+<h3 id="2b-off-diagonal-blocks--merged-inverse--chunk_kda_fwd_kernel_inter_solve_fused">2b. Off-diagonal blocks + merged inverse — <code>chunk_kda_fwd_kernel_inter_solve_fused</code></h3>
+<p>File: <code>fla/ops/kda/chunk_intra.py:43</code>. Computes the off-diagonal $A_{qk}$ and $A_{kk}$ sub-blocks (within a chunk, across the $\text{NC}=4$ sub-chunks), then assembles the merged inverse $(I + \text{tril}(A_{kk}^{\text{chunk}}))^{-1}$ block-by-block using the already-inverted diagonal blocks loaded from <code>Akkd</code>.</p>
+<p><strong>Torch reference</strong> (continuing <code>naive_chunk_kda</code>)</p>
+<div class="highlight"><pre tabindex="0" style="color:#272822;background-color:#fafafa;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-python" data-lang="python"><span style="display:flex;"><span><span style="color:#75715e"># Off-diagonal sub-blocks (i_s &gt; j_s)</span>
+</span></span><span style="display:flex;"><span><span style="color:#00a8c8">for</span> <span style="color:#111">i_s</span> <span style="color:#f92672">in</span> <span style="color:#111">range</span><span style="color:#111">(</span><span style="color:#111">NC</span><span style="color:#111">):</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#00a8c8">for</span> <span style="color:#111">j_s</span> <span style="color:#f92672">in</span> <span style="color:#111">range</span><span style="color:#111">(</span><span style="color:#111">i_s</span><span style="color:#111">):</span>
+</span></span><span style="display:flex;"><span>        <span style="color:#111">Aqk_chunk</span><span style="color:#111">[:,</span> <span style="color:#111">i_s</span><span style="color:#f92672">*</span><span style="color:#111">BC</span><span style="color:#111">:(</span><span style="color:#111">i_s</span><span style="color:#f92672">+</span><span style="color:#ae81ff">1</span><span style="color:#111">)</span><span style="color:#f92672">*</span><span style="color:#111">BC</span><span style="color:#111">,</span> <span style="color:#111">j_s</span><span style="color:#f92672">*</span><span style="color:#111">BC</span><span style="color:#111">:(</span><span style="color:#111">j_s</span><span style="color:#f92672">+</span><span style="color:#ae81ff">1</span><span style="color:#111">)</span><span style="color:#f92672">*</span><span style="color:#111">BC</span><span style="color:#111">]</span> <span style="color:#f92672">=</span> <span style="color:#111">(</span>
+</span></span><span style="display:flex;"><span>            <span style="color:#111">q_blk_i</span> <span style="color:#f92672">*</span> <span style="color:#111">exp</span><span style="color:#111">(</span><span style="color:#111">g_i</span> <span style="color:#f92672">-</span> <span style="color:#111">g_j</span><span style="color:#111">))</span> <span style="color:#f92672">@</span> <span style="color:#111">k_blk_j</span><span style="color:#f92672">.</span><span style="color:#111">T</span> <span style="color:#f92672">*</span> <span style="color:#111">scale</span>
+</span></span><span style="display:flex;"><span>        <span style="color:#111">)</span>
+</span></span><span style="display:flex;"><span>        <span style="color:#111">Akk_chunk</span><span style="color:#111">[:,</span> <span style="color:#111">i_s</span><span style="color:#f92672">*</span><span style="color:#111">BC</span><span style="color:#111">:(</span><span style="color:#111">i_s</span><span style="color:#f92672">+</span><span style="color:#ae81ff">1</span><span style="color:#111">)</span><span style="color:#f92672">*</span><span style="color:#111">BC</span><span style="color:#111">,</span> <span style="color:#111">j_s</span><span style="color:#f92672">*</span><span style="color:#111">BC</span><span style="color:#111">:(</span><span style="color:#111">j_s</span><span style="color:#f92672">+</span><span style="color:#ae81ff">1</span><span style="color:#111">)</span><span style="color:#f92672">*</span><span style="color:#111">BC</span><span style="color:#111">]</span> <span style="color:#f92672">=</span> <span style="color:#111">(</span>
+</span></span><span style="display:flex;"><span>            <span style="color:#111">k_blk_i</span> <span style="color:#f92672">*</span> <span style="color:#111">exp</span><span style="color:#111">(</span><span style="color:#111">g_i</span> <span style="color:#f92672">-</span> <span style="color:#111">g_j</span><span style="color:#111">))</span> <span style="color:#f92672">@</span> <span style="color:#111">k_blk_j</span><span style="color:#f92672">.</span><span style="color:#111">T</span> <span style="color:#f92672">*</span> <span style="color:#111">beta_i</span>
+</span></span><span style="display:flex;"><span>        <span style="color:#111">)</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># Forward-substitution inverse of (I + tril(Akk_chunk)) — block-triangular inverse formula</span>
+</span></span><span style="display:flex;"><span><span style="color:#111">Akk_inv</span> <span style="color:#f92672">=</span> <span style="color:#111">block_tril_inverse</span><span style="color:#111">(</span><span style="color:#111">Akk_chunk</span><span style="color:#111">,</span> <span style="color:#111">Akkd_inv</span><span style="color:#111">)</span>  <span style="color:#75715e"># see lines 269-351</span>
+</span></span></code></pre></div><p><strong>Mathematical formula</strong> (block-triangular inverse for $\text{NC}=4$ sub-chunks, denoting $A_{kk}^{ij}$ the $(i, j)$ sub-block):</p>
+$$
+\begin{aligned}
+A_{kk}^{-1,00} &= (I + A_{kk}^{00})^{-1} \quad \text{(from Akkd)} \\
+A_{kk}^{-1,11} &= (I + A_{kk}^{11})^{-1} \quad \text{(from Akkd)} \\
+A_{kk}^{-1,10} &= -A_{kk}^{-1,11} \, A_{kk}^{10} \, A_{kk}^{-1,00} \\
+A_{kk}^{-1,21} &= -A_{kk}^{-1,22} \, A_{kk}^{21} \, A_{kk}^{-1,11} \\
+A_{kk}^{-1,20} &= -A_{kk}^{-1,22} \bigl( A_{kk}^{20} A_{kk}^{-1,00} + A_{kk}^{21} A_{kk}^{-1,10} \bigr) \\
+A_{kk}^{-1,30} &= -A_{kk}^{-1,33} \bigl( A_{kk}^{30} A_{kk}^{-1,00} + A_{kk}^{31} A_{kk}^{-1,10} + A_{kk}^{32} A_{kk}^{-1,20} \bigr) \\
+&\;\;\vdots
+\end{aligned}
+$$<p><strong>Shapes</strong>:</p>
+<ul>
+<li>in: $q, k, g_k, \beta$, $A_{kkd}[B, T, H_V, \text{BC}]$ (fp32, diagonal inverses from 2a)</li>
+<li>out: $A_{qk}[B, T, H_V, \text{BT}]$ (now full chunk matrix, q.dtype), $A_{kk}[B, T, H_V, \text{BT}]$ (full inverse, q.dtype)</li>
+</ul>
+<p><strong>Grid</strong>: <code>(NT, B*HV)</code> — one program per (chunk, batch×value-head). Each program:</p>
+<ol>
+<li>Loops $i_k$ over $K$-tiles, accumulates the 6 (NC=4 → 6) off-diagonal $\text{BC} \times \text{BC}$ blocks of $A_{qk}$ and $A_{kk}$ in registers.</li>
+<li>Stores off-diag $A_{qk}$ blocks to global, multiplies off-diag $A_{kk}$ blocks by $\beta$.</li>
+<li>Loads the 4 diagonal $A_{kk}^{-1}$ blocks from $A_{kkd}$ (fp32).</li>
+<li>Combines them with the merged inverse formula above using tf32 precision (lines 315-351).</li>
+<li>Stores the full $A_{kk}$ inverse to global.</li>
+</ol>
+<h3 id="2c-wy-representation--recompute_w_u_fwd_kda_kernel">2c. WY representation — <code>recompute_w_u_fwd_kda_kernel</code></h3>
+<p>File: <code>fla/ops/kda/wy_fast.py:34</code>. Builds the WY factorization needed for the inter-chunk recurrence:</p>
+<ul>
+<li>$u = A \cdot v$ where $A = (I + \text{tril}(A_{kk}))^{-1}$ (computed above)</li>
+<li>$w = A \cdot (\beta \odot k \odot \exp(g))$ (gated, beta-scaled keys)</li>
+<li>$k_g = k \odot \exp(g_{\text{last}} - g)$ (key aligned to chunk-end for the state update)</li>
+<li>$q_g = q \odot \exp(g)$ (optional, only if <code>disable_recompute=True</code>)</li>
+</ul>
+<p><strong>Torch reference</strong> (<code>naive_chunk_kda</code> lines 138-139)</p>
+<div class="highlight"><pre tabindex="0" style="color:#272822;background-color:#fafafa;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-python" data-lang="python"><span style="display:flex;"><span><span style="color:#111">A_inv</span> <span style="color:#f92672">=</span> <span style="color:#111">Akk</span>                                              <span style="color:#75715e"># [B, HV, NT, BT, BT]</span>
+</span></span><span style="display:flex;"><span><span style="color:#111">w</span> <span style="color:#f92672">=</span> <span style="color:#111">A_inv</span> <span style="color:#f92672">@</span> <span style="color:#111">(</span><span style="color:#111">exp</span><span style="color:#111">(</span><span style="color:#111">g</span><span style="color:#111">)</span> <span style="color:#f92672">*</span> <span style="color:#111">k</span><span style="color:#111">)</span>                                 <span style="color:#75715e"># [B, HV, NT, BT, K]</span>
+</span></span><span style="display:flex;"><span><span style="color:#111">u</span> <span style="color:#f92672">=</span> <span style="color:#111">A_inv</span> <span style="color:#f92672">@</span> <span style="color:#111">v</span>                                            <span style="color:#75715e"># [B, HV, NT, BT, V]</span>
+</span></span><span style="display:flex;"><span><span style="color:#111">qg</span> <span style="color:#f92672">=</span> <span style="color:#111">q</span> <span style="color:#f92672">*</span> <span style="color:#111">exp</span><span style="color:#111">(</span><span style="color:#111">g</span><span style="color:#111">)</span>                                          <span style="color:#75715e"># optional</span>
+</span></span><span style="display:flex;"><span><span style="color:#111">kg</span> <span style="color:#f92672">=</span> <span style="color:#111">k</span> <span style="color:#f92672">*</span> <span style="color:#111">exp</span><span style="color:#111">(</span><span style="color:#111">g_last</span> <span style="color:#f92672">-</span> <span style="color:#111">g</span><span style="color:#111">)</span>                                 <span style="color:#75715e"># for state update</span>
+</span></span></code></pre></div><p><strong>Mathematical formula</strong></p>
+$$
+u_t = \sum_{j \le t} A_{kk}^{-1}[t, j] \, v_j, \qquad w_t = \sum_{j \le t} A_{kk}^{-1}[t, j] \, \beta_j \, k_j \, \exp_2(g_j)
+$$$$
+k_{g,t} = k_t \odot \exp_2(g_{\text{last}} - g_t), \qquad q_{g,t} = q_t \odot \exp_2(g_t)
+$$<p><strong>Shapes</strong>:</p>
+<ul>
+<li>in: $k[B, T, H, K]$, $v[B, T, H_V, V]$, $\beta[B, T, H_V]$, $A = A_{kk}[B, T, H_V, \text{BT}]$, $g_k[B, T, H_V, K]$, optional $q$</li>
+<li>out: $w[B, T, H_V, K]$, $u[B, T, H_V, V]$ (alias for <code>v_new</code> later), $k_g[B, T, H_V, K]$, $q_g[B, T, H_V, K]?$</li>
+</ul>
+<p><strong>Grid</strong>: <code>(NT, B*HV)</code>. Each program loops over BT rows of $A$, computes $u = A \cdot (\beta_v \odot v)$ for BV-tiles of $V$, then $w = A \cdot (\beta \odot k \odot \exp(g))$ for BK-tiles of $K$ (lines 92-128). Same program writes $q_g$ and $k_g$ if requested.</p>
+<hr>
+<h2 id="3-cp-pre-processing--only-when-cp_context-is-not-none">3. CP pre-processing — only when <code>cp_context is not None</code></h2>
+<p><code>chunk_gated_delta_rule_fwd_h_pre_process</code> (<code>fla/ops/cp/chunk_delta_h.py:747</code>) builds the <strong>initial state for this rank</strong> by gathering per-rank chunk-summary matrices from earlier ranks. It uses two Triton kernels plus an all-gather.</p>
+<h3 id="3a-pre_process_fwd_kernel_merged-skip-on-is_last_rank">3a. <code>pre_process_fwd_kernel_merged</code> (skip on <code>is_last_rank</code>)</h3>
+<p>File: <code>fla/ops/cp/chunk_delta_h.py:41</code>. Each rank computes a <strong>per-rank summary</strong> $(h_{\text{rank}}, M_{\text{rank}})$ of shape $[H_V, K, V+K]$, where:</p>
+<ul>
+<li>$h_{\text{rank}}$ (the $[:, :, :V]$ part) is the &ldquo;forced&rdquo; state contribution of this rank&rsquo;s tokens assuming $h_0 = 0$:</li>
+</ul>
+$$
+h_{\text{rank}} = \sum_t k_t^\top \bigl(v_t - w_t \, h_{t-1}\bigr) \cdot \exp_2(g_{\text{last}} - g_t)
+$$<ul>
+<li>$M_{\text{rank}}$ (the $[:, :, V:]$ part, $K \times K$) is the chunked transition matrix:</li>
+</ul>
+$$
+M_{\text{rank}} = \prod_t \bigl(\text{diag}(\exp_2(g_{\text{last}})) - k_t^\top w_t\bigr)
+$$<p>$M_{\text{rank}}$ propagates an arbitrary $h_0$ through this rank&rsquo;s tokens.</p>
+<p><strong>Torch reference</strong> (conceptual)</p>
+<div class="highlight"><pre tabindex="0" style="color:#272822;background-color:#fafafa;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-python" data-lang="python"><span style="display:flex;"><span><span style="color:#75715e"># h0 arbitrary; for the rank starting fresh, h0=0</span>
+</span></span><span style="display:flex;"><span><span style="color:#111">h</span> <span style="color:#f92672">=</span> <span style="color:#111">h0</span>                                              <span style="color:#75715e"># [HV, K, V]</span>
+</span></span><span style="display:flex;"><span><span style="color:#111">M</span> <span style="color:#f92672">=</span> <span style="color:#111">eye</span><span style="color:#111">(</span><span style="color:#111">K</span><span style="color:#111">)</span>                                          <span style="color:#75715e"># [HV, K, K]</span>
+</span></span><span style="display:flex;"><span><span style="color:#00a8c8">for</span> <span style="color:#111">chunk</span> <span style="color:#f92672">in</span> <span style="color:#111">rank_chunks</span><span style="color:#111">:</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#111">v_new</span> <span style="color:#f92672">=</span> <span style="color:#111">v_chunk</span> <span style="color:#f92672">-</span> <span style="color:#111">w_chunk</span> <span style="color:#f92672">@</span> <span style="color:#111">h</span>                   <span style="color:#75715e"># delta-rule update</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#111">v_new</span> <span style="color:#f92672">*=</span> <span style="color:#111">exp</span><span style="color:#111">(</span><span style="color:#111">g_last</span> <span style="color:#f92672">-</span> <span style="color:#111">g_chunk</span><span style="color:#111">)</span>                  <span style="color:#75715e"># gate-align to chunk end</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#111">h</span> <span style="color:#f92672">=</span> <span style="color:#111">h</span> <span style="color:#f92672">*</span> <span style="color:#111">exp</span><span style="color:#111">(</span><span style="color:#111">g_last</span><span style="color:#111">)</span> <span style="color:#f92672">+</span> <span style="color:#111">k_chunk</span><span style="color:#f92672">.</span><span style="color:#111">T</span> <span style="color:#f92672">@</span> <span style="color:#111">v_new</span>         <span style="color:#75715e"># state update</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#111">M</span> <span style="color:#f92672">=</span> <span style="color:#111">(</span><span style="color:#111">diag</span><span style="color:#111">(</span><span style="color:#111">exp</span><span style="color:#111">(</span><span style="color:#111">g_last</span><span style="color:#111">))</span> <span style="color:#f92672">-</span> <span style="color:#111">k_chunk</span><span style="color:#f92672">.</span><span style="color:#111">T</span> <span style="color:#f92672">@</span> <span style="color:#111">w_chunk</span><span style="color:#111">)</span> <span style="color:#f92672">@</span> <span style="color:#111">M</span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e"># Output: hm[:, :, :V] = h, hm[:, :, V:] = M  (per rank, [HV, K, V+K])</span>
+</span></span></code></pre></div><p><strong>Shapes</strong>:</p>
+<ul>
+<li>in: $k, w, u, g_k$ (only last sequence via <code>cu_seqlens[-2:]</code>), $\text{bg} = \text{None}$ for KDA (KDA path uses <code>USE_GK=True</code>, <code>USE_BG=False</code>)</li>
+<li>out: $h_m[H_V, K, V+K]$ (fp32)</li>
+</ul>
+<p><strong>Grid</strong>: <code>(cdiv(V, BLOCK_SIZE) + cdiv(K, BLOCK_SIZE), HV)</code>. Each program handles either the $h$ part ($i_{\text{col}} < \text{cdiv}(V, \text{BS})$, computes a $[64, \text{BLOCK\_SIZE}]$ tile of $h$ via the recurrence) or the $M$ part ($i_{\text{col}} \ge \text{cdiv}(V, \text{BS})$, computes a $[\text{BK1}, \text{BLOCK\_SIZE}]$ tile of $M$). Note $\text{BK1} = \text{next\_power\_of\_2}(K)$.</p>
+<h3 id="3b-all_gather_into_tensor">3b. <code>all_gather_into_tensor</code></h3>
+<p>A <code>torch.distributed</code> collective (not Triton) — gathers $h_m$ across all CP ranks into $ag_{hm}[\text{world\_size}, H_V, K, V+K]$. See <code>fla/ops/cp/comm.py</code>.</p>
+<h3 id="3c-merge_fwd_bwd_kernel-with-forwardtrue-skip-on-is_first_rank">3c. <code>merge_fwd_bwd_kernel</code> with <code>FORWARD=True</code> (skip on <code>is_first_rank</code>)</h3>
+<p>File: <code>fla/ops/cp/chunk_delta_h.py:332</code>. Folds the per-rank summaries from all preceding ranks into this rank&rsquo;s <code>initial_state</code>.</p>
+<p><strong>Torch reference</strong></p>
+<div class="highlight"><pre tabindex="0" style="color:#272822;background-color:#fafafa;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-python" data-lang="python"><span style="display:flex;"><span><span style="color:#75715e"># h0 for this rank = composition of all previous ranks&#39; (h_rank, M_rank)</span>
+</span></span><span style="display:flex;"><span><span style="color:#111">h</span> <span style="color:#f92672">=</span> <span style="color:#111">zeros</span><span style="color:#111">(</span><span style="color:#111">HV</span><span style="color:#111">,</span> <span style="color:#111">K</span><span style="color:#111">,</span> <span style="color:#111">V</span><span style="color:#111">)</span>
+</span></span><span style="display:flex;"><span><span style="color:#00a8c8">for</span> <span style="color:#111">prev_rank</span> <span style="color:#f92672">in</span> <span style="color:#111">ranks_before_me</span><span style="color:#111">:</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#111">h_prev</span><span style="color:#111">,</span> <span style="color:#111">M_prev</span> <span style="color:#f92672">=</span> <span style="color:#111">ag_hm</span><span style="color:#111">[</span><span style="color:#111">prev_rank</span><span style="color:#111">]</span>              <span style="color:#75715e"># h_prev: [K, V], M_prev: [K, K]</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#111">h</span> <span style="color:#f92672">=</span> <span style="color:#111">M_prev</span> <span style="color:#f92672">@</span> <span style="color:#111">h</span> <span style="color:#f92672">+</span> <span style="color:#111">h_prev</span>                        <span style="color:#75715e"># fold previous rank&#39;s contribution</span>
+</span></span><span style="display:flex;"><span><span style="color:#111">initial_state</span><span style="color:#111">[</span><span style="color:#ae81ff">0</span><span style="color:#111">]</span> <span style="color:#f92672">=</span> <span style="color:#111">h</span>                               <span style="color:#75715e"># [N=1, HV, K, V]</span>
+</span></span></code></pre></div><p><strong>Mathematical formula</strong></p>
+$$
+h_0^{(\text{this rank})} = \sum_{r \in \text{prev\_ranks}} \left( \prod_{r' \le r} M_{r'} \right) h_r \;=\; M_{r_1} h_{r_0} + M_{r_2}(M_{r_1} h_{r_0} + h_{r_1}) + \cdots
+$$<p>Iteratively: $h \leftarrow M_r \, h + h_r$ for each previous rank $r$ in order.</p>
+<p><strong>Shapes</strong>:</p>
+<ul>
+<li>in: $ag_{hm}[\text{world\_size}, H_V, K, V+K]$, $\text{pre\_num\_ranks}$, $\text{rank}$</li>
+<li>out: $\text{initial\_state}[N, H_V, K, V]$ (or $[N, H_V, V, K]$ if <code>state_v_first</code>)</li>
+</ul>
+<p><strong>Grid (CP mode)</strong>: <code>(cdiv(V, BV), HV)</code> — $i_v$ tiles $V$, $i_h$ is the head. Each program loops over $\text{pre\_num\_ranks}$ previous ranks, loads $(h_{\text{prev}}, M_{\text{prev}})$ tiles, and accumulates $h = M_{\text{prev}} \, h + h_{\text{prev}}$ (line 441-453). When <code>state_v_first=True</code> the layout is transposed: $h^\top{}' = h^\top \, M^\top + h_{\text{prev}}^\top$.</p>
+<h3 id="3d-compress_h0-flaopscpchunk_delta_hpy923--pure-torch">3d. <code>compress_h0</code> (<code>fla/ops/cp/chunk_delta_h.py:923</code>) — pure torch</h3>
+<p>Returns <code>initial_state[:1].clone()</code>. Only the first sequence in the local batch can be a CP continuation, so the rest is dropped to save memory for <code>save_for_backward</code>. No kernel.</p>
+<hr>
+<h2 id="4-inter-chunk-state-recurrence--chunk_gated_delta_rule_fwd_h">4. Inter-chunk state recurrence — <code>chunk_gated_delta_rule_fwd_h</code></h2>
+<p>File: <code>fla/ops/common/chunk_delta_h.py:50</code>, kernel <code>chunk_gated_delta_rule_fwd_kernel_h_blockdim64</code>. Computes the per-chunk hidden states $h[0 \ldots \text{NT}-1]$ and $v_{\text{new}}$ (the delta-rule-corrected values), using the <code>initial_state</code> from step 3 (or the user-supplied one in non-CP mode).</p>
+<p><strong>Torch reference</strong> (matches <code>naive_chunk_kda</code> lines 160-163)</p>
+<div class="highlight"><pre tabindex="0" style="color:#272822;background-color:#fafafa;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-python" data-lang="python"><span style="display:flex;"><span><span style="color:#111">S</span> <span style="color:#f92672">=</span> <span style="color:#111">initial_state</span>                                  <span style="color:#75715e"># [N, HV, K, V]</span>
+</span></span><span style="display:flex;"><span><span style="color:#111">v_new_chunks</span> <span style="color:#f92672">=</span> <span style="color:#111">[]</span>
+</span></span><span style="display:flex;"><span><span style="color:#00a8c8">for</span> <span style="color:#111">i</span> <span style="color:#f92672">in</span> <span style="color:#111">range</span><span style="color:#111">(</span><span style="color:#111">NT</span><span style="color:#111">):</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#111">v_new</span> <span style="color:#f92672">=</span> <span style="color:#111">u_i</span> <span style="color:#f92672">-</span> <span style="color:#111">w_i</span> <span style="color:#f92672">@</span> <span style="color:#111">S</span>                          <span style="color:#75715e"># delta-rule: subtract predicted from v</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#111">v_new_gated</span> <span style="color:#f92672">=</span> <span style="color:#111">v_new</span> <span style="color:#f92672">*</span> <span style="color:#111">exp</span><span style="color:#111">(</span><span style="color:#111">g_last_i</span> <span style="color:#f92672">-</span> <span style="color:#111">g_i</span><span style="color:#111">)</span>      <span style="color:#75715e"># align to chunk end</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#111">h</span><span style="color:#111">[</span><span style="color:#111">i</span><span style="color:#111">]</span> <span style="color:#f92672">=</span> <span style="color:#111">S</span>                                       <span style="color:#75715e"># store state at chunk start</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#111">S</span> <span style="color:#f92672">=</span> <span style="color:#111">S</span> <span style="color:#f92672">*</span> <span style="color:#111">exp</span><span style="color:#111">(</span><span style="color:#111">g_last_i</span><span style="color:#111">)</span> <span style="color:#f92672">+</span> <span style="color:#111">k_i</span><span style="color:#f92672">.</span><span style="color:#111">T</span> <span style="color:#f92672">@</span> <span style="color:#111">v_new_gated</span>    <span style="color:#75715e"># state update with gated new value</span>
+</span></span><span style="display:flex;"><span><span style="color:#111">final_state</span> <span style="color:#f92672">=</span> <span style="color:#111">S</span>
+</span></span></code></pre></div><p><strong>Mathematical formula</strong> (per chunk $i$, with $S$ the running state)</p>
+$$
+v_{\text{new}}^{(i)} = u^{(i)} - w^{(i)} \, S_{i-1}
+$$$$
+\tilde{v}^{(i)}_t = v_{\text{new},t}^{(i)} \odot \exp_2(g_{\text{last}}^{(i)} - g_t)
+$$$$
+S_i = \text{diag}(\exp_2(g_{\text{last}}^{(i)})) \, S_{i-1} + k^{(i)\,\top} \, \tilde{v}^{(i)}
+$$$$
+h[i] = S_{i-1}, \qquad \text{final\_state} = S_{\text{NT}}
+$$<p><strong>Shapes</strong>:</p>
+<ul>
+<li>in: $k[B, T, H, K]$, $w[B, T, H_V, K]$, $u[B, T, H_V, V]$, $g[B, T, H_V]?$, $g_k[B, T, H_V, K]?$, $\text{initial\_state}[N, H_V, K, V]?$</li>
+<li>out: $h[B, \text{NT}, H_V, K, V]$ (or $[B, \text{NT}, H_V, V, K]$ if <code>state_v_first</code>), $v_{\text{new}}[B, T, H_V, V]$, $\text{final\_state}[N, H_V, K, V]?$</li>
+</ul>
+<p><strong>Grid</strong>: <code>(cdiv(V, BV) * N * HV,)</code> — one program per (V-tile, sequence, head). Each program iterates NT chunks, maintaining 1-4 register tiles of size $[64, \text{BV}]$ (one per 64-wide $K$ slice, since $K \le 256$). Per chunk: stores current $h$ tile, computes $v_{\text{new}} = u - w \, h$, applies gate decay $\exp_2(g_{\text{last}} - g)$, decays $h$ by $\exp_2(g_{\text{last}})$ and $\exp_2(g_{k,\text{last}})$ (per-channel), then $h \mathrel{+}= k^\top v_{\text{new}}$. Final chunk&rsquo;s $h$ is stored to <code>final_state</code>.</p>
+<hr>
+<h2 id="5-output-projection--chunk_gla_fwd_o_gk--chunk_gla_fwd_kernel_o">5. Output projection — <code>chunk_gla_fwd_o_gk</code> → <code>chunk_gla_fwd_kernel_o</code></h2>
+<p>File: <code>fla/ops/gla/chunk.py:345</code>. Computes the final attention output by combining the inter-chunk state contribution and the intra-chunk attention.</p>
+<p><strong>Torch reference</strong> (<code>naive_chunk_kda</code> line 161)</p>
+<div class="highlight"><pre tabindex="0" style="color:#272822;background-color:#fafafa;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-python" data-lang="python"><span style="display:flex;"><span><span style="color:#75715e"># o_i = (q_i * exp(g_i)) @ h[i] + Aqk_i @ v_new_i</span>
+</span></span><span style="display:flex;"><span><span style="color:#111">o</span> <span style="color:#f92672">=</span> <span style="color:#111">(</span><span style="color:#111">qg</span> <span style="color:#f92672">@</span> <span style="color:#111">h_inter</span><span style="color:#111">)</span> <span style="color:#f92672">+</span> <span style="color:#111">Aqk</span> <span style="color:#f92672">@</span> <span style="color:#111">v_new</span>                  <span style="color:#75715e"># [B, HV, NT, BT, V]</span>
+</span></span></code></pre></div><p><strong>Mathematical formula</strong></p>
+$$
+o^{(i)} = \bigl(q^{(i)} \odot \exp_2(g^{(i)})\bigr) \, h[i] \cdot \text{scale} + A_{qk}^{(i)} \, v_{\text{new}}^{(i)}
+$$<p><strong>Shapes</strong>:</p>
+<ul>
+<li>in: $q[B, T, H, K]$, $v = v_{\text{new}}[B, T, H_V, V]$, $g[B, T, H_V, K]$, $A = A_{qk}[B, T, H_V, \text{BT}]$, $h[B, \text{NT}, H_V, K, V]$, $\text{scale}$</li>
+<li>out: $o[B, T, H_V, V]$ (zeros-initialized — vLLM pads $v$)</li>
+</ul>
+<p><strong>Grid</strong>: <code>(cdiv(V, BV), NT, B*HV)</code> — $i_v$ tiles $V$, $i_t$ is the chunk, $i_{bh}$ is batch×value-head. Each program:</p>
+<ol>
+<li>Loops $i_k$ over $K$-tiles, loads $q, g, h$ tiles, accumulates $b_o = (q \odot \exp_2(g)) \, h$.</li>
+<li>Multiplies by $\text{scale}$.</li>
+<li>Loads $v_{\text{new}}$ and the lower-triangular $A_{qk}$ row for this chunk, adds $A_{qk} \, v_{\text{new}}$.</li>
+<li>Stores $o$.</li>
+</ol>
+<hr>
+<h2 id="summary-of-program-division-patterns">Summary of program-division patterns</h2>
+<table>
+	<thead>
+			<tr>
+					<th>Kernel</th>
+					<th>Grid</th>
+					<th>Per-program tile</th>
+			</tr>
+	</thead>
+	<tbody>
+			<tr>
+					<td><code>kda_gate_chunk_cumsum_vector_kernel</code></td>
+					<td><code>(cdiv(K,BS), NT, B*H)</code></td>
+					<td>$[\text{BT}, \text{BS}]$ gate tile</td>
+			</tr>
+			<tr>
+					<td><code>chunk_local_cumsum_vector_kernel</code></td>
+					<td><code>(cdiv(K,BS), NT, B*H)</code></td>
+					<td>$[\text{BT}, \text{BS}]$ gate tile</td>
+			</tr>
+			<tr>
+					<td><code>chunk_kda_fwd_kernel_intra_token_parallel</code></td>
+					<td><code>(B*T, cdiv(HV,BH))</code></td>
+					<td>one token row, $\text{BH}$ heads</td>
+			</tr>
+			<tr>
+					<td><code>chunk_kda_fwd_kernel_intra_sub_chunk</code></td>
+					<td><code>(NT, NC, B*HV)</code></td>
+					<td>$[\text{BC}, \text{BK}]$ sub-chunk × $K$-tile</td>
+			</tr>
+			<tr>
+					<td><code>chunk_kda_fwd_kernel_inter_solve_fused</code></td>
+					<td><code>(NT, B*HV)</code></td>
+					<td>full $\text{BT} \times \text{BT}$ chunk (4×4 BC blocks)</td>
+			</tr>
+			<tr>
+					<td><code>recompute_w_u_fwd_kda_kernel</code></td>
+					<td><code>(NT, B*HV)</code></td>
+					<td>$\text{BT}$ rows of $w, u, q_g, k_g$</td>
+			</tr>
+			<tr>
+					<td><code>pre_process_fwd_kernel_merged</code> (CP)</td>
+					<td><code>(cdiv(V,BS)+cdiv(K,BS), HV)</code></td>
+					<td>$[64, \text{BS}]$ of $h$ or $[\text{BK1}, \text{BS}]$ of $M$</td>
+			</tr>
+			<tr>
+					<td><code>merge_fwd_bwd_kernel</code> (CP)</td>
+					<td><code>(cdiv(V,BV), HV)</code></td>
+					<td>$[\text{BK}, \text{BV}]$ tile of <code>initial_state</code></td>
+			</tr>
+			<tr>
+					<td><code>chunk_gated_delta_rule_fwd_kernel_h_blockdim64</code></td>
+					<td><code>(cdiv(V,BV)*N*HV,)</code></td>
+					<td>$[64, \text{BV}]$ state tile, NT-chunk loop</td>
+			</tr>
+			<tr>
+					<td><code>chunk_gla_fwd_kernel_o</code></td>
+					<td><code>(cdiv(V,BV), NT, B*HV)</code></td>
+					<td>$[\text{BT}, \text{BV}]$ output tile</td>
+			</tr>
+	</tbody>
+</table>
+<h2 id="cp-flow-recap">CP flow recap</h2>
+<p>In non-CP mode, step 3 is skipped and <code>initial_state</code> flows directly from the user into step 4. In CP mode:</p>
+<ol>
+<li>Each non-last rank computes its $(h_{\text{rank}}, M_{\text{rank}})$ summary (3a) — $M_{\text{rank}}$ is the linear transfer matrix that propagates any $h_0$ across this rank&rsquo;s tokens.</li>
+<li>Summaries are all-gathered (3b).</li>
+<li>Each non-first rank folds all preceding ranks&rsquo; summaries into its <code>initial_state</code> (3c) via $h \leftarrow M_r \, h + h_r$.</li>
+<li><code>compress_h0</code> (3d) trims to a single sequence for backward&rsquo;s <code>save_for_backward</code>.</li>
+</ol>
+<p>This avoids ever materializing or communicating full $[K, V]$ states per chunk across ranks — only one $[K, V+K]$ summary per rank is gathered, giving CP overhead that&rsquo;s independent of sequence length.</p>
+
+                    
+                    <HR width="100%" id="EOF">
+		    <p style="color:#777;">最后修改于 2026-08-09</p>
+                    
+                </div>
+            </div>
+            
+            
+            <nav class="post-pagination">
+
+                
+                <a class="newer-posts" href="/life/reading_2026/">
+			下回<br>读书 2026
+                </a>
+                
+                
+                
+                <a class="older-posts" href="/llm/chunked_prefill_apc/">
+			上回<br>Chunked Prefill and Prefix Caching
+                </a>
+                
+            </nav>
+            <div class="post-comment-wrapper">
+                
+
+
+
+
+
+
+
+
+
+
+
+
+            </div>
+        </div>
+    </div>
+
+
+                    </div>
+            </div><div id="sideContainer" class="side-container">
+    
+    <a class="a-block nav-head false" href="https://zhixuan-zxli.github.io/">
+    
+        <div class="nav-title">
+            Zhixuan&#39;s Blog
+        </div>
+        
+    </a>
+
+    <div class="nav-link-list">
+        
+        
+            
+            
+            
+                
+            
+            
+            
+            <a class="a-block nav-link-item active" href="/llm">
+                大模型
+            </a>
+            
+        
+            
+            
+            
+            
+            
+            <a class="a-block nav-link-item false" href="/life">
+                生活随记
+            </a>
+            
+        
+    </div>
+
+    
+
+    <div class="nav-footer">
+        
+Hugo Theme <a href="https://github.com/amazingrise/hugo-theme-diary">Diary</a> by <a href="https://risehere.net/">Rise</a>
+<br>
+移植自 <a href="https://mak1t0.cc/" target="_blank" rel="noreferrer noopener">Makito</a>'s <a href="https://github.com/SumiMakito/hexo-theme-journal/" target="_blank" rel="noreferrer noopener">Journal.</a> <br>
+<br>
+
+&copy;
+	
+	2026 Zhixuan&#39;s Blog
+	
+
+    </div>
+    
+</div><div id="extraContainer" class="extra-container">
+    <div class="toc-wrapper">
+        
+
+        
+    </div>
+    <div class="pagination">
+        <a id="globalBackToTop" class="pagination-action animated-visibility" href="#top"
+            :class="{ invisible: scrollY == 0 }">
+            <i class="material-icons pagination-action-icon">
+                keyboard_arrow_up
+            </i>
+        </a>
+        
+        <a type="button" class="pagination-action" id="darkModeToggleButton">
+            <span class="material-icons pagination-action-icon" id="darkModeToggleIcon">
+                dark_mode
+            </span>
+        </a>
+        
+        
+    </div>
+</div>
+
+<div id="single-column-footer">
+Hugo Theme <a href="https://github.com/amazingrise/hugo-theme-diary">Diary</a> by <a href="https://risehere.net/">Rise</a>
+<br>
+移植自 <a href="https://mak1t0.cc/" target="_blank" rel="noreferrer noopener">Makito</a>'s <a href="https://github.com/SumiMakito/hexo-theme-journal/" target="_blank" rel="noreferrer noopener">Journal.</a> <br>
+<br>
+
+&copy;
+	
+	2026 Zhixuan&#39;s Blog
+	
+</div>
+            </div>
+    
+    <script src="/js/journal.js"></script></body>
+</html>

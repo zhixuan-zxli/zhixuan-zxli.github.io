@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en"><head><script src="/livereload.js?mindelay=10&amp;v=2&amp;port=1313&amp;path=livereload" data-no-instant defer></script>
+<html lang="en"><head>
 <title>Causal Convolution: Cache, Computation and Sequence Parallelism</title>
 
 
@@ -113,7 +113,7 @@
                 menu
             </i>
         </button>
-        <a id="navTitle" class="navbar-brand" href="http://localhost:1313/">
+        <a id="navTitle" class="navbar-brand" href="https://zhixuan-zxli.github.io/">
             Zhixuan&#39;s Blog
         </a>
         
@@ -127,7 +127,7 @@
 </nav>
 <div class="single-column-header-container" id="pageHead"
      v-bind:style="{ transform: 'translateZ(0px) translateY('+.3*scrollY+'px)', opacity: 1-navOpacity }">
-    <a href="http://localhost:1313/">
+    <a href="https://zhixuan-zxli.github.io/">
         <div class="single-column-header-title">Zhixuan&#39;s Blog</div>
         
 
@@ -152,7 +152,7 @@
                     <div class="post-meta">
                         
                         <time itemprop="datePublished">
-                            2026-06-28 00:00
+                            2026-07-19 00:00
                         </time>
                         
 
@@ -174,11 +174,175 @@
                 
                 <div class="post-body" v-pre>
                 
-                    <p>Working in progress</p>
-
+                    <table>
+	<thead>
+			<tr>
+					<th></th>
+					<th>社区 <code>causal_conv1d_fn</code></th>
+					<th>社区 <code>causal_conv1d_update</code></th>
+					<th>NPU算子</th>
+			</tr>
+	</thead>
+	<tbody>
+			<tr>
+					<td>Continuous batching</td>
+					<td>✅</td>
+					<td>✅</td>
+					<td>✅</td>
+			</tr>
+			<tr>
+					<td>Chunked prefill</td>
+					<td>✅</td>
+					<td></td>
+					<td>✅</td>
+			</tr>
+			<tr>
+					<td>多头MTP</td>
+					<td></td>
+					<td>✅</td>
+					<td>✅</td>
+			</tr>
+			<tr>
+					<td>APC</td>
+					<td>✅（非投机）</td>
+					<td></td>
+					<td>✅</td>
+			</tr>
+	</tbody>
+</table>
+<ul>
+<li>Mamba 1/2不支持投机推理，但可以支持block粒度的前缀缓存</li>
+<li>Qwen3-Next/3.5 支持投机推理，但前缀复用是以调度块为颗粒度的（节省缓存写入，但匹配频率降低、无法控制颗粒度）</li>
+</ul>
+<hr>
+<p><strong>NPU 算子缓存读写方式</strong></p>
+<div style="overflow-x:auto; font-family:monospace;">
+  <div style="display:grid; grid-template-columns:100px repeat(5,64px); gap:8px; align-items:center; width:max-content;">
+    <div>Input tokens</div>
+    <div></div>
+    <div style="border:1px solid #9ca3af; border-radius:6px; text-align:center; padding:8px 0; background:#dbeafe;">tok 1</div>
+    <div style="border:1px solid #9ca3af; border-radius:6px; text-align:center; padding:8px 0; background:#dcfce7;">tok 2</div>
+    <div style="border:1px solid #9ca3af; border-radius:6px; text-align:center; padding:8px 0; background:#fef3c7;">tok 3</div>
+    <div style="border:1px solid #9ca3af; border-radius:6px; text-align:center; padding:8px 0; background:#fbcfe8;">tok 4</div>
+    <div>Cache (before)</div>
+    <div style="border:1px solid #d1d5db; border-radius:6px; text-align:center; padding:8px 0; background:#f3f4f6; color:#9ca3af;">v</div>
+    <div style="border:1px solid #d1d5db; border-radius:6px; text-align:center; padding:8px 0; background:#f3f4f6; color:#9ca3af;">w</div>
+    <div style="border:1px solid #9ca3af; border-radius:6px; text-align:center; padding:8px 0; background:#fed7aa;">x</div>
+    <div style="border:1px solid #9ca3af; border-radius:6px; text-align:center; padding:8px 0; background:#fed7aa;">y</div>
+    <div style="border:1px solid #d1d5db; border-radius:6px; text-align:center; padding:8px 0; background:#f3f4f6; color:#9ca3af;">z</div>
+    <div style="color:#6b7280;">read<br>offset = 2</div>
+    <div></div>
+    <div></div>
+    <div style="text-align:center; color:#6b7280;">▲</div>
+    <div></div>
+    <div></div>
+    <div>Cache (after)</div>
+    <div style="border:1px solid #9ca3af; border-radius:6px; text-align:center; padding:8px 0; background:#fed7aa;">y</div>
+    <div style="border:1px solid #9ca3af; border-radius:6px; text-align:center; padding:8px 0; background:#dbeafe;">1</div>
+    <div style="border:1px solid #9ca3af; border-radius:6px; text-align:center; padding:8px 0; background:#dcfce7;">2</div>
+    <div style="border:1px solid #9ca3af; border-radius:6px; text-align:center; padding:8px 0; background:#fef3c7;">3</div>
+    <div style="border:1px solid #9ca3af; border-radius:6px; text-align:center; padding:8px 0; background:#fbcfe8;">4</div>
+  </div>
+  <div style="font-size:0.85em; color:#6b7280; margin-top:8px;">With <code>offset=2</code>, <b>y</b> is carried over to slot 0 and tok 1–4 are written into slots 1–4; v, w, x, z are dropped.</div>
+</div>
+<hr>
+<p><strong>MTP + APC场景下 Mamba 模块的实现</strong></p>
+<img src="../../static/slides/ModAttn-APC-2.drawio.svg" alt="ModAttn-APC"/>
+<p>MTP 流程</p>
+<img src="../../static/slides/ModAttn-MTP-2.drawio.svg" alt="ModAttn-MTP"/>
+<p>MTP + APC 的耦合修正</p>
+<img src="../../static/slides/ModAttn-APC-corr.drawio.svg" alt="ModAttn-APC-corr"/>
+<hr>
+<p><strong>AG方案计算流</strong>
+<img src="../../assets/LLM/SWA-AG.drawio.svg" alt="SWA-AG" style="width: auto; height: 50%;"/></p>
+<p><strong>SP方案计算流</strong>
+<img src="../../assets/LLM/SWA-SP.drawio.svg" alt="SWA-SP" style="width: auto; height: 50%;"/></p>
+<hr>
+<p><strong>理论收益</strong></p>
+<table>
+	<thead>
+			<tr>
+					<th></th>
+					<th>卷积计算量</th>
+					<th>缓存写入量</th>
+					<th>token通信量</th>
+					<th>缓存通信量</th>
+			</tr>
+	</thead>
+	<tbody>
+			<tr>
+					<td>Q / K-Conv</td>
+					<td>1/sp_size</td>
+					<td>不变</td>
+					<td>不变</td>
+					<td>0 → token通信量 / 64</td>
+			</tr>
+			<tr>
+					<td>O-Conv</td>
+					<td>1 / sp_size</td>
+					<td>不变</td>
+					<td>1 / sp_size</td>
+					<td>0 → token通信量 / 64</td>
+			</tr>
+	</tbody>
+</table>
+<p><strong>整网收益</strong>（Pro模型，TP32，128K输入序列，block_size=128，chunk_size=32K）</p>
+<table>
+	<thead>
+			<tr>
+					<th></th>
+					<th>DSA层</th>
+					<th>SWA层</th>
+					<th>整网TTFT</th>
+			</tr>
+	</thead>
+	<tbody>
+			<tr>
+					<td>AG方案</td>
+					<td>14.1 ms</td>
+					<td>9.7 ms</td>
+					<td>5.138 s</td>
+			</tr>
+			<tr>
+					<td>SP方案</td>
+					<td>8.5 ms</td>
+					<td>4.2 ms</td>
+					<td>3.977 s</td>
+			</tr>
+			<tr>
+					<td>收益</td>
+					<td>40%</td>
+					<td>57%</td>
+					<td>26%</td>
+			</tr>
+	</tbody>
+</table>
+<hr>
+<p><strong>SP切分与Cache管理</strong></p>
+<img src="../../assets/LLM/ModAttn-SP.drawio.svg" alt="ModAttn-SP"/>
+<hr>
+<p><strong>SP计算流程</strong></p>
+<div style="overflow-x:auto; font-family:monospace; font-size:12px;">
+  <div style="display:flex; align-items:stretch; gap:12px; width:max-content;">
+    <div style="display:flex; flex-direction:column; justify-content:space-between; gap:8px;">
+      <div style="border:1px solid #6c8ebf; background:#dae8fc; border-radius:4px; text-align:center; padding:6px 8px; width:120px; box-sizing:border-box;">(0)<br>build local metadata</div>
+      <div style="border:1px solid #6c8ebf; background:#dae8fc; border-radius:4px; text-align:center; padding:6px 8px; width:120px; box-sizing:border-box; opacity:0.5;">last forward pass</div>
+    </div>
+    <div style="border-left:2px dashed #9ca3af;"></div>
+    <div style="display:flex; align-items:center; gap:6px;">
+      <div style="border:1px solid #6c8ebf; background:#dae8fc; border-radius:4px; text-align:center; padding:6px 8px; width:120px; box-sizing:border-box;">(1)<br>Collect local cache tokens</div>
+      <span style="color:#6b7280;">→</span>
+      <div style="border:1px solid #6c8ebf; background:#dae8fc; border-radius:4px; text-align:center; padding:6px 8px; width:120px; box-sizing:border-box;">(2)<br>All-gather cache tokens</div>
+      <span style="color:#6b7280;">→</span>
+      <div style="border:1px solid #6c8ebf; background:#dae8fc; border-radius:4px; text-align:center; padding:6px 8px; width:120px; box-sizing:border-box;">(3)<br>Scatter to KV caches</div>
+      <span style="color:#6b7280;">→</span>
+      <div style="border:1px solid #6c8ebf; background:#dae8fc; border-radius:4px; text-align:center; padding:6px 8px; width:120px; box-sizing:border-box;">(4)<br>Conv kernel</div>
+    </div>
+  </div>
+</div>
                     
                     <HR width="100%" id="EOF">
-		    <p style="color:#777;">最后修改于 2026-06-28</p>
+		    <p style="color:#777;">最后修改于 2026-07-19</p>
                     
                 </div>
             </div>
@@ -187,14 +351,14 @@
             <nav class="post-pagination">
 
                 
-                <a class="newer-posts" href="/life/2607/">
-			下回<br>2026年7月
+                <a class="newer-posts" href="/llm/mooncake_connector/">
+			下回<br>Mooncake Connector - Architecture
                 </a>
                 
                 
                 
-                <a class="older-posts" href="/life/2605/">
-			上回<br>2026年5月
+                <a class="older-posts" href="/llm/async_scheduling/">
+			上回<br>Zero-bubble async scheduling for spec decoding
                 </a>
                 
             </nav>
@@ -220,7 +384,7 @@
                     </div>
             </div><div id="sideContainer" class="side-container">
     
-    <a class="a-block nav-head false" href="http://localhost:1313/">
+    <a class="a-block nav-head false" href="https://zhixuan-zxli.github.io/">
     
         <div class="nav-title">
             Zhixuan&#39;s Blog

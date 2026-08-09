@@ -1,0 +1,1153 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<title>Mooncake Connector - Architecture</title>
+
+
+
+
+<meta charset="utf-8">
+<meta name="X-UA-Compatible" content="IE=edge">
+<meta name="google-site-verification" content="">
+<meta content="width=device-width, initial-scale=1.0, maximum-scale=5, user-scalable=5" name="viewport">
+<meta content="telephone=no" name="format-detection">
+<meta name="description" content="">
+<meta name="renderer" content="webkit">
+<meta name="theme-color" content="#ffffff">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+
+
+
+
+
+    <link type="text/css" rel="stylesheet" href="/vendor/css/bootstrap.min.css">
+
+<link rel="stylesheet" href="/scss/dark-mode.min.6c9b4c2290542df75010d1640eac4339c754ccff3c9b43fc81a23c94e7e12eaf.css" integrity="sha256-bJtMIpBULfdQENFkDqxDOcdUzP88m0P8gaI8lOfhLq8=" media="screen">
+
+
+<link rel="stylesheet"
+          href="https://fonts.googleapis.com/css?family=Material+Icons">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<link rel="stylesheet" href="/css/custom.css">
+
+
+</head>
+<body>
+    	<div id="app"><div class="single-column-drawer-container" id="drawer"
+     v-bind:class="{ 'single-column-drawer-container-active': isDrawerOpen }">
+    <div class="drawer-content">
+        <div class="drawer-menu">
+            
+            
+            
+                
+                
+                
+                    
+                
+                
+                
+                <a class="a-block drawer-menu-item active" href="/llm">
+                    大模型
+                </a>
+                
+            
+                
+                
+                
+                
+                
+                <a class="a-block drawer-menu-item false" href="/life">
+                    生活随记
+                </a>
+                
+            
+            
+            <div class="toc">
+
+
+	<div class="toc-content">
+	
+		
+		
+		
+		<center>- 目录 -</center>
+		
+		
+		<ul>
+			
+				
+				
+					
+						
+						
+						
+						
+						
+							<li>
+								<a href="#mooncake-kv-connectors-in-vllm" class="nav-mooncake-kv-connectors-in-vllm">
+									Mooncake KV Connectors in vLLM
+								</a>
+							</li>
+						
+						
+					
+				
+			
+				
+				
+					
+						
+						
+						
+						
+							
+								
+									<ul>
+								
+							
+						
+						
+							<li>
+								<a href="#1-mooncakeconnector--direct-p2p-transfer" class="nav-1-mooncakeconnector--direct-p2p-transfer">
+									1. MooncakeConnector — Direct P2P transfer
+								</a>
+							</li>
+						
+						
+					
+				
+			
+				
+				
+					
+						
+						
+						
+						
+							
+								
+									<ul>
+								
+							
+						
+						
+							<li>
+								<a href="#architecture" class="nav-architecture">
+									Architecture
+								</a>
+							</li>
+						
+						
+					
+				
+			
+				
+				
+					
+						
+						
+						
+						
+						
+							<li>
+								<a href="#discovery-bootstrap-server" class="nav-discovery-bootstrap-server">
+									Discovery: bootstrap server
+								</a>
+							</li>
+						
+						
+					
+				
+			
+				
+				
+					
+						
+						
+						
+						
+						
+							<li>
+								<a href="#metadata-channel-zmq" class="nav-metadata-channel-zmq">
+									Metadata channel: ZMQ
+								</a>
+							</li>
+						
+						
+					
+				
+			
+				
+				
+					
+						
+						
+						
+						
+						
+							<li>
+								<a href="#kv-registration" class="nav-kv-registration">
+									KV registration
+								</a>
+							</li>
+						
+						
+					
+				
+			
+				
+				
+					
+						
+						
+						
+						
+						
+							<li>
+								<a href="#the-actual-transfer" class="nav-the-actual-transfer">
+									The actual transfer
+								</a>
+							</li>
+						
+						
+					
+				
+			
+				
+				
+					
+						
+						
+						
+						
+						
+							<li>
+								<a href="#async-orchestration" class="nav-async-orchestration">
+									Async orchestration
+								</a>
+							</li>
+						
+						
+					
+				
+			
+				
+				
+					
+						
+						
+						
+						
+						
+							<li>
+								<a href="#special-cases" class="nav-special-cases">
+									Special cases
+								</a>
+							</li>
+						
+						
+					
+				
+			
+				
+				
+					
+						
+						
+						
+						
+						
+							<li>
+								<a href="#kv-cache-layout" class="nav-kv-cache-layout">
+									KV cache layout
+								</a>
+							</li>
+						
+						
+					
+				
+			
+				
+				
+					
+						
+						
+						
+							
+								</ul>
+							
+						
+						
+						
+							<li>
+								<a href="#2-call-stacks--send-and-receive" class="nav-2-call-stacks--send-and-receive">
+									2. Call stacks — Send and receive
+								</a>
+							</li>
+						
+						
+					
+				
+			
+				
+				
+					
+						
+						
+						
+						
+							
+								
+									<ul>
+								
+							
+						
+						
+							<li>
+								<a href="#one-time-worker-setup" class="nav-one-time-worker-setup">
+									One-time worker setup
+								</a>
+							</li>
+						
+						
+					
+				
+			
+				
+				
+					
+						
+						
+						
+						
+						
+							<li>
+								<a href="#prefiller-p--sending-kv" class="nav-prefiller-p--sending-kv">
+									Prefiller (P) — sending KV
+								</a>
+							</li>
+						
+						
+					
+				
+			
+				
+				
+					
+						
+						
+						
+						
+						
+							<li>
+								<a href="#decoder-d--receiving-kv" class="nav-decoder-d--receiving-kv">
+									Decoder (D) — receiving KV
+								</a>
+							</li>
+						
+						
+					
+				
+			
+				
+				
+					
+						
+						
+						
+						
+						
+							<li>
+								<a href="#end-to-end-timeline" class="nav-end-to-end-timeline">
+									End-to-end timeline
+								</a>
+							</li>
+						
+						
+					
+				
+			
+				
+				
+					
+						
+						
+						
+							
+								</ul>
+							
+						
+						
+						
+							<li>
+								<a href="#3-mooncakestoreconnector--shared-distributed-kv-pool" class="nav-3-mooncakestoreconnector--shared-distributed-kv-pool">
+									3. MooncakeStoreConnector — Shared distributed KV pool
+								</a>
+							</li>
+						
+						
+					
+				
+			
+				
+				
+					
+						
+						
+						
+						
+							
+								
+									<ul>
+								
+							
+						
+						
+							<li>
+								<a href="#why-the-two-connectors-are-not-interchangeable" class="nav-why-the-two-connectors-are-not-interchangeable">
+									Why the two connectors are not interchangeable
+								</a>
+							</li>
+						
+						
+					
+				
+			
+				
+				
+					
+						
+						
+						
+						
+						
+							<li>
+								<a href="#structure" class="nav-structure">
+									Structure
+								</a>
+							</li>
+						
+						
+					
+				
+			
+				
+				
+					
+						
+						
+						
+						
+						
+							<li>
+								<a href="#prefix-cache-reset" class="nav-prefix-cache-reset">
+									Prefix-cache reset
+								</a>
+							</li>
+						
+						
+					
+				
+			
+				
+				
+					
+						
+						
+						
+						
+						
+							<li>
+								<a href="#kv-events-mooncakestorekvevents" class="nav-kv-events-mooncakestorekvevents">
+									KV events (MooncakeStoreKVEvents)
+								</a>
+							</li>
+						
+						
+					
+				
+			
+				
+				
+					
+						
+						
+						
+						
+						
+							<li>
+								<a href="#cross-layer-blocks" class="nav-cross-layer-blocks">
+									Cross-layer blocks
+								</a>
+							</li>
+						
+						
+					
+				
+			
+				
+				
+					
+						
+						
+						
+						
+						
+							<li>
+								<a href="#config-validation" class="nav-config-validation">
+									Config validation
+								</a>
+							</li>
+						
+						
+					
+				
+			
+				
+				
+					
+						
+						
+						
+						
+						
+							<li>
+								<a href="#load-error-reporting" class="nav-load-error-reporting">
+									Load-error reporting
+								</a>
+							</li>
+						
+						
+					
+				
+			
+				
+				
+					
+						
+						
+						
+						
+						
+							<li>
+								<a href="#store-connector-flow" class="nav-store-connector-flow">
+									Store connector flow
+								</a>
+							</li>
+						
+						
+					
+				
+			
+				
+				
+					
+						
+						
+						
+							
+								</ul>
+							
+						
+						
+						
+							<li>
+								<a href="#4-quick-comparison" class="nav-4-quick-comparison">
+									4. Quick comparison
+								</a>
+							</li>
+						
+						
+					
+				
+			
+		</ul>
+	</div>
+
+</div>
+            
+        </div>
+    </div>
+</div>
+<transition name="fade">
+    <div id="drawer-mask" v-bind:class="{ 'single-column-drawer-mask': mounted }" v-if="isDrawerOpen" v-on:click="toggleDrawer"></div>
+</transition>
+<nav id="navBar" class="navbar sticky-top navbar-light single-column-nav-container">
+    <div id="navBackground" class="nav-background"></div>
+    <div class="container container-narrow nav-content">
+        <button id="nav_dropdown_btn" class="nav-dropdown-toggle" type="button" v-on:click="toggleDrawer">
+            <i class="material-icons">
+                menu
+            </i>
+        </button>
+        <a id="navTitle" class="navbar-brand" href="https://zhixuan-zxli.github.io/">
+            Zhixuan&#39;s Blog
+        </a>
+        
+        <button type="button" class="nav-darkmode-toggle" id="darkModeToggleButton2">
+            <i class="material-icons" id="darkModeToggleIcon2">
+                dark_mode
+            </i>
+        </button>
+        
+    </div>
+</nav>
+<div class="single-column-header-container" id="pageHead"
+     v-bind:style="{ transform: 'translateZ(0px) translateY('+.3*scrollY+'px)', opacity: 1-navOpacity }">
+    <a href="https://zhixuan-zxli.github.io/">
+        <div class="single-column-header-title">Zhixuan&#39;s Blog</div>
+        
+
+    </a>
+</div>
+
+            <div id="content">
+                <div id="streamContainer" class="stream-container">
+
+    <div class="post-list-container post-list-container-shadow">
+        <div class="post">
+            
+            
+            
+
+            <div class="post-head-wrapper-text-only"
+                
+            >
+                <div class="post-title">
+                    Mooncake Connector - Architecture
+                    
+                    <div class="post-meta">
+                        
+                        <time itemprop="datePublished">
+                            2026-08-09 00:00
+                        </time>
+                        
+
+                        
+
+                        
+                            <i class="material-icons" style="">label</i>
+                            
+                                <a href="/tags/vllm">vLLM</a>
+                                &nbsp;
+                            
+                        
+                        
+                    </div>
+                </div>
+            </div>
+            
+            <div class="post-body-wrapper">
+                
+                <div class="post-body" v-pre>
+                
+                    <h1 id="mooncake-kv-connectors-in-vllm">Mooncake KV Connectors in vLLM</h1>
+<p>vLLM ships two different <code>KVConnectorBase_V1</code> implementations for Mooncake, with fundamentally different transfer architectures:</p>
+<ul>
+<li><strong><code>MooncakeConnector</code></strong> — direct P2P transfer via RDMA one-sided writes.</li>
+<li><strong><code>MooncakeStoreConnector</code></strong> — shared distributed KV pool keyed by content hash.</li>
+</ul>
+<p>Source files:</p>
+<ul>
+<li><code>vllm/distributed/kv_transfer/kv_connector/v1/mooncake/mooncake_connector.py</code></li>
+<li><code>vllm/distributed/kv_transfer/kv_connector/v1/mooncake/store/connector.py</code></li>
+</ul>
+<hr>
+<h2 id="1-mooncakeconnector--direct-p2p-transfer">1. MooncakeConnector — Direct P2P transfer</h2>
+<p>This is a <strong>P-push</strong> connector: the producer (prefiller) writes KV blocks directly into the consumer&rsquo;s (decoder&rsquo;s) memory via RDMA. It&rsquo;s built on top of Mooncake&rsquo;s <code>TransferEngine</code>, which does one-sided RDMA writes.</p>
+<h3 id="architecture">Architecture</h3>
+<ul>
+<li>Split into <code>MooncakeConnectorScheduler</code> (control-plane) and <code>MooncakeConnectorWorker</code> (data-plane), matching the standard vLLM connector role split.</li>
+<li>Both P and D workers can coexist in one process (<code>kv_both</code>) — the code branches on <code>is_kv_producer</code> / <code>is_kv_consumer</code>.</li>
+</ul>
+<h3 id="discovery-bootstrap-server">Discovery: bootstrap server</h3>
+<ul>
+<li>Global-rank-0 P-worker launches an HTTP <code>MooncakeBootstrapServer</code>.</li>
+<li>Every P-worker registers <code>(engine_id, dp_rank, tp_rank, pp_rank, zmq_addr)</code> with it.</li>
+<li>D-workers hit the bootstrap <code>/query</code> endpoint on first contact with a new engine_id (<code>_connect_to_prefiller_bootstrap</code>), caching the topology in <code>_remote_agents</code>.</li>
+</ul>
+<h3 id="metadata-channel-zmq">Metadata channel: ZMQ</h3>
+<ul>
+<li>P-worker binds a ZMQ ROUTER socket to a random port; that port is what gets registered with bootstrap.</li>
+<li>D-worker uses a DEALER socket to send a <code>MooncakeXferMetadata</code> blob per pull request. That blob contains the D&rsquo;s KV base addresses, block lengths, per-layer registrations, plus per-request <code>(transfer_id, [[block_ids]])</code>.</li>
+<li>P responds with <code>MooncakeXferResponse</code>, streamed as <code>CONTINUE</code> messages while transfers finish incrementally and <code>FINISH</code> at the end.</li>
+</ul>
+<h3 id="kv-registration">KV registration</h3>
+<p><code>register_kv_caches</code> iterates each layer&rsquo;s KV tensor. Depending on the attention spec:</p>
+<ul>
+<li><strong>MLA / SlidingWindowMLA</strong> → treat whole layer as one region (<code>page_size_bytes</code>).</li>
+<li><strong>Mamba/GDN</strong> → register only the <code>conv</code> tensor.</li>
+<li><strong>Standard attention</strong> with <code>virtually_split_kv_in_blocks</code> layout → treat K and V halves as separate transfer regions (<code>kv_block_len = block_len // 2</code>). <code>_expand_transfer_regions</code> emits two <code>TransferRegion</code> entries per layer, one at <code>base_addr</code> and one at <code>base_addr + kv_block_len</code>.</li>
+</ul>
+<p>All unique <code>storage_addr</code> regions are batch-registered with Mooncake&rsquo;s RDMA layer via <code>engine.batch_register_memory</code> — this is what pins the memory for one-sided RDMA writes.</p>
+<h3 id="the-actual-transfer">The actual transfer</h3>
+<p><code>_build_transfer_params</code> is where block-level RDMA descriptors are computed:</p>
+<ol>
+<li><strong>Group-aware block matching.</strong> Hybrid models can have multiple KV groups (e.g. full-attention pages + GDN inner-state slots). Block IDs from group <code>i</code> on P must only be paired with group <code>i</code> on D — the code carefully preserves per-group identity. For Mamba groups, <code>NULL_BLOCK_ID</code> placeholders are filtered out.</li>
+<li><strong>Region alignment across PP shards.</strong> <code>_align_transfer_regions</code> matches registered regions by <code>(layer_name, occurrence_order)</code> rather than positionally, because P and D may have different PP layouts and thus own different layer subsets.</li>
+<li><strong>Heterogeneous TP planning.</strong> <code>_compute_sender_transfer_plan</code> figures out, for a given (local_tp_rank, remote_tp_rank) pair:
+<ul>
+<li>Whether this rank sends at all (for replicated caches like MLA, only rank 0 within a TP group needs to send).</li>
+<li>Source/dest byte offsets inside a KV block (when local TP &gt; remote TP, one local rank writes into a slice of the remote block; when local TP &lt; remote TP, one local rank gathers from multiple remote regions).</li>
+<li><code>tp_ratio</code> handles both directions with sign convention.</li>
+</ul>
+</li>
+<li><strong>Coalescing.</strong> <code>group_concurrent_contiguous</code> uses <code>np.diff</code> to find runs of contiguous block IDs on both sides. When a run is contiguous AND the per-block copy covers the full block (<code>_can_coalesce_block_transfers</code>), the whole run becomes one large descriptor instead of N small ones. Big win for RDMA throughput.</li>
+<li><strong>Logical → kernel expansion</strong> (<code>_logical_to_kernel_block_ids</code>). When speculative decoding forces the effective kernel block size smaller than the logical one, each logical block ID expands to <code>_physical_blocks_per_logical_kv_block</code> consecutive kernel IDs. Mamba groups skip this expansion.</li>
+<li><strong>The dispatch:</strong> <code>engine.batch_transfer_sync_write(remote_session, src_ptrs, dst_ptrs, lengths)</code>. This is the RDMA one-sided WRITE into the D&rsquo;s registered memory, no D-side CPU involvement.</li>
+</ol>
+<h3 id="async-orchestration">Async orchestration</h3>
+<ul>
+<li>Two background threads each running their own <code>asyncio</code> event loop (<code>_async_loop</code>): sender loop on P, receiver loop on D.</li>
+<li>On P, <code>_mooncake_sender_listener</code> accepts ZMQ requests and dispatches to <code>_sender_worker</code> coroutines (<code>num_sender_tasks = 2 × num_workers</code>) which pull from a queue.</li>
+<li>The actual <code>batch_transfer_sync_write</code> call is offloaded to a <code>ThreadPoolExecutor</code> via <code>run_in_executor</code> since it&rsquo;s a blocking C call. Each executor thread is bound to the correct CUDA device via <code>_bind_sender_thread_device</code> — CUDA context is thread-local, so this is essential for NVLink transfers on TP &gt; 0.</li>
+</ul>
+<h3 id="special-cases">Special cases</h3>
+<ul>
+<li><strong>Mamba/GDN</strong> on the P side truncates the last prompt token (<code>_truncate_mamba_request_for_prefill</code>) so P computes <code>h(N-1)</code>, then D recomputes the final token to derive <code>h(N)</code>. This avoids sending a state that would need immediate refresh.</li>
+<li><strong>Sliding-window HMA</strong> clips block IDs to the last <code>blocks_per_sw</code> blocks so old windows aren&rsquo;t wastefully transferred.</li>
+<li><strong>Timeout handling</strong> — <code>SendBlockMeta.expire_time</code> plus <code>fetch_finished_sending_reqs</code> reap stranded P-side blocks if D never asks for them.</li>
+<li><strong>P/D asymmetry in stats</strong> — only P sees successful transfer latency/bytes; D only records recv failures because it never touches the successful path.</li>
+</ul>
+<h3 id="kv-cache-layout">KV cache layout</h3>
+<p><code>get_required_kvcache_layout</code> returns <code>&quot;HND&quot;</code> for non-MLA models, so layout is forced to <code>[num_heads, num_blocks, block_size, head_dim]</code> and heterogeneous TP transfers are contiguous on the head dimension.</p>
+<hr>
+<h2 id="2-call-stacks--send-and-receive">2. Call stacks — Send and receive</h2>
+<h3 id="one-time-worker-setup">One-time worker setup</h3>
+<pre tabindex="0"><code>P-worker __init__                          D-worker __init__
+├── threading.Thread(_async_loop,          ├── threading.Thread(_async_loop,
+│      sender_loop).start()                │      receiver_loop).start()
+└── register_kv_caches(...)                └── register_kv_caches(...)
+    ├── engine.batch_register_memory()         └── engine.batch_register_memory()
+    │      # pin memory for RDMA
+    └── run_coroutine_threadsafe(
+           _mooncake_sender_listener, sender_loop)
+        ├── sock = ROUTER.bind_to_random_port
+        ├── register_worker_with_bootstrap()    ── HTTP ─▶ MooncakeBootstrapServer
+        └── spawn N × _sender_worker(sock)
+</code></pre><h3 id="prefiller-p--sending-kv">Prefiller (P) — sending KV</h3>
+<pre tabindex="0"><code>─── Scheduler process (SCHEDULER role) ──────────────────────────────────
+Engine step
+└── connector.update_state_after_alloc(req)
+       │   if params[&#34;do_remote_decode&#34;]:
+       └── self._reqs_need_send[req_id] = (req, [])
+
+Engine step (end)
+├── connector.build_connector_meta(sched_out)
+│      └── meta.add_new_req(load_remote_cache=False)  ─┐
+│                                                      │
+└── connector.request_finished(req, block_ids)         │
+       │   # request completed on P                    │
+       └── self._reqs_need_send[req_id] = (req, block_ids) ─┘
+                                                       │
+                        MooncakeConnectorMetadata      │
+                                                       ▼
+─── Worker process (WORKER role) ───────────────────────────────────────
+connector.start_load_kv(fwd_ctx)
+└── run_coroutine_threadsafe(record_send_reqs, sender_loop)
+       └── record_send_reqs(metadata)
+              ├── send_meta = SendBlockMeta(...)  ── store in self.reqs_need_send
+              └── send_meta.ready.set()          ── unblocks send_kv_to_decode
+
+┌────────────── sender_loop thread (asyncio) ────────────────────────┐
+│                                                                    │
+│  _mooncake_sender_listener()                                       │
+│  └── while True:                                                   │
+│      identity, meta_bytes = sock.recv_multipart()  ◀── ZMQ from D  │
+│      sender_worker_queue.put(...)                                  │
+│                                                                    │
+│  _sender_worker(sock)  × num_sender_tasks                          │
+│  └── send_kv_to_decode(identity, sock, meta)                       │
+│      ├── local_regions  = _get_transfer_regions(local KV)          │
+│      ├── remote_regions = _get_transfer_regions(D&#39;s KV from meta)  │
+│      ├── _align_transfer_regions()   # match by (layer, occurrence)│
+│      ├── _validate_asymmetric_region_lengths()                     │
+│      │                                                             │
+│      ├── for d_req_id in meta.req_blocks:                          │
+│      │      pending_reqs[d_req_id] = self.reqs_need_send[xid]      │
+│      │                                                             │
+│      └── while wait_tasks:                                         │
+│           done = await asyncio.wait(ready events, timeout)         │
+│           ├── _build_transfer_params(ready_reqs, ...)              │
+│           │   ├── filter NULL_BLOCK_ID (Mamba)                     │
+│           │   ├── _logical_to_kernel_block_ids()                   │
+│           │   ├── group_concurrent_contiguous()  # coalesce runs   │
+│           │   ├── _get_sender_transfer_plan()    # het-TP offsets  │
+│           │   └── build (src_ptrs, dst_ptrs, lengths)              │
+│           │                                                        │
+│           ├── run_in_executor(_sender_executor, _send_blocks)      │
+│           │   └── ─── ThreadPoolExecutor thread ────────────────┐  │
+│           │       │  _send_blocks(remote_session, ptrs, lens)   │  │
+│           │       │  └── engine.batch_transfer_sync_write(...)  │  │
+│           │       │       # RDMA one-sided WRITEs into D memory │  │
+│           │       └─────────────────────────────────────────────┘  │
+│           │                                                        │
+│           ├── mark reqs sent, add to finished_sending_reqs         │
+│           └── sock.send_multipart(MooncakeXferResponse)  ──▶ D     │
+│                                                                    │
+└────────────────────────────────────────────────────────────────────┘
+
+─── back on Worker main thread ─────────────────────────────────────────
+connector.get_finished()
+└── run_coroutine_threadsafe(fetch_finished_sending_reqs)
+       └── returns finished_sending_reqs  ──▶ scheduler frees blocks
+</code></pre><h3 id="decoder-d--receiving-kv">Decoder (D) — receiving KV</h3>
+<pre tabindex="0"><code>─── Scheduler process ─────────────────────────────────────────────────
+Engine step
+├── connector.get_num_new_matched_tokens(req)
+│      # do_remote_prefill → return (num_prompt_tokens, True)
+│
+└── connector.update_state_after_alloc(req, blocks, n_ext)
+       └── self._reqs_need_recv[req_id] = (req, local_block_ids)
+
+Engine step (end)
+└── connector.build_connector_meta(sched_out)
+       └── meta.reqs_to_recv[remote_engine_id][req_id] = PullReqMeta(
+              transfer_id, local_block_ids, remote_bootstrap_addr)
+
+                        MooncakeConnectorMetadata
+                                 │
+─── Worker process ──────────────▼─────────────────────────────────────
+connector.start_load_kv(fwd_ctx)
+└── run_coroutine_threadsafe(_start_load_kv, receiver_loop)
+
+┌────────────── receiver_loop thread (asyncio) ──────────────────────┐
+│                                                                    │
+│  _start_load_kv(reqs_to_recv)                                      │
+│  └── for remote_engine_id, pull_metas:                             │
+│      ├── (first time) handle_new_engine_id()                       │
+│      │   └── _connect_to_prefiller_bootstrap()   ── HTTP GET ──┐   │
+│      │       └── populate self._remote_agents                  │   │
+│      │                                                      Bootstrap
+│      └── receive_kv(remote_engine_id, pull_metas)                  │
+│          ├── remote_tp_ranks = transfer_topo.handshake_target_ranks│
+│          ├── select worker_addrs (per remote TP × PP rank)         │
+│          └── for worker_addr:                                      │
+│              create_task(receive_kv_from_single_worker)            │
+│                                                                    │
+│  receive_kv_from_single_worker(worker_addr, pull_metas)            │
+│  ├── metadata = MooncakeXferMetadata(                              │
+│  │       hostname, port, tp_size, tp_rank,                         │
+│  │       req_blocks={req_id: (xid, local_block_ids)},              │
+│  │       kv_caches_base_addr, block_lens, kv_block_lens,           │
+│  │       registered_layer_names/indices/group_indices)             │
+│  │                                                                 │
+│  ├── sock = DEALER connect(worker_addr)     ── ZMQ ──▶ P sender    │
+│  ├── await sock.send(encoded_meta)                                 │
+│  │                                                                 │
+│  └── while True:                                                   │
+│      ret_msg = await sock.recv()  ◀─── MooncakeXferResponse ─── P  │
+│      response = decode(ret_msg)                                    │
+│      ├── if ERROR: xfer_stats.record_failed_recv(); return         │
+│      ├── process_pulling_result(response, pull_metas)              │
+│      │   └── for req_id in response.ok_reqs:                       │
+│      │       pull_meta.pull_tasks_count -= 1                       │
+│      │       if 0: finished_recving_reqs.add(req_id)               │
+│      └── if FINISH: break                                          │
+│                                                                    │
+│  (RDMA WRITE from P has already landed in the registered           │
+│   local KV memory before FINISH — nothing to copy on this side)    │
+│                                                                    │
+└────────────────────────────────────────────────────────────────────┘
+
+─── Worker main thread ────────────────────────────────────────────────
+connector.get_finished()
+└── run_coroutine_threadsafe(fetch_finished_recving_reqs)
+       └── returns finished_recving_reqs  ──▶ scheduler unblocks decode
+</code></pre><h3 id="end-to-end-timeline">End-to-end timeline</h3>
+<pre tabindex="0"><code>   D scheduler        D worker (recv loop)     P worker (send loop)     P scheduler
+       │                     │                          │                   │
+ update_state_after_alloc    │                          │                   │
+       │                     │                          │           update_state_after_alloc
+ build_connector_meta ──▶ start_load_kv                 │                   │
+                             │                          │           build_connector_meta
+                             │                       start_load_kv ◀────────┘
+                             │                       (record_send_reqs
+                             │                        creates SendBlockMeta)
+                             │                          │
+                       _start_load_kv                   │
+                             │                          │
+                       handle_new_engine_id             │
+                             │─── HTTP /query ────▶ bootstrap
+                             │◀───   addrs   ──────────┘
+                             │                          │
+                     receive_kv_from_single_worker      │
+                             │──── ZMQ meta ───────▶ _mooncake_sender_listener
+                             │                          │
+                             │                    _sender_worker
+                             │                    → send_kv_to_decode
+                             │                    → _build_transfer_params
+                             │                    → _send_blocks
+                             │                     ═══ RDMA WRITE ═══▶ D KV memory
+                             │◀── ZMQ FINISH ──────────┘
+                       process_pulling_result           │
+                             │                          │           request_finished (P)
+ get_finished                │                          │           (delays free until sent)
+  → finished_recving_reqs    │                    finished_sending_reqs
+       ◀─────────────────────┘                          └───────────▶ get_finished → free
+</code></pre><hr>
+<h2 id="3-mooncakestoreconnector--shared-distributed-kv-pool">3. MooncakeStoreConnector — Shared distributed KV pool</h2>
+<p>Fundamentally different model: instead of P pushing to D, both instances <strong>independently read from and write to a <code>MooncakeDistributedStore</code></strong> — a shared KV cache pool indexed by content hash.</p>
+<h3 id="why-the-two-connectors-are-not-interchangeable">Why the two connectors are not interchangeable</h3>
+<ul>
+<li>P2P connector: dedicated P and D roles, one-shot transfer per request, no cross-request reuse across instances.</li>
+<li>Store connector: any instance can be both producer and consumer. Blocks are keyed by hash, so if two requests share a prefix (even across instances), the second one reads from the store instead of recomputing. This is prefix caching at the fleet level.</li>
+</ul>
+<h3 id="structure">Structure</h3>
+<ul>
+<li>Delegates to <code>MooncakeStoreScheduler</code> and <code>MooncakeStoreWorker</code>. The connector file is mostly a thin dispatcher.</li>
+<li>No layerwise saving/loading (<code>save_kv_layer</code> / <code>wait_for_layer_load</code> are no-ops). Puts and gets are batched and issued from <code>get_finished</code> for compute overlap.</li>
+</ul>
+<h3 id="prefix-cache-reset">Prefix-cache reset</h3>
+<p><code>reset_cache</code> drains the send queue then calls <code>remove_all</code> on the Mooncake master. Caller must pause generation first so nothing races in during drain. Only meaningful on the scheduler role.</p>
+<h3 id="kv-events-mooncakestorekvevents">KV events (<code>MooncakeStoreKVEvents</code>)</h3>
+<p>Because this is a shared store, other instances care when blocks are added/evicted. The connector emits <code>KVCacheEvent</code>s that a <code>KVEventAggregator</code> collects from all workers, dedups to &ldquo;common events&rdquo; (present on all workers), and publishes. That&rsquo;s what powers external prefix-index consumers.</p>
+<h3 id="cross-layer-blocks">Cross-layer blocks</h3>
+<p>Opt-in via <code>enable_cross_layers_blocks</code>. Store handles get one large registered tensor across layers instead of per-layer registrations. Only supported for models without hybrid attention.</p>
+<h3 id="config-validation">Config validation</h3>
+<p>Explicitly rejects:</p>
+<ul>
+<li><code>CrossAttentionSpec</code> (encoder-decoder cross-attn).</li>
+<li>Mamba layers that aren&rsquo;t in &ldquo;align mode&rdquo; (<code>spec.block_size != cache_config.block_size</code>) — needed because the store keys on logical blocks.</li>
+<li>Hybrid attention combined with prefill/decode context parallelism &gt; 1.</li>
+</ul>
+<h3 id="load-error-reporting">Load-error reporting</h3>
+<p>Exposes <code>get_block_ids_with_load_errors</code> so the scheduler can invalidate a bad prefix hit and fall through to local recompute. The P2P connector has no equivalent because a failed transfer aborts the whole request.</p>
+<h3 id="store-connector-flow">Store connector flow</h3>
+<pre tabindex="0"><code>─── Producer side (any instance) ───────────────
+Scheduler: update_state_after_alloc → mark blocks to store
+Scheduler: build_connector_meta → MooncakeStoreConnectorMetadata
+
+Worker: get_finished(finished_ids, metadata)
+└── MooncakeStoreWorker.get_finished(...)
+    └── enqueue puts to background thread
+        └── store.batch_put(keys=[hash(block)], values=[tensor_slice])
+              # Mooncake distributed store handles RDMA internally
+        └── emit KVCacheEvent(BlockStored, hash) → aggregator → take_events
+
+─── Consumer side (any instance) ───────────────
+Scheduler: get_num_new_matched_tokens
+└── MooncakeStoreScheduler probes store for block hashes → returns hit count
+
+Scheduler: build_connector_meta → keys to fetch
+Worker: get_finished(...)
+└── MooncakeStoreWorker.get_finished(...)
+    └── store.batch_get(keys) → writes into registered KV memory
+    └── on failure: get_block_ids_with_load_errors() → scheduler recomputes
+</code></pre><p>Key differences vs the P2P flow:</p>
+<ul>
+<li>No ZMQ side-channel, no bootstrap HTTP — the Mooncake master is the single rendezvous.</li>
+<li>No <code>_sender_listener</code> / <code>_sender_worker</code> machinery. Both put and get are issued from inside <code>get_finished</code> (<code>start_load_kv</code> is a no-op) so they naturally overlap with compute.</li>
+<li>No P-D asymmetry: any instance does both puts and gets. Prefix reuse across requests and across instances is automatic because keys are content hashes.</li>
+</ul>
+<hr>
+<h2 id="4-quick-comparison">4. Quick comparison</h2>
+<table>
+	<thead>
+			<tr>
+					<th></th>
+					<th><code>MooncakeConnector</code> (P2P)</th>
+					<th><code>MooncakeStoreConnector</code></th>
+			</tr>
+	</thead>
+	<tbody>
+			<tr>
+					<td>Transfer model</td>
+					<td>P pushes RDMA writes to D</td>
+					<td>Both put/get against shared store</td>
+			</tr>
+			<tr>
+					<td>Discovery</td>
+					<td>Bootstrap HTTP + ZMQ side-channel</td>
+					<td>Mooncake master</td>
+			</tr>
+			<tr>
+					<td>Backend call</td>
+					<td><code>batch_transfer_sync_write</code></td>
+					<td><code>MooncakeDistributedStore</code> put/get</td>
+			</tr>
+			<tr>
+					<td>Prefix cache reuse</td>
+					<td>Per-request only</td>
+					<td>Fleet-wide via content hash</td>
+			</tr>
+			<tr>
+					<td>Best for</td>
+					<td>Single P→D pair, low latency</td>
+					<td>Many-to-many, high prefix hit rate</td>
+			</tr>
+			<tr>
+					<td>Hybrid KV support</td>
+					<td>Yes (careful group-preserving logic)</td>
+					<td>Yes, with Mamba <code>align</code> mode required</td>
+			</tr>
+	</tbody>
+</table>
+<p>Both implement <code>SupportsHMA</code> so they interop with hybrid attention KV cache managers, and both go through the scheduler/worker split so the scheduler process only tracks metadata while worker processes own the actual device memory registrations.</p>
+
+                    
+                    <HR width="100%" id="EOF">
+		    <p style="color:#777;">最后修改于 2026-08-09</p>
+                    
+                </div>
+            </div>
+            
+            
+            <nav class="post-pagination">
+
+                
+                <a class="newer-posts" href="/llm/chunked_prefill_apc/">
+			下回<br>Chunked Prefill and Prefix Caching
+                </a>
+                
+                
+                
+                <a class="older-posts" href="/llm/causal_conv/">
+			上回<br>Causal Convolution: Cache, Computation and Sequence Parallelism
+                </a>
+                
+            </nav>
+            <div class="post-comment-wrapper">
+                
+
+
+
+
+
+
+
+
+
+
+
+
+            </div>
+        </div>
+    </div>
+
+
+                    </div>
+            </div><div id="sideContainer" class="side-container">
+    
+    <a class="a-block nav-head false" href="https://zhixuan-zxli.github.io/">
+    
+        <div class="nav-title">
+            Zhixuan&#39;s Blog
+        </div>
+        
+    </a>
+
+    <div class="nav-link-list">
+        
+        
+            
+            
+            
+                
+            
+            
+            
+            <a class="a-block nav-link-item active" href="/llm">
+                大模型
+            </a>
+            
+        
+            
+            
+            
+            
+            
+            <a class="a-block nav-link-item false" href="/life">
+                生活随记
+            </a>
+            
+        
+    </div>
+
+    
+
+    <div class="nav-footer">
+        
+Hugo Theme <a href="https://github.com/amazingrise/hugo-theme-diary">Diary</a> by <a href="https://risehere.net/">Rise</a>
+<br>
+移植自 <a href="https://mak1t0.cc/" target="_blank" rel="noreferrer noopener">Makito</a>'s <a href="https://github.com/SumiMakito/hexo-theme-journal/" target="_blank" rel="noreferrer noopener">Journal.</a> <br>
+<br>
+
+&copy;
+	
+	2026 Zhixuan&#39;s Blog
+	
+
+    </div>
+    
+</div><div id="extraContainer" class="extra-container">
+    <div class="toc-wrapper">
+        
+
+        
+    </div>
+    <div class="pagination">
+        <a id="globalBackToTop" class="pagination-action animated-visibility" href="#top"
+            :class="{ invisible: scrollY == 0 }">
+            <i class="material-icons pagination-action-icon">
+                keyboard_arrow_up
+            </i>
+        </a>
+        
+        <a type="button" class="pagination-action" id="darkModeToggleButton">
+            <span class="material-icons pagination-action-icon" id="darkModeToggleIcon">
+                dark_mode
+            </span>
+        </a>
+        
+        
+    </div>
+</div>
+
+<div id="single-column-footer">
+Hugo Theme <a href="https://github.com/amazingrise/hugo-theme-diary">Diary</a> by <a href="https://risehere.net/">Rise</a>
+<br>
+移植自 <a href="https://mak1t0.cc/" target="_blank" rel="noreferrer noopener">Makito</a>'s <a href="https://github.com/SumiMakito/hexo-theme-journal/" target="_blank" rel="noreferrer noopener">Journal.</a> <br>
+<br>
+
+&copy;
+	
+	2026 Zhixuan&#39;s Blog
+	
+</div>
+            </div>
+    
+    <script src="/js/journal.js"></script></body>
+</html>

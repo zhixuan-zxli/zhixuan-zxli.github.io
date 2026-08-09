@@ -741,7 +741,7 @@ table { font-size: 0.85em; }
 <header>Adapting a New Attention Type in vLLM</header>
 <h2 id="mome-metadata-4---coupling-with-prefix-caching">MoME Metadata (4) - Coupling with prefix caching</h2>
 <div align="center">
-    <img src="ModAttn-APC.drawio-2.svg" alt="ModAttn-MTP" width="80%" />
+    <img src="ModAttn-APC-2.drawio.svg" alt="ModAttn-APC" width="80%" />
 </div>
 <p>Based on <code>num_computed_tokens</code> and <code>seq_lens</code>, <strong>find out which blocks to write prefix cache / running cache</strong>.</p>
 <pre is="marp-pre" data-auto-scaling="downscale-only"><code class="language-python"><span class="hljs-keyword">def</span> <span class="hljs-title function_">_compute_prefix_caching_block_indices</span>(<span class="hljs-params">
