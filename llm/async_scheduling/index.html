@@ -284,15 +284,15 @@ CPU bookkeeping (<code>req_state.num_computed_tokens</code>,
 <ul>
 <li>vLLM 0.14: bubbles between &ldquo;target fwd N&rdquo; &amp; &ldquo;samp N&rdquo;, and between &ldquo;MTP N&rdquo; &amp; &ldquo;target fwd N+1&rdquo;; blocking and redundant D2H copies</li>
 </ul>
-<img src="../../assets/LLM/async_scheduling-1.drawio.svg" alt="Async-1" style="width: auto; height: 50%;"/>
+<img src="../../assets/llm/async_scheduling-1.drawio.svg" alt="Async-1" style="width: auto; height: 50%;"/>
 <ul>
 <li>openPangu 2.0: remove the first buble and the redundant copy</li>
 </ul>
-<img src="../../assets/LLM/async_scheduling-2.drawio.svg" alt="Async-2" style="width: auto; height: 50%;"/>
+<img src="../../assets/llm/async_scheduling-2.drawio.svg" alt="Async-2" style="width: auto; height: 50%;"/>
 <ul>
 <li>vLLM 0.25: remove the blocking D2H from the critical path; GPU correction done by Triton kernel; CPU correction is deferred</li>
 </ul>
-<img src="../../assets/LLM/async_scheduling-3.drawio.svg" alt="Async-3" style="width: auto; height: 50%;"/>
+<img src="../../assets/llm/async_scheduling-3.drawio.svg" alt="Async-3" style="width: auto; height: 50%;"/>
 
                     
                     <HR width="100%" id="EOF">

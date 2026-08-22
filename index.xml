@@ -855,9 +855,9 @@ Worker: get_finished(...)
 &lt;img src=&#34;../../static/slides/ModAttn-APC-corr.drawio.svg&#34; alt=&#34;ModAttn-APC-corr&#34;/&gt;
 &lt;hr&gt;
 &lt;p&gt;&lt;strong&gt;AG方案计算流&lt;/strong&gt;
-&lt;img src=&#34;../../assets/LLM/SWA-AG.drawio.svg&#34; alt=&#34;SWA-AG&#34; style=&#34;width: auto; height: 50%;&#34;/&gt;&lt;/p&gt;
+&lt;img src=&#34;../../assets/llm/SWA-AG.drawio.svg&#34; alt=&#34;SWA-AG&#34; style=&#34;width: auto; height: 50%;&#34;/&gt;&lt;/p&gt;
 &lt;p&gt;&lt;strong&gt;SP方案计算流&lt;/strong&gt;
-&lt;img src=&#34;../../assets/LLM/SWA-SP.drawio.svg&#34; alt=&#34;SWA-SP&#34; style=&#34;width: auto; height: 50%;&#34;/&gt;&lt;/p&gt;
+&lt;img src=&#34;../../assets/llm/SWA-SP.drawio.svg&#34; alt=&#34;SWA-SP&#34; style=&#34;width: auto; height: 50%;&#34;/&gt;&lt;/p&gt;
 &lt;hr&gt;
 &lt;p&gt;&lt;strong&gt;理论收益&lt;/strong&gt;&lt;/p&gt;
 &lt;table&gt;
@@ -920,7 +920,7 @@ Worker: get_finished(...)
 &lt;/table&gt;
 &lt;hr&gt;
 &lt;p&gt;&lt;strong&gt;SP切分与Cache管理&lt;/strong&gt;&lt;/p&gt;
-&lt;img src=&#34;../../assets/LLM/ModAttn-SP.drawio.svg&#34; alt=&#34;ModAttn-SP&#34;/&gt;
+&lt;img src=&#34;../../assets/llm/ModAttn-SP.drawio.svg&#34; alt=&#34;ModAttn-SP&#34;/&gt;
 &lt;hr&gt;
 &lt;p&gt;&lt;strong&gt;SP计算流程&lt;/strong&gt;&lt;/p&gt;
 &lt;div style=&#34;overflow-x:auto; font-family:monospace; font-size:12px;&#34;&gt;
@@ -988,15 +988,15 @@ CPU bookkeeping (&lt;code&gt;req_state.num_computed_tokens&lt;/code&gt;,
 &lt;ul&gt;
 &lt;li&gt;vLLM 0.14: bubbles between &amp;ldquo;target fwd N&amp;rdquo; &amp;amp; &amp;ldquo;samp N&amp;rdquo;, and between &amp;ldquo;MTP N&amp;rdquo; &amp;amp; &amp;ldquo;target fwd N+1&amp;rdquo;; blocking and redundant D2H copies&lt;/li&gt;
 &lt;/ul&gt;
-&lt;img src=&#34;../../assets/LLM/async_scheduling-1.drawio.svg&#34; alt=&#34;Async-1&#34; style=&#34;width: auto; height: 50%;&#34;/&gt;
+&lt;img src=&#34;../../assets/llm/async_scheduling-1.drawio.svg&#34; alt=&#34;Async-1&#34; style=&#34;width: auto; height: 50%;&#34;/&gt;
 &lt;ul&gt;
 &lt;li&gt;openPangu 2.0: remove the first buble and the redundant copy&lt;/li&gt;
 &lt;/ul&gt;
-&lt;img src=&#34;../../assets/LLM/async_scheduling-2.drawio.svg&#34; alt=&#34;Async-2&#34; style=&#34;width: auto; height: 50%;&#34;/&gt;
+&lt;img src=&#34;../../assets/llm/async_scheduling-2.drawio.svg&#34; alt=&#34;Async-2&#34; style=&#34;width: auto; height: 50%;&#34;/&gt;
 &lt;ul&gt;
 &lt;li&gt;vLLM 0.25: remove the blocking D2H from the critical path; GPU correction done by Triton kernel; CPU correction is deferred&lt;/li&gt;
 &lt;/ul&gt;
-&lt;img src=&#34;../../assets/LLM/async_scheduling-3.drawio.svg&#34; alt=&#34;Async-3&#34; style=&#34;width: auto; height: 50%;&#34;/&gt;
+&lt;img src=&#34;../../assets/llm/async_scheduling-3.drawio.svg&#34; alt=&#34;Async-3&#34; style=&#34;width: auto; height: 50%;&#34;/&gt;
 - https://zhixuan-zxli.github.io/llm/async_scheduling/ - </description>
         </item>
     
