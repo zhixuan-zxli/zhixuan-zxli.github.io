@@ -122,32 +122,8 @@
 						
 						
 							<li>
-								<a href="#1-kvcachemanager-and-related-classes" class="nav-1-kvcachemanager-and-related-classes">
-									1. KVCacheManager and Related Classes
-								</a>
-							</li>
-						
-						
-					
-				
-			
-				
-				
-					
-						
-						
-						
-						
-							
-								
-									<ul>
-								
-							
-						
-						
-							<li>
-								<a href="#kvcachemanager" class="nav-kvcachemanager">
-									KVCacheManager
+								<a href="#1-initialization-of-kv-caches" class="nav-1-initialization-of-kv-caches">
+									1. Initialization of KV Caches
 								</a>
 							</li>
 						
@@ -164,32 +140,8 @@
 						
 						
 							<li>
-								<a href="#kvcachecoordinator--base-coordinator-managing-multiple-single-type-managers" class="nav-kvcachecoordinator--base-coordinator-managing-multiple-single-type-managers">
-									KVCacheCoordinator – base coordinator managing multiple single-type managers.
-								</a>
-							</li>
-						
-						
-					
-				
-			
-				
-				
-					
-						
-						
-						
-						
-							
-								
-									<ul>
-								
-							
-						
-						
-							<li>
-								<a href="#blockpool-inside-the-coordinator" class="nav-blockpool-inside-the-coordinator">
-									BlockPool (inside the coordinator)
+								<a href="#2-gpumodelrunner" class="nav-2-gpumodelrunner">
+									2. GPUModelRunner
 								</a>
 							</li>
 						
@@ -206,88 +158,8 @@
 						
 						
 							<li>
-								<a href="#kvcacheblock" class="nav-kvcacheblock">
-									KVCacheBlock
-								</a>
-							</li>
-						
-						
-					
-				
-			
-				
-				
-					
-						
-						
-						
-						
-						
-							<li>
-								<a href="#kvcacheblocks" class="nav-kvcacheblocks">
-									KVCacheBlocks
-								</a>
-							</li>
-						
-						
-					
-				
-			
-				
-				
-					
-						
-						
-						
-							
-								</ul>
-							
-						
-						
-						
-							<li>
-								<a href="#singletypekvcachemanager" class="nav-singletypekvcachemanager">
-									SingleTypeKVCacheManager
-								</a>
-							</li>
-						
-						
-					
-				
-			
-				
-				
-					
-						
-						
-						
-							
-								</ul>
-							
-						
-						
-						
-							<li>
-								<a href="#2-initialization-of-kv-caches" class="nav-2-initialization-of-kv-caches">
-									2. Initialization of KV Caches
-								</a>
-							</li>
-						
-						
-					
-				
-			
-				
-				
-					
-						
-						
-						
-						
-						
-							<li>
-								<a href="#3-gpumodelrunner" class="nav-3-gpumodelrunner">
-									3. GPUModelRunner
+								<a href="#3-zero-bubble-async-scheduling" class="nav-3-zero-bubble-async-scheduling">
+									3. Zero-bubble async scheduling
 								</a>
 							</li>
 						
@@ -375,85 +247,7 @@
                 
                 <div class="post-body" v-pre>
                 
-                    <h2 id="1-kvcachemanager-and-related-classes">1. KVCacheManager and Related Classes</h2>
-<p><img src="/LLM/kv_cache_overview.webp" alt=""></p>
-<h3 id="kvcachemanager"><code>KVCacheManager</code></h3>
-<ul>
-<li>
-<p><code>hash_block_size</code><br>
-Size used for computing block hashes (prefix caching). Different KV cache groups may have larger actual block sizes that are multiples of this.</p>
-</li>
-<li>
-<p><code>get_computed_blocks(request)</code><br>
-Call <code>KVCacheCoordinator.find_longest_cache_hit()</code> if prefix caching enabled, else nothing.</p>
-</li>
-<li>
-<p><code>allocate_slots(request, num_new_tokens, num_new_computed_tokens, ...)</code> called when scheduling waiting or running requests, where</p>
-<ul>
-<li><code>computed</code>: blocks allocated before current scheduling</li>
-<li><code>new_computed</code>: blocks that hit the prefix cache</li>
-<li><code>new</code>: blocks that need to be allocated</li>
-</ul>
-<ol>
-<li>Computes the number of new required blocks.</li>
-<li>Increments reference counts for cached blocks.</li>
-<li>Allocates new blocks from the free queue (or eviction queue) by calling <code>allocate_new_blocks</code> on the coordinator.</li>
-<li>Call coordinator&rsquo;s <code>cache_blocks()</code>.</li>
-<li>Returns a <code>KVCacheBlocks</code> object.</li>
-</ol>
-<p>Note: Once a request enters the running queue, it is no longer considered for prefix caching (<code>num_new_computed_tokens = 0</code>).</p>
-</li>
-</ul>
-<h3 id="kvcachecoordinator--base-coordinator-managing-multiple-single-type-managers"><code>KVCacheCoordinator</code> – base coordinator managing multiple single-type managers.</h3>
-<ul>
-<li>
-<p><code>KVCacheCoordinatorNoPrefixCache</code> – variant without prefix caching.</p>
-<ul>
-<li><code>get_num_blocks_to_allocate()</code> – routes to each single-type manager.</li>
-<li><code>allocate_new_blocks(request_id, num_tokens)</code> – routes to each manager.</li>
-</ul>
-</li>
-<li>
-<p><code>HybridKVCacheCoordinator</code> – used when enabling prefix caching and there are two KV cache group types (e.g., one for full attention, one for Mamba).</p>
-<ul>
-<li><code>cache_blocks(self, num_computed_tokens)</code></li>
-</ul>
-</li>
-</ul>
-<h4 id="blockpool-inside-the-coordinator"><code>BlockPool</code> (inside the coordinator)</h4>
-<ul>
-<li><code>blocks: list[KVCacheBlock]</code> – all blocks in the pool.</li>
-<li><code>null_block</code> – a special block representing null.</li>
-<li><code>hash_block_size</code> – same as manager’s hash block size.</li>
-<li><code>FreeKVCacheBlockQueue</code> – a doubly‑linked list of free blocks.</li>
-<li><code>cached_block_hash_to_block: BlockHashToBlockMap</code> – a dictionary mapping <code>BlockHashWithGroupId</code> to <code>dict[int, KVCacheBlock]</code> (multiple blocks with same hash due to eviction).</li>
-<li><code>get_cached_block()</code>: hash lookup in <code>cached_block_hash_to_block</code>.</li>
-<li><code>cache_full_blocks()</code>: Maintain <code>cached_block_hash_to_block</code>, where the hashes have been computed by the <code>Request</code> object.</li>
-</ul>
-<h4 id="kvcacheblock"><code>KVCacheBlock</code></h4>
-<ul>
-<li>Attributes: <code>block_id</code>, <code>block_hash</code>, <code>ref_cnt</code>, and pointers for linked lists.</li>
-</ul>
-<h4 id="kvcacheblocks"><code>KVCacheBlocks</code></h4>
-<ul>
-<li><code>blocks: tuple[Sequence[KVCacheBlock]]</code> - A tuple where each element corresponds to a KV cache group, and inside each group there is a sequence of blocks (tokens). <code>blocks[i][j]</code> refers to the j‑th block of the i‑th group.</li>
-</ul>
-<h3 id="singletypekvcachemanager"><code>SingleTypeKVCacheManager</code></h3>
-<ul>
-<li><code>req_to_blocks: dict[req_id: str, list[KVCacheBlock]]</code> – maps request IDs to their allocated blocks.</li>
-<li><code>num_cached_block: dict[str, int]</code> – number of cached blocks per request.</li>
-<li><code>get_num_blocks_to_allocate()</code> – computes required blocks for a request.
-<ul>
-<li><code>cdiv(num_tokens, block_size)</code> by default or for <code>FullAttentionManager</code>.</li>
-<li><code>MambaManager</code>: <code>num_tokens += block_size * num_speculative_blocks</code> if spec decoding; otherwise default.</li>
-<li><code>SlidingWindowManager</code>:</li>
-</ul>
-</li>
-<li><code>allocate_new_blocks()</code>: calculate (again) the number of new blocks needed, calls <code>BlockPool.get_new_blocks()</code>, and stores the allocated blocks in the manager&rsquo;s <code>req_to_blocks</code> mapping.</li>
-<li><code>cache_blocks(self, request, num_tokens)</code>: call <code>BlockPool.cache_full_blocks</code>.</li>
-<li><code>remove_skipped_blocks()</code>: relies on <code>get_num_skipped_tokens()</code>.</li>
-</ul>
-<h2 id="2-initialization-of-kv-caches">2. Initialization of KV Caches</h2>
+                    <h2 id="1-initialization-of-kv-caches">1. Initialization of KV Caches</h2>
 <p><code>EngineCore._initialize_kv_caches</code></p>
 <ol>
 <li>Retrieve the <code>kv_cache_specs</code>.</li>
@@ -502,20 +296,24 @@ where <code>kernel_block_size</code> is the block size per group. Returns a slic
 </ul>
 </li>
 </ul>
-<h2 id="3-gpumodelrunner">3. GPUModelRunner</h2>
+<h2 id="2-gpumodelrunner">2. GPUModelRunner</h2>
 <p><code>execute_model(self, scheduler_output, ...)</code>:</p>
 <ol>
 <li>
 <p><code>_update_states(self, scheduler_output)</code></p>
 <ul>
 <li>Calls <code>InputBatch.add_request(self, request: CachedRequestState)</code>.</li>
-<li><code>self._get_valid_sampled_token_count()</code> synchronization</li>
+<li>Old <code>self._get_valid_sampled_token_count()</code> synchronization point - ❌ no longer here</li>
+<li>Returns a deferred correction closure.</li>
 </ul>
 </li>
 <li>
 <p><code>_prepare_inputs</code></p>
 <ul>
+<li>Computes the fields for Common Attention Metadata</li>
+<li><code>update_num_computed_tokens_for_batch_change</code></li>
 <li><code>self.input_batch.block_table.compute_slot_mapping(req_indices, positions_np)</code></li>
+<li><code>_prepare_input_ids()</code></li>
 <li><code>_calc_spec_decode_metadata()</code> handles the speculative tokens in <code>scheduler_output.scheduled_spec_decode_tokens</code>.</li>
 </ul>
 </li>
@@ -533,7 +331,13 @@ where <code>kernel_block_size</code> is the block size per group. Returns a slic
 <li>
 <p>Other methods: <code>preprocess</code>, <code>model_forward</code>.</p>
 </li>
+<li>
+<p>Execute the deferred correction closure <code>deferred_state_corrections_fn</code>.</p>
+</li>
 </ol>
+<ul>
+<li><code>_get_valid_sampled_token_count()</code></li>
+</ul>
 <p><code>sample_tokens()</code>:</p>
 <ol>
 <li><code>_sample()</code>
@@ -542,12 +346,12 @@ where <code>kernel_block_size</code> is the block size per group. Returns a slic
 <li><code>_update_states_after_model_execute</code>.</li>
 </ul>
 </li>
+<li><code>_copy_valid_sampled_token_count()</code>: trigger copying</li>
 <li><code>_propose_draft_token_ids()</code>
 <ul>
 <li><code>drafter.prepare_next_token_ids_padded()</code></li>
 <li><code>drafter.prepare_inputs_padded()</code></li>
 <li><code>drafter.propose()</code> - run the MTP layers</li>
-<li><code>_copy_valid_sampled_token_count()</code>: trigger copying</li>
 </ul>
 </li>
 </ol>
@@ -558,11 +362,6 @@ where <code>kernel_block_size</code> is the block size per group. Returns a slic
 <li><code>slot_mapping: (max_num_batched_tokens, )</code></li>
 <li><code>add_row(block_ids: list[int], row_idx: int)</code></li>
 <li><code>compute_slot_mapping(req_indices, positions)</code></li>
-</ul>
-<p>Example parameters:</p>
-<ul>
-<li>Full attention group: <code>block_size = 32</code>, <code>blocks_per_kv_block = 17</code>, <code>max_num_blocks_per_req = 17 * 8 = 136</code></li>
-<li>Mamba group: <code>group_size = 4096</code>, <code>blocks_per_kv_block = 1</code>, <code>max_num_blocks_per_req = 1</code></li>
 </ul>
 <p><code>MultiGroupBlockTable</code></p>
 <ul>
@@ -575,6 +374,63 @@ where <code>kernel_block_size</code> is the block size per group. Returns a slic
 <li><code>scheduled_cached_reqs: CachedRequestData</code></li>
 <li><code>num_scheduled_tokens: dict[str, int]</code></li>
 </ul>
+<h2 id="3-zero-bubble-async-scheduling">3. Zero-bubble async scheduling</h2>
+<p>Here&rsquo;s a walkthrough of PR #32951 based on the diff, description, and the predecessor PR #29957.</p>
+<p><strong>What the PR does</strong></p>
+<p>Before this PR, async scheduling + speculative decoding still had a synchronization bubble. Concretely, at the top of each step&rsquo;s _update_states, the CPU had to wait for the
+GPU to hand back <code>valid_sampled_token_count</code> from the previous step&rsquo;s rejection sampler in order to know how many of the drafted tokens the target model actually accepted. Only
+then could it compute correct <code>num_computed_tokens</code>, <code>seq_lens</code>, positions, and slot mapping for the next step. The CPU-side prep therefore only overlapped with the draft
+forward, not with the target forward — leaving a bubble on the GPU.</p>
+<p>This PR refactors things so the CPU side <strong>optimistically assumes every draft token was accepted</strong> and lays out the next batch immediately, without waiting on any GPU→CPU copy.
+The mistake, if any, is later corrected — on the GPU inside <code>_prepare_inputs</code>, and on the CPU only after the target forward has already been launched.</p>
+<p>It is a refactor of #29957 by @izhuhaoran, adopting the model-runner-V2 <code>compute_slot_mappings_kernel</code> (plus @yewentao256&rsquo;s changes from #34179) into V1.</p>
+<p><strong>How it achieves zero bubble</strong></p>
+<p>Three main mechanisms:</p>
+<ol>
+<li><strong>Optimistic CPU prep</strong> (removes the wait). In vllm/v1/worker/gpu_model_runner.py, <code>_update_states</code> no longer calls <code>self._get_valid_sampled_token_count()</code> inline. Instead, for each request that had drafts, it assumes <code>num_accepted = req_state.prev_num_draft_len</code> (all accepted), extends output_token_ids with -1 placeholders accordingly, and stashes the request in a <code>deferred_spec_decode_corrections</code> list. It returns a <code>correct_spec_decode_token_counts()</code> closure to be called later.</li>
+</ol>
+<p><code>_prepare_inputs</code> then builds an <code>optimistic_seq_lens_cpu = num_computed_tokens_cpu + num_scheduled_tokens</code> under that optimistic assumption, and uses it for everything CPU-visible (max_seq_len, discard_request_mask, MRoPE, DCP local seq lens, pooling cursor).</p>
+<ol start="2">
+<li><strong>GPU-side correction</strong> (fixes the optimism before the kernel sees it). The new <code>update_num_computed_tokens_for_batch_change</code> triton/torch.compiled op in vllm/v1/spec_decode/utils.py runs in _prepare_inputs. It takes the previous step&rsquo;s <code>valid_sampled_token_count_gpu</code> (which is still valid on the GPU without ever being copied to the CPU), the <code>prev_positions</code> map (current-batch idx → previous-batch idx), and the CPU&rsquo;s (optimistic) <code>num_computed_tokens</code>, and writes a corrected <code>num_computed_tokens</code> GPU tensor:</li>
+</ol>
+<ul>
+<li>Requests that had drafts last step: <code>corrected = prev_num_computed_tokens_gpu + valid_count_gpu</code></li>
+<li>New requests / non-draft rows: use the CPU value directly</li>
+</ul>
+<p>The GPU is now the <strong>source of truth</strong> for <code>num_computed_tokens</code>, <code>seq_lens</code>, and <code>positions</code>. That&rsquo;s why <code>seq_lens</code>, <code>positions</code>, and <code>num_computed_tokens</code> become plain GPU tensors (not <code>CpuGpuBuffers</code>), and the <code>CommonAttentionMetadata</code> is passed <code>_seq_lens_cpu=None</code>, <code>_num_computed_tokens_cpu=None when use_async_spec_decode</code> is on.</p>
+<ol start="3">
+<li><strong>Deferred CPU correction</strong> (fixes the CPU bookkeeping after launch). After <code>execute_model</code> has finished issuing all the target-model kernels, it finally calls <code>deferred_state_corrections_fn()</code>. That closure syncs on <code>_get_valid_sampled_token_count()</code> and rolls back <code>req_state.num_computed_tokens</code>, <code>input_batch.num_computed_tokens_cpu</code>, and <code>num_tokens_no_spec</code> by <code>(optimistic - actual)</code>. Because the kernels are already queued, the CPU stall no longer blocks the GPU — the next step can be fully prepared before it
+fires.</li>
+</ol>
+<p>Two supporting changes keep everything consistent:</p>
+<ul>
+<li><strong>Slot mapping moved to the GPU</strong>. <code>block_table.compute_slot_mapping</code> was a numpy computation from req_indices/positions on the CPU. Now it&rsquo;s the <code>_compute_slot_mapping_kernel</code>
+triton kernel driven by query_start_loc and the (corrected) GPU positions. <code>commit_slot_mapping</code> (the H2D copy of the slot mapping) is deleted — the slot mapping is written directly on device. This is required because <code>positions</code> are only correct on the GPU now.</li>
+<li><code>update_async_output_token_ids</code> is patched to allow the placeholder list to shrink, since optimistic placeholders may exceed the eventual acceptance count.</li>
+<li>Cascade attention is force-disabled when async + spec are both on (compatibility hole).</li>
+</ul>
+<p><strong>What changes vs your v0.14 mental model</strong></p>
+<p>The pre-PR flow on main (which is close to what you know from v0.14, in structure) was:</p>
+<ol>
+<li><code>_update_states</code> calls <code>_get_valid_sampled_token_count</code>() → CPU waits on GPU copy of the previous step&rsquo;s acceptance mask.</li>
+<li>Using the true acceptance counts, it decrements <code>num_computed_tokens</code> and appends the right number of -1 placeholders.</li>
+<li><code>_prepare_inputs</code> computes <code>positions</code> and <code>slot_mapping</code> on the CPU with numpy (np.repeat, np.add, block_table.compute_slot_mapping iterating a numpy req_indices) using the
+correct <code>num_computed_tokens_cpu</code>, then H2D-copies them.</li>
+<li><code>seq_lens.np</code> is built on CPU, then H2D-copied.</li>
+<li><code>num_accepted_tokens</code> is populated in _build_attention_metadata under if use_spec_decode:, gated by <code>num_accepted_tokens_event</code>.</li>
+</ol>
+<p>After this PR:</p>
+<ol>
+<li><code>_update_states</code> never waits. It writes optimistic placeholders, records a deferred-correction closure, and populates <code>prev_num_draft_tokens</code> for later GPU use.</li>
+<li><code>_prepare_inputs</code> builds optimistic_seq_lens_cpu (may be wrong by the reject count), then runs <code>update_num_computed_tokens_for_batch_change</code> on the GPU to make <code>num_computed_tokens</code>/<code>num_accepted_tokens</code> correct on the device without a sync. <code>positions</code> and <code>seq_lens</code> are computed on the GPU via <code>num_computed_tokens[req_indices] + query_pos</code>. <code>slot_mapping</code> is written by _<code>compute_slot_mapping_kernel</code> (triton) directly on the GPU.</li>
+<li><code>CommonAttentionMetadata</code> passes <code>_seq_lens_cpu=None</code>, <code>_num_computed_tokens_cpu=None</code> for async spec — the attention backends must read GPU tensors. New request-added dtype
+changes: <code>num_accepted_tokens</code> is int32 (was int64).</li>
+<li>The old CPU seq_lens/positions/compute_slot_mapping paths are still used for the non-async-spec case (backward compat), toggled by <code>self.use_async_spec_decode</code>.</li>
+<li>After the target-model forward is dispatched at the end of <code>execute_model</code>, the deferred correction runs to reconcile CPU bookkeeping — a stall that now overlaps nothing
+critical because the GPU is already busy on the next batch.</li>
+</ol>
+<p>One caveat worth noting: hybrid (mamba) models still take a <code>.cpu()</code> sync in <code>update_states_after_model_execute</code> (see the TODO in the diff), so full asynchrony there is not yet achieved. And with <code>mamba_cache_mode == &quot;align&quot;</code>, the deferred CPU correction is forced to run before preprocess_mamba (which reads <code>req_state.num_computed_tokens</code>), then
+num_accepted_tokens is resynced to GPU.</p>
 
                     
                     <HR width="100%" id="EOF">
