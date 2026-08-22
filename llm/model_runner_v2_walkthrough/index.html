@@ -1,0 +1,1586 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<title>Model Runner V2</title>
+
+
+
+
+<meta charset="utf-8">
+<meta name="X-UA-Compatible" content="IE=edge">
+<meta name="google-site-verification" content="">
+<meta content="width=device-width, initial-scale=1.0, maximum-scale=5, user-scalable=5" name="viewport">
+<meta content="telephone=no" name="format-detection">
+<meta name="description" content="">
+<meta name="renderer" content="webkit">
+<meta name="theme-color" content="#ffffff">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+
+
+
+
+
+    <link type="text/css" rel="stylesheet" href="/vendor/css/bootstrap.min.css">
+
+<link rel="stylesheet" href="/scss/dark-mode.min.6c9b4c2290542df75010d1640eac4339c754ccff3c9b43fc81a23c94e7e12eaf.css" integrity="sha256-bJtMIpBULfdQENFkDqxDOcdUzP88m0P8gaI8lOfhLq8=" media="screen">
+
+
+<link rel="stylesheet"
+          href="https://fonts.googleapis.com/css?family=Material+Icons">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<link rel="stylesheet" href="/css/custom.css">
+
+
+</head>
+<body>
+    	<div id="app"><div class="single-column-drawer-container" id="drawer"
+     v-bind:class="{ 'single-column-drawer-container-active': isDrawerOpen }">
+    <div class="drawer-content">
+        <div class="drawer-menu">
+            
+            
+            
+                
+                
+                
+                    
+                
+                
+                
+                <a class="a-block drawer-menu-item active" href="/llm">
+                    大模型
+                </a>
+                
+            
+                
+                
+                
+                
+                
+                <a class="a-block drawer-menu-item false" href="/life">
+                    生活随记
+                </a>
+                
+            
+            
+            <div class="toc">
+
+
+	<div class="toc-content">
+	
+		
+		
+		
+		<center>- 目录 -</center>
+		
+		
+		<ul>
+			
+				
+				
+					
+						
+						
+						
+						
+						
+							<li>
+								<a href="#model-runner-v2-code-walkthrough" class="nav-model-runner-v2-code-walkthrough">
+									Model Runner V2: Code Walkthrough
+								</a>
+							</li>
+						
+						
+					
+				
+			
+				
+				
+					
+						
+						
+						
+						
+							
+								
+									<ul>
+								
+							
+						
+						
+							<li>
+								<a href="#1-code-structure" class="nav-1-code-structure">
+									1. Code structure
+								</a>
+							</li>
+						
+						
+					
+				
+			
+				
+				
+					
+						
+						
+						
+						
+						
+							<li>
+								<a href="#2-lifecycle-of-one-step" class="nav-2-lifecycle-of-one-step">
+									2. Lifecycle of one step
+								</a>
+							</li>
+						
+						
+					
+				
+			
+				
+				
+					
+						
+						
+						
+						
+						
+							<li>
+								<a href="#3-execute_model" class="nav-3-execute_model">
+									3. execute_model
+								</a>
+							</li>
+						
+						
+					
+				
+			
+				
+				
+					
+						
+						
+						
+						
+							
+								
+									<ul>
+								
+							
+						
+						
+							<li>
+								<a href="#31-update-persistent-request-state" class="nav-31-update-persistent-request-state">
+									3.1 Update persistent request state
+								</a>
+							</li>
+						
+						
+					
+				
+			
+				
+				
+					
+						
+						
+						
+						
+						
+							<li>
+								<a href="#32-select-the-execution-shape" class="nav-32-select-the-execution-shape">
+									3.2 Select the execution shape
+								</a>
+							</li>
+						
+						
+					
+				
+			
+				
+				
+					
+						
+						
+						
+						
+						
+							<li>
+								<a href="#33-prepare-the-inputbatch" class="nav-33-prepare-the-inputbatch">
+									3.3 Prepare the InputBatch
+								</a>
+							</li>
+						
+						
+					
+				
+			
+				
+				
+					
+						
+						
+						
+						
+						
+							<li>
+								<a href="#34-prepare-model-specific-and-multimodal-inputs" class="nav-34-prepare-model-specific-and-multimodal-inputs">
+									3.4 Prepare model-specific and multimodal inputs
+								</a>
+							</li>
+						
+						
+					
+				
+			
+				
+				
+					
+						
+						
+						
+						
+						
+							<li>
+								<a href="#35-run-the-model" class="nav-35-run-the-model">
+									3.5 Run the model
+								</a>
+							</li>
+						
+						
+					
+				
+			
+				
+				
+					
+						
+						
+						
+						
+						
+							<li>
+								<a href="#36-save-the-forward-result" class="nav-36-save-the-forward-result">
+									3.6 Save the forward result
+								</a>
+							</li>
+						
+						
+					
+				
+			
+				
+				
+					
+						
+						
+						
+							
+								</ul>
+							
+						
+						
+						
+							<li>
+								<a href="#4-prepare_inputs" class="nav-4-prepare_inputs">
+									4. prepare_inputs
+								</a>
+							</li>
+						
+						
+					
+				
+			
+				
+				
+					
+						
+						
+						
+						
+							
+								
+									<ul>
+								
+							
+						
+						
+							<li>
+								<a href="#41-request-ordering-and-slot-mapping" class="nav-41-request-ordering-and-slot-mapping">
+									4.1 Request ordering and slot mapping
+								</a>
+							</li>
+						
+						
+					
+				
+			
+				
+				
+					
+						
+						
+						
+						
+						
+							<li>
+								<a href="#42-query-offsets-and-padding" class="nav-42-query-offsets-and-padding">
+									4.2 Query offsets and padding
+								</a>
+							</li>
+						
+						
+					
+				
+			
+				
+				
+					
+						
+						
+						
+						
+						
+							<li>
+								<a href="#43-prefill-tokens" class="nav-43-prefill-tokens">
+									4.3 Prefill tokens
+								</a>
+							</li>
+						
+						
+					
+				
+			
+				
+				
+					
+						
+						
+						
+						
+						
+							<li>
+								<a href="#44-positions-and-sequence-lengths" class="nav-44-positions-and-sequence-lengths">
+									4.4 Positions and sequence lengths
+								</a>
+							</li>
+						
+						
+					
+				
+			
+				
+				
+					
+						
+						
+						
+						
+						
+							<li>
+								<a href="#45-sampled-and-draft-tokens" class="nav-45-sampled-and-draft-tokens">
+									4.5 Sampled and draft tokens
+								</a>
+							</li>
+						
+						
+					
+				
+			
+				
+				
+					
+						
+						
+						
+						
+						
+							<li>
+								<a href="#46-result" class="nav-46-result">
+									4.6 Result
+								</a>
+							</li>
+						
+						
+					
+				
+			
+				
+				
+					
+						
+						
+						
+							
+								</ul>
+							
+						
+						
+						
+							<li>
+								<a href="#5-prepare_attn" class="nav-5-prepare_attn">
+									5. prepare_attn
+								</a>
+							</li>
+						
+						
+					
+				
+			
+				
+				
+					
+						
+						
+						
+						
+						
+							<li>
+								<a href="#6-dispatch_cg_and_sync_dp" class="nav-6-dispatch_cg_and_sync_dp">
+									6. dispatch_cg_and_sync_dp
+								</a>
+							</li>
+						
+						
+					
+				
+			
+				
+				
+					
+						
+						
+						
+						
+						
+							<li>
+								<a href="#7-sample_tokens" class="nav-7-sample_tokens">
+									7. sample_tokens
+								</a>
+							</li>
+						
+						
+					
+				
+			
+				
+				
+					
+						
+						
+						
+						
+							
+								
+									<ul>
+								
+							
+						
+						
+							<li>
+								<a href="#71-non-last-pipeline-ranks" class="nav-71-non-last-pipeline-ranks">
+									7.1 Non-last pipeline ranks
+								</a>
+							</li>
+						
+						
+					
+				
+			
+				
+				
+					
+						
+						
+						
+						
+						
+							<li>
+								<a href="#72-last-pipeline-rank" class="nav-72-last-pipeline-rank">
+									7.2 Last pipeline rank
+								</a>
+							</li>
+						
+						
+					
+				
+			
+				
+				
+					
+						
+						
+						
+							
+								</ul>
+							
+						
+						
+						
+							<li>
+								<a href="#8-postprocess_sampled" class="nav-8-postprocess_sampled">
+									8. postprocess_sampled
+								</a>
+							</li>
+						
+						
+					
+				
+			
+				
+				
+					
+						
+						
+						
+						
+						
+							<li>
+								<a href="#9-defaultmodelstate" class="nav-9-defaultmodelstate">
+									9. DefaultModelState
+								</a>
+							</li>
+						
+						
+					
+				
+			
+				
+				
+					
+						
+						
+						
+						
+							
+								
+									<ul>
+								
+							
+						
+						
+							<li>
+								<a href="#defaultmodelstateprepare_attn" class="nav-defaultmodelstateprepare_attn">
+									DefaultModelState.prepare_attn
+								</a>
+							</li>
+						
+						
+					
+				
+			
+				
+				
+					
+						
+						
+						
+							
+								</ul>
+							
+						
+						
+						
+							<li>
+								<a href="#10-triton-kernels-in-input_batchpy" class="nav-10-triton-kernels-in-input_batchpy">
+									10. Triton kernels in input_batch.py
+								</a>
+							</li>
+						
+						
+					
+				
+			
+				
+				
+					
+						
+						
+						
+						
+							
+								
+									<ul>
+								
+							
+						
+						
+							<li>
+								<a href="#101-prepare_prefill_inputs" class="nav-101-prepare_prefill_inputs">
+									10.1 prepare_prefill_inputs
+								</a>
+							</li>
+						
+						
+					
+				
+			
+				
+				
+					
+						
+						
+						
+						
+						
+							<li>
+								<a href="#102-prepare_pos_seq_lens" class="nav-102-prepare_pos_seq_lens">
+									10.2 prepare_pos_seq_lens
+								</a>
+							</li>
+						
+						
+					
+				
+			
+				
+				
+					
+						
+						
+						
+						
+						
+							<li>
+								<a href="#103-combine_sampled_and_draft_tokens" class="nav-103-combine_sampled_and_draft_tokens">
+									10.3 combine_sampled_and_draft_tokens
+								</a>
+							</li>
+						
+						
+					
+				
+			
+				
+				
+					
+						
+						
+						
+						
+						
+							<li>
+								<a href="#104-post_update" class="nav-104-post_update">
+									10.4 post_update
+								</a>
+							</li>
+						
+						
+					
+				
+			
+				
+				
+					
+						
+						
+						
+						
+						
+							<li>
+								<a href="#105-post_update_num_computed_tokens" class="nav-105-post_update_num_computed_tokens">
+									10.5 post_update_num_computed_tokens
+								</a>
+							</li>
+						
+						
+					
+				
+			
+				
+				
+					
+						
+						
+						
+							
+								</ul>
+							
+						
+						
+						
+							<li>
+								<a href="#11-asynchronous-computed-token-synchronization" class="nav-11-asynchronous-computed-token-synchronization">
+									11. Asynchronous computed-token synchronization
+								</a>
+							</li>
+						
+						
+					
+				
+			
+				
+				
+					
+						
+						
+						
+						
+						
+							<li>
+								<a href="#12-suggested-reading-order" class="nav-12-suggested-reading-order">
+									12. Suggested reading order
+								</a>
+							</li>
+						
+						
+					
+				
+			
+		</ul>
+	</div>
+
+</div>
+            
+        </div>
+    </div>
+</div>
+<transition name="fade">
+    <div id="drawer-mask" v-bind:class="{ 'single-column-drawer-mask': mounted }" v-if="isDrawerOpen" v-on:click="toggleDrawer"></div>
+</transition>
+<nav id="navBar" class="navbar sticky-top navbar-light single-column-nav-container">
+    <div id="navBackground" class="nav-background"></div>
+    <div class="container container-narrow nav-content">
+        <button id="nav_dropdown_btn" class="nav-dropdown-toggle" type="button" v-on:click="toggleDrawer">
+            <i class="material-icons">
+                menu
+            </i>
+        </button>
+        <a id="navTitle" class="navbar-brand" href="https://zhixuan-zxli.github.io/">
+            Zhixuan&#39;s Blog
+        </a>
+        
+        <button type="button" class="nav-darkmode-toggle" id="darkModeToggleButton2">
+            <i class="material-icons" id="darkModeToggleIcon2">
+                dark_mode
+            </i>
+        </button>
+        
+    </div>
+</nav>
+<div class="single-column-header-container" id="pageHead"
+     v-bind:style="{ transform: 'translateZ(0px) translateY('+.3*scrollY+'px)', opacity: 1-navOpacity }">
+    <a href="https://zhixuan-zxli.github.io/">
+        <div class="single-column-header-title">Zhixuan&#39;s Blog</div>
+        
+
+    </a>
+</div>
+
+            <div id="content">
+                <div id="streamContainer" class="stream-container">
+
+    <div class="post-list-container post-list-container-shadow">
+        <div class="post">
+            
+            
+            
+
+            <div class="post-head-wrapper-text-only"
+                
+            >
+                <div class="post-title">
+                    Model Runner V2
+                    
+                    <div class="post-meta">
+                        
+                        <time itemprop="datePublished">
+                            2026-08-21 00:00
+                        </time>
+                        
+
+                        
+
+                        
+                            <i class="material-icons" style="">label</i>
+                            
+                                <a href="/tags/vllm">vLLM</a>
+                                &nbsp;
+                            
+                        
+                        
+                    </div>
+                </div>
+            </div>
+            
+            <div class="post-body-wrapper">
+                
+                <div class="post-body" v-pre>
+                
+                    <h1 id="model-runner-v2-code-walkthrough">Model Runner V2: Code Walkthrough</h1>
+<p>This document explains the execution path of Model Runner V2 (MRV2), centered on
+<a href="https://github.com/vllm-project/vllm/blob/releases/v0.27.0/vllm/v1/worker/gpu/model_runner.py"><code>vllm/v1/worker/gpu/model_runner.py</code></a>.
+It is intended as a code-reading guide. The higher-level design rationale is in
+<a href="https://github.com/vllm-project/vllm/blob/releases/v0.27.0/vllm/docs/design/model_runner_v2.md"><code>model_runner_v2.md</code></a>.</p>
+<p>MRV2 is a per-worker orchestration layer. It does not implement transformer
+layers. Instead, it connects scheduler state, GPU-resident request state,
+attention/KV-cache metadata, CUDA graphs, the model, sampling, and output
+processing.</p>
+<h2 id="1-code-structure">1. Code structure</h2>
+<pre tabindex="0"><code class="language-mermaid" data-lang="mermaid">flowchart TD
+    S[&#34;SchedulerOutput&#34;] --&gt; R[&#34;GPUModelRunner.execute_model&#34;]
+    R --&gt; U[&#34;Update request and KV state&#34;]
+    U --&gt; I[&#34;prepare_inputs&#34;]
+    I --&gt; A[&#34;prepare_attn&#34;]
+    A --&gt; D[&#34;dispatch_cg_and_sync_dp&#34;]
+    D --&gt; M[&#34;ModelState.prepare_inputs / prepare_attn&#34;]
+    M --&gt; F[&#34;Model forward: eager, PIECEWISE, or FULL CUDA graph&#34;]
+    F --&gt; X[&#34;ExecuteModelState&#34;]
+    X --&gt; T[&#34;sample_tokens&#34;]
+    T --&gt; L[&#34;Compute logits and sample&#34;]
+    L --&gt; P[&#34;postprocess_sampled&#34;]
+    P --&gt; G[&#34;Speculator proposal and KV connector&#34;]
+    G --&gt; O[&#34;AsyncOutput / ModelRunnerOutput&#34;]
+
+    R -. &#34;last PP rank&#34; .-&gt; T
+    R -. &#34;non-last PP rank&#34; .-&gt; PP[&#34;IntermediateTensors&#34;]
+
+    RS[&#34;RequestState&#34;] --&gt; I
+    IB[&#34;InputBuffers / InputBatch&#34;] --&gt; I
+    BT[&#34;BlockTables / KV cache&#34;] --&gt; A
+    CG[&#34;ModelCudaGraphManager&#34;] --&gt; D
+    MS[&#34;DefaultModelState or model-specific state&#34;] --&gt; M
+    K[&#34;Triton input/update kernels&#34;] --&gt; I
+    K --&gt; P
+</code></pre><p>The main state objects have deliberately different lifetimes:</p>
+<table>
+	<thead>
+			<tr>
+					<th>Object</th>
+					<th>Lifetime</th>
+					<th>Responsibility</th>
+			</tr>
+	</thead>
+	<tbody>
+			<tr>
+					<td><code>RequestState</code></td>
+					<td>Persistent across steps</td>
+					<td>Fixed slots for request IDs, token history, computed-token counters, draft tokens, and sequence limits.</td>
+			</tr>
+			<tr>
+					<td><code>InputBuffers</code></td>
+					<td>Persistent buffers reused by steps</td>
+					<td>GPU buffers for token IDs, positions, query offsets, and sequence lengths.</td>
+			</tr>
+			<tr>
+					<td><code>InputBatch</code></td>
+					<td>One forward step</td>
+					<td>The current request ordering, mappings, lengths, logits positions, and views into <code>InputBuffers</code>.</td>
+			</tr>
+			<tr>
+					<td><code>ModelState</code></td>
+					<td>Persistent model-specific state</td>
+					<td>RoPE, multimodal inputs, encoder-decoder state, Mamba state, and model-specific attention metadata.</td>
+			</tr>
+			<tr>
+					<td><code>ExecuteModelState</code></td>
+					<td>Between forward and output processing</td>
+					<td>Hidden states and metadata retained for <code>sample_tokens()</code> or <code>pool()</code>.</td>
+			</tr>
+			<tr>
+					<td><code>BlockTables</code></td>
+					<td>Persistent</td>
+					<td>Maps logical request positions to paged KV-cache blocks and computes slot mappings.</td>
+			</tr>
+			<tr>
+					<td><code>ModelCudaGraphManager</code></td>
+					<td>Persistent after KV initialization</td>
+					<td>Captures and dispatches compatible CUDA graphs.</td>
+			</tr>
+	</tbody>
+</table>
+<p>The runner is created by the worker when <code>use_v2_model_runner</code> is enabled; see
+<a href="https://github.com/vllm-project/vllm/blob/releases/v0.27.0/vllm/v1/worker/gpu_worker.py"><code>gpu_worker.py</code></a> around the MRV2 construction
+branch.</p>
+<h2 id="2-lifecycle-of-one-step">2. Lifecycle of one step</h2>
+<p>The public step is split into a forward phase and a result phase:</p>
+<div class="highlight"><pre tabindex="0" style="color:#272822;background-color:#fafafa;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-text" data-lang="text"><span style="display:flex;"><span>SchedulerOutput
+</span></span><span style="display:flex;"><span>      |
+</span></span><span style="display:flex;"><span>      v
+</span></span><span style="display:flex;"><span>execute_model()
+</span></span><span style="display:flex;"><span>      |-- request/KV state updates
+</span></span><span style="display:flex;"><span>      |-- input and attention metadata preparation
+</span></span><span style="display:flex;"><span>      |-- model forward
+</span></span><span style="display:flex;"><span>      `-- save ExecuteModelState
+</span></span><span style="display:flex;"><span>                |
+</span></span><span style="display:flex;"><span>                v
+</span></span><span style="display:flex;"><span>sample_tokens() or pool()
+</span></span><span style="display:flex;"><span>      |-- logits/sampling or pooling
+</span></span><span style="display:flex;"><span>      |-- update GPU request state
+</span></span><span style="display:flex;"><span>      |-- speculative draft proposal
+</span></span><span style="display:flex;"><span>      `-- asynchronous output copy
+</span></span></code></pre></div><p>This split is important for asynchronous scheduling. The engine can enqueue a
+forward and then enqueue sampling without synchronously materializing the
+result on the host. See <a href="https://github.com/vllm-project/vllm/blob/releases/v0.27.0/vllm/v1/engine/core.py"><code>EngineCore.step_with_batch_queue()</code></a>
+and <a href="https://github.com/vllm-project/vllm/blob/releases/v0.27.0/vllm/v1/worker/gpu/async_utils.py"><code>AsyncOutput</code></a>.</p>
+<h2 id="3-execute_model">3. <code>execute_model</code></h2>
+<p><a href="https://github.com/vllm-project/vllm/blob/releases/v0.27.0/vllm/v1/worker/gpu/model_runner.py"><code>GPUModelRunner.execute_model()</code></a>
+coordinates everything needed to launch one model forward.</p>
+<h3 id="31-update-persistent-request-state">3.1 Update persistent request state</h3>
+<p>For a real batch, the runner first processes lifecycle changes:</p>
+<div class="highlight"><pre tabindex="0" style="color:#272822;background-color:#fafafa;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-python" data-lang="python"><span style="display:flex;"><span><span style="color:#111">self</span><span style="color:#f92672">.</span><span style="color:#111">update_pp_decode_requests</span><span style="color:#111">()</span>
+</span></span><span style="display:flex;"><span><span style="color:#111">self</span><span style="color:#f92672">.</span><span style="color:#111">finish_requests</span><span style="color:#111">(</span><span style="color:#111">scheduler_output</span><span style="color:#111">)</span>
+</span></span><span style="display:flex;"><span><span style="color:#111">self</span><span style="color:#f92672">.</span><span style="color:#111">free_states</span><span style="color:#111">(</span><span style="color:#111">scheduler_output</span><span style="color:#111">)</span>
+</span></span><span style="display:flex;"><span><span style="color:#111">self</span><span style="color:#f92672">.</span><span style="color:#111">add_requests</span><span style="color:#111">(</span><span style="color:#111">scheduler_output</span><span style="color:#111">)</span>
+</span></span><span style="display:flex;"><span><span style="color:#111">self</span><span style="color:#f92672">.</span><span style="color:#111">update_requests</span><span style="color:#111">(</span><span style="color:#111">scheduler_output</span><span style="color:#111">)</span>
+</span></span><span style="display:flex;"><span><span style="color:#111">self</span><span style="color:#f92672">.</span><span style="color:#111">block_tables</span><span style="color:#f92672">.</span><span style="color:#111">apply_staged_writes</span><span style="color:#111">()</span>
+</span></span></code></pre></div><p>This is at <a href="https://github.com/vllm-project/vllm/blob/releases/v0.27.0/vllm/v1/worker/gpu/model_runner.py#L1217"><code>model_runner.py:1217</code></a>.</p>
+<p>The operations include:</p>
+<ul>
+<li>Removing finished and preempted requests.</li>
+<li>Adding new or resumed requests into fixed <code>RequestState</code> slots.</li>
+<li>Updating the CPU mirror of <code>num_computed_tokens</code> for cached requests.</li>
+<li>Appending newly allocated KV-cache blocks.</li>
+<li>Zeroing fresh cache blocks when required.</li>
+<li>Applying copy-on-write KV-cache block copies.</li>
+</ul>
+<p>New request data is staged before the forward. <code>RequestState.apply_staged_writes()</code>
+then commits token history, lengths, and the initial computed-token count to the
+GPU/UVA-visible state.</p>
+<p>If there are no scheduled tokens, the runner skips the model and asks the KV
+connector for a no-forward result.</p>
+<h3 id="32-select-the-execution-shape">3.2 Select the execution shape</h3>
+<p>The runner derives:</p>
+<div class="highlight"><pre tabindex="0" style="color:#272822;background-color:#fafafa;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-python" data-lang="python"><span style="display:flex;"><span><span style="color:#111">num_reqs</span> <span style="color:#f92672">=</span> <span style="color:#111">len</span><span style="color:#111">(</span><span style="color:#111">scheduler_output</span><span style="color:#f92672">.</span><span style="color:#111">num_scheduled_tokens</span><span style="color:#111">)</span>
+</span></span><span style="display:flex;"><span><span style="color:#111">num_toks</span> <span style="color:#f92672">=</span> <span style="color:#111">scheduler_output</span><span style="color:#f92672">.</span><span style="color:#111">total_num_scheduled_tokens</span>
+</span></span><span style="display:flex;"><span><span style="color:#111">max_query_len</span> <span style="color:#f92672">=</span> <span style="color:#111">max</span><span style="color:#111">(</span><span style="color:#111">scheduler_output</span><span style="color:#f92672">.</span><span style="color:#111">num_scheduled_tokens</span><span style="color:#f92672">.</span><span style="color:#111">values</span><span style="color:#111">())</span>
+</span></span><span style="display:flex;"><span><span style="color:#111">uniform_tok_count</span> <span style="color:#f92672">=</span> <span style="color:#111">get_uniform_token_count</span><span style="color:#111">(</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#111">num_reqs</span><span style="color:#111">,</span> <span style="color:#111">num_toks</span><span style="color:#111">,</span> <span style="color:#111">max_query_len</span>
+</span></span><span style="display:flex;"><span><span style="color:#111">)</span>
+</span></span></code></pre></div><p>It also accounts for active LoRA adapters and forces eager execution for some
+dynamic encoder-decoder updates. Then it calls
+<a href="https://github.com/vllm-project/vllm/blob/releases/v0.27.0/vllm/v1/worker/gpu/dp_utils.py"><code>dispatch_cg_and_sync_dp()</code></a>.</p>
+<p>The returned <code>BatchExecutionDescriptor</code> contains the selected:</p>
+<ul>
+<li>CUDA graph mode: <code>NONE</code>, <code>PIECEWISE</code>, or <code>FULL</code>.</li>
+<li>Padded token count.</li>
+<li>Padded request count, when needed.</li>
+<li>Uniform token count, when applicable.</li>
+<li>Effective active-LoRA capture case.</li>
+</ul>
+<h3 id="33-prepare-the-inputbatch">3.3 Prepare the <code>InputBatch</code></h3>
+<p>For real work, <code>execute_model()</code> calls:</p>
+<div class="highlight"><pre tabindex="0" style="color:#272822;background-color:#fafafa;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-python" data-lang="python"><span style="display:flex;"><span><span style="color:#111">input_batch</span> <span style="color:#f92672">=</span> <span style="color:#111">self</span><span style="color:#f92672">.</span><span style="color:#111">prepare_inputs</span><span style="color:#111">(</span><span style="color:#111">scheduler_output</span><span style="color:#111">,</span> <span style="color:#111">batch_desc</span><span style="color:#111">)</span>
+</span></span><span style="display:flex;"><span><span style="color:#111">block_tables</span><span style="color:#111">,</span> <span style="color:#111">slot_mappings</span> <span style="color:#f92672">=</span> <span style="color:#111">self</span><span style="color:#f92672">.</span><span style="color:#111">prepare_attn</span><span style="color:#111">(</span><span style="color:#111">input_batch</span><span style="color:#111">)</span>
+</span></span></code></pre></div><p>These are described in the next sections. The important distinction is that
+<code>RequestState</code> stores persistent state in stable request slots, while
+<code>InputBatch</code> gathers those slots into the order required by this step.</p>
+<h3 id="34-prepare-model-specific-and-multimodal-inputs">3.4 Prepare model-specific and multimodal inputs</h3>
+<p>The first pipeline rank may run a multimodal encoder and produce
+<code>inputs_embeds</code>. Then the model-specific state contributes additional inputs:</p>
+<div class="highlight"><pre tabindex="0" style="color:#272822;background-color:#fafafa;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-python" data-lang="python"><span style="display:flex;"><span><span style="color:#111">model_inputs</span> <span style="color:#f92672">=</span> <span style="color:#111">{</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#d88200">&#34;input_ids&#34;</span><span style="color:#111">:</span> <span style="color:#111">input_ids</span><span style="color:#111">,</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#d88200">&#34;positions&#34;</span><span style="color:#111">:</span> <span style="color:#111">input_batch</span><span style="color:#f92672">.</span><span style="color:#111">positions</span><span style="color:#111">,</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#d88200">&#34;inputs_embeds&#34;</span><span style="color:#111">:</span> <span style="color:#111">inputs_embeds</span><span style="color:#111">,</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#d88200">&#34;intermediate_tensors&#34;</span><span style="color:#111">:</span> <span style="color:#00a8c8">None</span><span style="color:#111">,</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#f92672">**</span><span style="color:#111">self</span><span style="color:#f92672">.</span><span style="color:#111">model_state</span><span style="color:#f92672">.</span><span style="color:#111">prepare_inputs</span><span style="color:#111">(</span><span style="color:#111">input_batch</span><span style="color:#111">,</span> <span style="color:#111">self</span><span style="color:#f92672">.</span><span style="color:#111">req_states</span><span style="color:#111">),</span>
+</span></span><span style="display:flex;"><span><span style="color:#111">}</span>
+</span></span></code></pre></div><p>For non-first pipeline ranks, token IDs and embeddings are removed and the
+received <code>IntermediateTensors</code> are copied into persistent buffers. This is
+needed because CUDA graphs require stable addresses.</p>
+<h3 id="35-run-the-model">3.5 Run the model</h3>
+<p>There are three execution paths:</p>
+<div class="highlight"><pre tabindex="0" style="color:#272822;background-color:#fafafa;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-python" data-lang="python"><span style="display:flex;"><span><span style="color:#00a8c8">if</span> <span style="color:#111">batch_desc</span><span style="color:#f92672">.</span><span style="color:#111">cg_mode</span> <span style="color:#f92672">==</span> <span style="color:#111">CUDAGraphMode</span><span style="color:#f92672">.</span><span style="color:#111">FULL</span><span style="color:#111">:</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#111">model_output</span> <span style="color:#f92672">=</span> <span style="color:#111">self</span><span style="color:#f92672">.</span><span style="color:#111">cudagraph_manager</span><span style="color:#f92672">.</span><span style="color:#111">run_fullgraph</span><span style="color:#111">(</span><span style="color:#111">batch_desc</span><span style="color:#111">)</span>
+</span></span><span style="display:flex;"><span><span style="color:#00a8c8">elif</span> <span style="color:#111">batch_desc</span><span style="color:#f92672">.</span><span style="color:#111">cg_mode</span> <span style="color:#f92672">==</span> <span style="color:#111">CUDAGraphMode</span><span style="color:#f92672">.</span><span style="color:#111">PIECEWISE</span><span style="color:#111">:</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#111">model_output</span> <span style="color:#f92672">=</span> <span style="color:#111">self</span><span style="color:#f92672">.</span><span style="color:#111">cudagraph_manager</span><span style="color:#f92672">.</span><span style="color:#111">run_pw_graph</span><span style="color:#111">(</span>
+</span></span><span style="display:flex;"><span>        <span style="color:#111">self</span><span style="color:#f92672">.</span><span style="color:#111">model</span><span style="color:#111">,</span> <span style="color:#111">model_inputs</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#111">)</span>
+</span></span><span style="display:flex;"><span><span style="color:#00a8c8">else</span><span style="color:#111">:</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#111">model_output</span> <span style="color:#f92672">=</span> <span style="color:#111">self</span><span style="color:#f92672">.</span><span style="color:#111">model</span><span style="color:#111">(</span><span style="color:#f92672">**</span><span style="color:#111">model_inputs</span><span style="color:#111">)</span>
+</span></span></code></pre></div><p>The actual code wraps the eager and piecewise paths in
+<code>set_forward_context()</code>, which publishes attention metadata, slot mappings,
+padding, DP token counts, and the runtime CUDA-graph mode to the model and
+attention layers. See <a href="https://github.com/vllm-project/vllm/blob/releases/v0.27.0/vllm/v1/worker/gpu/model_runner.py#L1385"><code>model_runner.py:1385</code></a>.</p>
+<h3 id="36-save-the-forward-result">3.6 Save the forward result</h3>
+<p>The last pipeline rank receives hidden states. Earlier ranks receive
+<code>IntermediateTensors</code>. MRV2 saves the result in:</p>
+<div class="highlight"><pre tabindex="0" style="color:#272822;background-color:#fafafa;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-python" data-lang="python"><span style="display:flex;"><span><span style="color:#111">self</span><span style="color:#f92672">.</span><span style="color:#111">execute_model_state</span> <span style="color:#f92672">=</span> <span style="color:#111">ExecuteModelState</span><span style="color:#111">(</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#111">input_batch</span><span style="color:#f92672">=</span><span style="color:#111">input_batch</span><span style="color:#111">,</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#111">attn_metadata</span><span style="color:#f92672">=</span><span style="color:#111">attn_metadata</span><span style="color:#111">,</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#111">slot_mappings_by_layer</span><span style="color:#f92672">=</span><span style="color:#111">slot_mappings_by_layer</span><span style="color:#111">,</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#111">hidden_states</span><span style="color:#f92672">=</span><span style="color:#111">hidden_states</span><span style="color:#111">,</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#111">aux_hidden_states</span><span style="color:#f92672">=</span><span style="color:#111">aux_hidden_states</span><span style="color:#111">,</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#111">finished_req_ids</span><span style="color:#f92672">=</span><span style="color:#111">finished_req_ids</span><span style="color:#111">,</span>
+</span></span><span style="display:flex;"><span><span style="color:#111">)</span>
+</span></span></code></pre></div><p>See <a href="https://github.com/vllm-project/vllm/blob/releases/v0.27.0/vllm/v1/worker/gpu/model_runner.py#L1440"><code>model_runner.py:1440</code></a>.</p>
+<ul>
+<li>Non-last pipeline ranks return <code>IntermediateTensors</code> immediately.</li>
+<li>The last rank returns <code>None</code>; the caller then invokes <code>sample_tokens()</code>.</li>
+</ul>
+<h2 id="4-prepare_inputs">4. <code>prepare_inputs</code></h2>
+<p><a href="https://github.com/vllm-project/vllm/blob/releases/v0.27.0/vllm/v1/worker/gpu/model_runner.py"><code>prepare_inputs()</code></a> converts the
+scheduler’s ragged per-request token counts into a contiguous GPU input layout.</p>
+<h3 id="41-request-ordering-and-slot-mapping">4.1 Request ordering and slot mapping</h3>
+<p>MRV2 orders requests as decode, short extension, then prefill. It builds:</p>
+<ul>
+<li><code>req_ids</code>: request order for this step.</li>
+<li><code>idx_mapping</code>: batch row → persistent <code>RequestState</code> slot.</li>
+<li><code>idx_mapping_np</code>: host version used for bookkeeping.</li>
+<li><code>expanded_idx_mapping</code>: per-logit mapping used by speculative decoding.</li>
+</ul>
+<p>The batch row does not have to equal the persistent request slot. This
+indirection is what allows requests to retain stable state while each step uses
+an execution-friendly order.</p>
+<h3 id="42-query-offsets-and-padding">4.2 Query offsets and padding</h3>
+<p><code>query_start_loc</code> is the cumulative sum of scheduled tokens:</p>
+<div class="highlight"><pre tabindex="0" style="color:#272822;background-color:#fafafa;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-text" data-lang="text"><span style="display:flex;"><span>query_start_loc = [0,
+</span></span><span style="display:flex;"><span>                   q0,
+</span></span><span style="display:flex;"><span>                   q0 + q1,
+</span></span><span style="display:flex;"><span>                   ...]
+</span></span></code></pre></div><p>The host constructs a NumPy copy and asynchronously copies it into the
+persistent GPU input buffer. CUDA-graph padding extends the buffer without
+changing the unpadded request semantics.</p>
+<h3 id="43-prefill-tokens">4.3 Prefill tokens</h3>
+<p>When a request is still prefilling, <code>prepare_prefill_inputs()</code> gathers the next
+query tokens from persistent <code>all_token_ids</code>. This gather happens in a Triton
+kernel so the GPU can read the request state directly, including UVA-backed
+storage.</p>
+<h3 id="44-positions-and-sequence-lengths">4.4 Positions and sequence lengths</h3>
+<p><code>prepare_pos_seq_lens()</code> reads the GPU
+<code>req_states.num_computed_tokens.gpu</code> and writes:</p>
+<div class="highlight"><pre tabindex="0" style="color:#272822;background-color:#fafafa;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-text" data-lang="text"><span style="display:flex;"><span>position[b, j] = num_computed_tokens[state_slot] + j
+</span></span><span style="display:flex;"><span>seq_lens[b]    = num_computed_tokens[state_slot] + query_len[b]
+</span></span></code></pre></div><p>The host also builds <code>seq_lens_cpu_upper_bound</code> from the scheduler-side mirror:</p>
+<div class="highlight"><pre tabindex="0" style="color:#272822;background-color:#fafafa;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-python" data-lang="python"><span style="display:flex;"><span><span style="color:#111">num_computed_tokens_np</span> <span style="color:#f92672">=</span> <span style="color:#111">(</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#111">self</span><span style="color:#f92672">.</span><span style="color:#111">req_states</span><span style="color:#f92672">.</span><span style="color:#111">num_computed_tokens_np</span><span style="color:#111">[</span><span style="color:#111">idx_mapping_np</span><span style="color:#111">]</span>
+</span></span><span style="display:flex;"><span><span style="color:#111">)</span>
+</span></span><span style="display:flex;"><span><span style="color:#111">seq_lens_cpu_upper_bound_np</span> <span style="color:#f92672">=</span> <span style="color:#111">np</span><span style="color:#f92672">.</span><span style="color:#111">zeros</span><span style="color:#111">(</span><span style="color:#111">num_reqs_padded</span><span style="color:#111">,</span> <span style="color:#111">dtype</span><span style="color:#f92672">=</span><span style="color:#111">np</span><span style="color:#f92672">.</span><span style="color:#111">int32</span><span style="color:#111">)</span>
+</span></span><span style="display:flex;"><span><span style="color:#111">np</span><span style="color:#f92672">.</span><span style="color:#111">add</span><span style="color:#111">(</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#111">num_computed_tokens_np</span><span style="color:#111">,</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#111">num_scheduled_tokens</span><span style="color:#111">,</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#111">out</span><span style="color:#f92672">=</span><span style="color:#111">seq_lens_cpu_upper_bound_np</span><span style="color:#111">[:</span><span style="color:#111">num_reqs</span><span style="color:#111">],</span>
+</span></span><span style="display:flex;"><span><span style="color:#111">)</span>
+</span></span></code></pre></div><p>See <a href="https://github.com/vllm-project/vllm/blob/releases/v0.27.0/vllm/v1/worker/gpu/model_runner.py#L1059"><code>model_runner.py:1059</code></a>.</p>
+<p>This CPU value is a planning upper bound. It avoids a GPU-to-CPU readback on
+the common path. It can be optimistic for asynchronous speculative decoding,
+where the host does not yet know which draft tokens will be rejected.</p>
+<h3 id="45-sampled-and-draft-tokens">4.5 Sampled and draft tokens</h3>
+<p>For autoregressive decode, the input can contain:</p>
+<ol>
+<li>The previous sampled token.</li>
+<li>Scheduled draft tokens.</li>
+<li>A target-model bonus position.</li>
+</ol>
+<p><code>combine_sampled_and_draft_tokens()</code> writes those token IDs into the right
+input positions and returns <code>logits_indices</code>, which identifies the hidden-state
+rows that should produce logits.</p>
+<h3 id="46-result">4.6 Result</h3>
+<p>The method packages all of these views and mappings in <code>InputBatch</code>, including:</p>
+<ul>
+<li><code>input_ids</code>, <code>positions</code>, and <code>is_padding</code>.</li>
+<li><code>query_start_loc</code> and <code>seq_lens</code>.</li>
+<li><code>seq_lens_cpu_upper_bound</code>.</li>
+<li><code>logits_indices</code> and cumulative logit ranges.</li>
+<li>Prefill flags and prompt lengths.</li>
+</ul>
+<p>The optional PCP manager may then partition the batch before returning it.</p>
+<h2 id="5-prepare_attn">5. <code>prepare_attn</code></h2>
+<p><a href="https://github.com/vllm-project/vllm/blob/releases/v0.27.0/vllm/v1/worker/gpu/model_runner.py"><code>prepare_attn()</code></a> turns request
+indices and positions into paged-attention metadata.</p>
+<p>For the normal path it:</p>
+<ol>
+<li>Gathers each request’s persistent block-table row into the current batch
+order.</li>
+<li>Computes a slot mapping for each scheduled token.</li>
+<li>Returns block tables and slot mappings for all KV-cache groups.</li>
+</ol>
+<div class="highlight"><pre tabindex="0" style="color:#272822;background-color:#fafafa;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-python" data-lang="python"><span style="display:flex;"><span><span style="color:#111">block_tables</span> <span style="color:#f92672">=</span> <span style="color:#111">self</span><span style="color:#f92672">.</span><span style="color:#111">block_tables</span><span style="color:#f92672">.</span><span style="color:#111">gather_block_tables</span><span style="color:#111">(</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#111">input_batch</span><span style="color:#f92672">.</span><span style="color:#111">idx_mapping</span><span style="color:#111">,</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#111">num_reqs_padded</span><span style="color:#f92672">=</span><span style="color:#111">input_batch</span><span style="color:#f92672">.</span><span style="color:#111">num_reqs_after_padding</span><span style="color:#111">,</span>
+</span></span><span style="display:flex;"><span><span style="color:#111">)</span>
+</span></span><span style="display:flex;"><span><span style="color:#111">slot_mappings</span> <span style="color:#f92672">=</span> <span style="color:#111">self</span><span style="color:#f92672">.</span><span style="color:#111">block_tables</span><span style="color:#f92672">.</span><span style="color:#111">compute_slot_mappings</span><span style="color:#111">(</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#111">input_batch</span><span style="color:#f92672">.</span><span style="color:#111">idx_mapping</span><span style="color:#111">,</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#111">input_batch</span><span style="color:#f92672">.</span><span style="color:#111">query_start_loc</span><span style="color:#111">,</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#111">input_batch</span><span style="color:#f92672">.</span><span style="color:#111">positions</span><span style="color:#111">,</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#111">num_tokens_padded</span><span style="color:#f92672">=</span><span style="color:#111">input_batch</span><span style="color:#f92672">.</span><span style="color:#111">num_tokens_after_padding</span><span style="color:#111">,</span>
+</span></span><span style="display:flex;"><span><span style="color:#111">)</span>
+</span></span></code></pre></div><p>See <a href="https://github.com/vllm-project/vllm/blob/releases/v0.27.0/vllm/v1/worker/gpu/model_runner.py#L1113"><code>model_runner.py:1113</code></a>.</p>
+<p><code>block_tables</code> answer “which physical KV blocks belong to each request?”;
+<code>slot_mappings</code> answer “which physical KV slot corresponds to each query
+token?” The attention backend consumes both.</p>
+<p>PCP has a specialized preparation path because the logical batch is partitioned
+before attention metadata is built. Dummy attention metadata is used for
+profiling and CUDA-graph capture.</p>
+<h2 id="6-dispatch_cg_and_sync_dp">6. <code>dispatch_cg_and_sync_dp</code></h2>
+<p><a href="https://github.com/vllm-project/vllm/blob/releases/v0.27.0/vllm/v1/worker/gpu/dp_utils.py"><code>dispatch_cg_and_sync_dp()</code></a> combines two
+decisions:</p>
+<ol>
+<li>Select a compatible CUDA-graph descriptor locally.</li>
+<li>Make the execution shape consistent across data-parallel ranks.</li>
+</ol>
+<p>For a single DP rank, it simply returns the local descriptor. With multiple DP
+ranks, <code>sync_cudagraph_and_dp_padding()</code> performs an all-reduce over a small
+CPU tensor containing:</p>
+<div class="highlight"><pre tabindex="0" style="color:#272822;background-color:#fafafa;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-text" data-lang="text"><span style="display:flex;"><span>per-rank token count
+</span></span><span style="display:flex;"><span>per-rank requested CUDA-graph mode
+</span></span><span style="display:flex;"><span>per-rank uniform token count
+</span></span></code></pre></div><p>The synchronization rules are:</p>
+<ul>
+<li>If all ranks have zero tokens, all ranks skip the forward.</li>
+<li>If any rank requires eager mode, all ranks use eager mode.</li>
+<li>Otherwise, the maximum token count is used for a common padded descriptor.</li>
+<li>Uniform decode is retained only if all ranks agree on the uniform count.</li>
+</ul>
+<p>The core logic is in <a href="https://github.com/vllm-project/vllm/blob/releases/v0.27.0/vllm/v1/worker/gpu/dp_utils.py#L16"><code>dp_utils.py:16</code></a>.
+The resulting <code>num_tokens_across_dp</code> is passed to <code>set_forward_context()</code> so
+DP-aware kernels know the common execution size.</p>
+<h2 id="7-sample_tokens">7. <code>sample_tokens</code></h2>
+<p><a href="https://github.com/vllm-project/vllm/blob/releases/v0.27.0/vllm/v1/worker/gpu/model_runner.py"><code>sample_tokens()</code></a> consumes the
+<code>ExecuteModelState</code> produced by the preceding forward.</p>
+<h3 id="71-non-last-pipeline-ranks">7.1 Non-last pipeline ranks</h3>
+<p>Earlier pipeline ranks do not have final hidden states. They receive sampled
+tokens from the last rank through <code>PPHandler</code>:</p>
+<div class="highlight"><pre tabindex="0" style="color:#272822;background-color:#fafafa;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-python" data-lang="python"><span style="display:flex;"><span><span style="color:#111">all_decode_next</span> <span style="color:#f92672">=</span> <span style="color:#111">self</span><span style="color:#f92672">.</span><span style="color:#111">pp_handler</span><span style="color:#f92672">.</span><span style="color:#111">receive</span><span style="color:#111">(</span><span style="color:#111">input_batch</span><span style="color:#111">)</span>
+</span></span><span style="display:flex;"><span><span style="color:#111">self</span><span style="color:#f92672">.</span><span style="color:#111">postprocess_num_computed_tokens</span><span style="color:#111">(</span><span style="color:#111">input_batch</span><span style="color:#111">)</span>
+</span></span></code></pre></div><p>The initial update is optimistic. A later deferred <code>postprocess_sampled()</code> call
+applies the exact rejection correction when the broadcasted result is consumed.
+See <a href="https://github.com/vllm-project/vllm/blob/releases/v0.27.0/vllm/v1/worker/gpu/model_runner.py#L1472"><code>model_runner.py:1472</code></a>.</p>
+<h3 id="72-last-pipeline-rank">7.2 Last pipeline rank</h3>
+<p>The last rank:</p>
+<ol>
+<li>Restores the original PCP batch if PCP was used.</li>
+<li>Selects hidden states at <code>input_batch.logits_indices</code>.</li>
+<li>Computes logits.</li>
+<li>Applies structured-output grammar masks.</li>
+<li>Runs normal sampling or speculative rejection sampling.</li>
+<li>Broadcasts sampled tokens and acceptance counts to earlier PP ranks.</li>
+<li>Computes prompt logprobs.</li>
+<li>Creates <code>AsyncOutput</code> for an overlapping output copy.</li>
+<li>Calls <code>postprocess_sampled()</code>.</li>
+<li>Runs the speculative drafter, if configured.</li>
+<li>Performs KV-connector post-forward work.</li>
+</ol>
+<p>The sampling decision is implemented by <code>sample()</code>:</p>
+<div class="highlight"><pre tabindex="0" style="color:#272822;background-color:#fafafa;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-python" data-lang="python"><span style="display:flex;"><span><span style="color:#111">sample_hidden_states</span> <span style="color:#f92672">=</span> <span style="color:#111">hidden_states</span><span style="color:#111">[</span><span style="color:#111">input_batch</span><span style="color:#f92672">.</span><span style="color:#111">logits_indices</span><span style="color:#111">]</span>
+</span></span><span style="display:flex;"><span><span style="color:#111">logits</span> <span style="color:#f92672">=</span> <span style="color:#111">self</span><span style="color:#f92672">.</span><span style="color:#111">model</span><span style="color:#f92672">.</span><span style="color:#111">compute_logits</span><span style="color:#111">(</span><span style="color:#111">sample_hidden_states</span><span style="color:#111">)</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#00a8c8">if</span> <span style="color:#111">grammar_output</span> <span style="color:#f92672">is</span> <span style="color:#f92672">not</span> <span style="color:#00a8c8">None</span><span style="color:#111">:</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#111">self</span><span style="color:#f92672">.</span><span style="color:#111">structured_outputs_worker</span><span style="color:#f92672">.</span><span style="color:#111">apply_grammar_bitmask</span><span style="color:#111">(</span><span style="color:#f92672">...</span><span style="color:#111">)</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#00a8c8">if</span> <span style="color:#111">input_batch</span><span style="color:#f92672">.</span><span style="color:#111">num_draft_tokens</span> <span style="color:#f92672">==</span> <span style="color:#ae81ff">0</span><span style="color:#111">:</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#111">sampler_output</span> <span style="color:#f92672">=</span> <span style="color:#111">self</span><span style="color:#f92672">.</span><span style="color:#111">sampler</span><span style="color:#111">(</span><span style="color:#111">logits</span><span style="color:#111">,</span> <span style="color:#111">input_batch</span><span style="color:#111">)</span>
+</span></span><span style="display:flex;"><span><span style="color:#00a8c8">else</span><span style="color:#111">:</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#111">sampler_output</span> <span style="color:#f92672">=</span> <span style="color:#111">self</span><span style="color:#f92672">.</span><span style="color:#111">rejection_sampler</span><span style="color:#111">(</span><span style="color:#f92672">...</span><span style="color:#111">)</span>
+</span></span></code></pre></div><p>See <a href="https://github.com/vllm-project/vllm/blob/releases/v0.27.0/vllm/v1/worker/gpu/model_runner.py#L1143"><code>model_runner.py:1143</code></a>.</p>
+<p>The output copy is launched before request-state postprocessing so that the
+device-to-host copy can overlap with state updates and speculative drafting:</p>
+<div class="highlight"><pre tabindex="0" style="color:#272822;background-color:#fafafa;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-python" data-lang="python"><span style="display:flex;"><span><span style="color:#111">async_output</span> <span style="color:#f92672">=</span> <span style="color:#111">AsyncOutput</span><span style="color:#111">(</span><span style="color:#f92672">...</span><span style="color:#111">)</span>
+</span></span><span style="display:flex;"><span><span style="color:#111">self</span><span style="color:#f92672">.</span><span style="color:#111">postprocess_sampled</span><span style="color:#111">(</span><span style="color:#f92672">...</span><span style="color:#111">)</span>
+</span></span></code></pre></div><p>See <a href="https://github.com/vllm-project/vllm/blob/releases/v0.27.0/vllm/v1/worker/gpu/model_runner.py#L1527"><code>model_runner.py:1527</code></a>.</p>
+<h2 id="8-postprocess_sampled">8. <code>postprocess_sampled</code></h2>
+<p><a href="https://github.com/vllm-project/vllm/blob/releases/v0.27.0/vllm/v1/worker/gpu/model_runner.py"><code>postprocess_sampled()</code></a> updates
+GPU-side request state after sampling. It calls <code>post_update()</code>, which updates:</p>
+<ul>
+<li><code>last_sampled_tokens</code>.</li>
+<li><code>all_token_ids</code>.</li>
+<li><code>total_len</code>.</li>
+<li>Sampling penalty counters.</li>
+<li><code>num_computed_tokens.gpu</code>.</li>
+</ul>
+<p>The computed-token delta is:</p>
+<div class="highlight"><pre tabindex="0" style="color:#272822;background-color:#fafafa;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-text" data-lang="text"><span style="display:flex;"><span>scheduled query length - rejected speculative tokens
+</span></span></code></pre></div><p>Then it calls <code>model_state.postprocess_state()</code>, allowing Mamba/hybrid or other
+model-specific state to advance.</p>
+<p>The scheduler’s host-side <code>Request.num_computed_tokens</code> is not read from this
+GPU tensor. The scheduler already advanced its own counter at schedule time and
+later reconciles rejected tokens when it processes the returned output.</p>
+<h2 id="9-defaultmodelstate">9. <code>DefaultModelState</code></h2>
+<p><code>GPUModelRunner</code> delegates model-specific behavior to a <code>ModelState</code> object.
+The selection logic is in <a href="https://github.com/vllm-project/vllm/blob/releases/v0.27.0/vllm/v1/worker/gpu/model_states/__init__.py"><code>model_states/__init__.py</code></a>:</p>
+<ol>
+<li>A model-provided custom state, if available.</li>
+<li><code>EncoderDecoderModelState</code> for cross-attention models.</li>
+<li><code>EncoderOnlyModelState</code> for encoder-only models.</li>
+<li><code>MambaHybridModelState</code> for hybrid models.</li>
+<li><code>DefaultModelState</code> otherwise.</li>
+</ol>
+<p><a href="https://github.com/vllm-project/vllm/blob/releases/v0.27.0/vllm/v1/worker/gpu/model_states/default.py"><code>DefaultModelState</code></a> handles
+the common decoder-only path. It owns or coordinates:</p>
+<ul>
+<li>RoPE position state.</li>
+<li>Optional multimodal embedding pruning.</li>
+<li>Multimodal encoder execution and embedding assembly.</li>
+<li>Model-specific position overrides.</li>
+<li>Common attention metadata construction.</li>
+</ul>
+<h3 id="defaultmodelstateprepare_attn"><code>DefaultModelState.prepare_attn</code></h3>
+<p>The method first chooses padded or unpadded dimensions:</p>
+<div class="highlight"><pre tabindex="0" style="color:#272822;background-color:#fafafa;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-python" data-lang="python"><span style="display:flex;"><span><span style="color:#00a8c8">if</span> <span style="color:#111">cudagraph_mode</span> <span style="color:#f92672">==</span> <span style="color:#111">CUDAGraphMode</span><span style="color:#f92672">.</span><span style="color:#111">FULL</span><span style="color:#111">:</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#111">num_reqs</span> <span style="color:#f92672">=</span> <span style="color:#111">input_batch</span><span style="color:#f92672">.</span><span style="color:#111">num_reqs_after_padding</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#111">num_tokens</span> <span style="color:#f92672">=</span> <span style="color:#111">input_batch</span><span style="color:#f92672">.</span><span style="color:#111">num_tokens_after_padding</span>
+</span></span><span style="display:flex;"><span><span style="color:#00a8c8">else</span><span style="color:#111">:</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#111">num_reqs</span> <span style="color:#f92672">=</span> <span style="color:#111">input_batch</span><span style="color:#f92672">.</span><span style="color:#111">num_reqs</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#111">num_tokens</span> <span style="color:#f92672">=</span> <span style="color:#111">input_batch</span><span style="color:#f92672">.</span><span style="color:#111">num_tokens</span>
+</span></span></code></pre></div><p>It then prepares both host and device query offsets:</p>
+<div class="highlight"><pre tabindex="0" style="color:#272822;background-color:#fafafa;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-python" data-lang="python"><span style="display:flex;"><span><span style="color:#111">query_start_loc_cpu</span> <span style="color:#f92672">=</span> <span style="color:#111">torch</span><span style="color:#f92672">.</span><span style="color:#111">from_numpy</span><span style="color:#111">(</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#111">input_batch</span><span style="color:#f92672">.</span><span style="color:#111">query_start_loc_np</span><span style="color:#111">[:</span> <span style="color:#111">num_reqs</span> <span style="color:#f92672">+</span> <span style="color:#ae81ff">1</span><span style="color:#111">]</span>
+</span></span><span style="display:flex;"><span><span style="color:#111">)</span>
+</span></span><span style="display:flex;"><span><span style="color:#111">query_start_loc_gpu</span> <span style="color:#f92672">=</span> <span style="color:#111">input_batch</span><span style="color:#f92672">.</span><span style="color:#111">query_start_loc</span><span style="color:#111">[:</span> <span style="color:#111">num_reqs</span> <span style="color:#f92672">+</span> <span style="color:#ae81ff">1</span><span style="color:#111">]</span>
+</span></span></code></pre></div><p>For normal execution, <code>max_seq_len</code> is derived from the CPU upper bound. During
+capture, it uses <code>max_model_len</code> so the graph remains valid for later replays.</p>
+<p>Finally, it calls <code>build_attn_metadata()</code> with both forms of sequence metadata:</p>
+<div class="highlight"><pre tabindex="0" style="color:#272822;background-color:#fafafa;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-python" data-lang="python"><span style="display:flex;"><span><span style="color:#111">attn_metadata</span> <span style="color:#f92672">=</span> <span style="color:#111">build_attn_metadata</span><span style="color:#111">(</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#f92672">...</span><span style="color:#111">,</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#111">query_start_loc_gpu</span><span style="color:#f92672">=</span><span style="color:#111">query_start_loc_gpu</span><span style="color:#111">,</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#111">query_start_loc_cpu</span><span style="color:#f92672">=</span><span style="color:#111">query_start_loc_cpu</span><span style="color:#111">,</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#111">seq_lens</span><span style="color:#f92672">=</span><span style="color:#111">input_batch</span><span style="color:#f92672">.</span><span style="color:#111">seq_lens</span><span style="color:#111">,</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#111">max_seq_len</span><span style="color:#f92672">=</span><span style="color:#111">max_seq_len</span><span style="color:#111">,</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#111">seq_lens_cpu_upper_bound</span><span style="color:#f92672">=</span><span style="color:#111">seq_lens_cpu_upper_bound</span><span style="color:#111">,</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#111">dcp_local_seq_lens</span><span style="color:#f92672">=</span><span style="color:#111">input_batch</span><span style="color:#f92672">.</span><span style="color:#111">dcp_local_seq_lens</span><span style="color:#111">,</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#111">positions</span><span style="color:#f92672">=</span><span style="color:#111">input_batch</span><span style="color:#f92672">.</span><span style="color:#111">positions</span><span style="color:#111">,</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#111">is_prefilling</span><span style="color:#f92672">=</span><span style="color:#111">torch</span><span style="color:#f92672">.</span><span style="color:#111">from_numpy</span><span style="color:#111">(</span><span style="color:#111">input_batch</span><span style="color:#f92672">.</span><span style="color:#111">is_prefilling_np</span><span style="color:#111">),</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#f92672">...</span><span style="color:#111">,</span>
+</span></span><span style="display:flex;"><span><span style="color:#111">)</span>
+</span></span></code></pre></div><p>See <a href="https://github.com/vllm-project/vllm/blob/releases/v0.27.0/vllm/v1/worker/gpu/model_states/default.py#L135"><code>default.py:135</code></a> and
+<a href="https://github.com/vllm-project/vllm/blob/releases/v0.27.0/vllm/v1/worker/gpu/attn_utils.py#L500"><code>attn_utils.py:500</code></a>.</p>
+<p><code>build_attn_metadata()</code> creates a <code>CommonAttentionMetadata</code> object for each KV
+cache group and invokes that group’s backend metadata builder. The GPU
+<code>seq_lens</code> is available for device-side execution; the CPU upper bound supports
+host-side planning such as maximum context lengths and DCP decisions.</p>
+<h2 id="10-triton-kernels-in-input_batchpy">10. Triton kernels in <code>input_batch.py</code></h2>
+<p>The kernels in <a href="https://github.com/vllm-project/vllm/blob/releases/v0.27.0/vllm/v1/worker/gpu/input_batch.py"><code>input_batch.py</code></a> move
+per-step input preparation and state updates onto the GPU. They are not separate
+model stages; they prepare the buffers consumed by the model and sampler.</p>
+<h3 id="101-prepare_prefill_inputs">10.1 <code>prepare_prefill_inputs</code></h3>
+<p>For each batch request, the kernel:</p>
+<ol>
+<li>Maps the batch row to a persistent request slot.</li>
+<li>Reads <code>num_computed_tokens</code> and <code>prefill_len</code>.</li>
+<li>Copies the next query range from <code>all_token_ids</code> into <code>input_ids</code>.</li>
+<li>Stores a small lookahead window in <code>next_prefill_tokens</code> for MTP/speculative
+modules.</li>
+</ol>
+<p>This is a straightforward indexed gather; the Triton version avoids a Python
+loop and can read UVA-backed token history.</p>
+<h3 id="102-prepare_pos_seq_lens">10.2 <code>prepare_pos_seq_lens</code></h3>
+<p>For each request row it computes positions and the total sequence length after
+the current query. It also zeros unused rows for FULL CUDA graphs.</p>
+<p>A readable, unoptimized reference implementation is:</p>
+<div class="highlight"><pre tabindex="0" style="color:#272822;background-color:#fafafa;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-python" data-lang="python"><span style="display:flex;"><span><span style="color:#00a8c8">def</span> <span style="color:#75af00">prepare_pos_seq_lens_ref</span><span style="color:#111">(</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#111">idx_mapping</span><span style="color:#111">:</span> <span style="color:#111">torch</span><span style="color:#f92672">.</span><span style="color:#111">Tensor</span><span style="color:#111">,</span>          <span style="color:#75715e"># [num_reqs], device</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#111">query_start_loc</span><span style="color:#111">:</span> <span style="color:#111">torch</span><span style="color:#f92672">.</span><span style="color:#111">Tensor</span><span style="color:#111">,</span>      <span style="color:#75715e"># [num_reqs + 1], device</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#111">num_computed_tokens</span><span style="color:#111">:</span> <span style="color:#111">torch</span><span style="color:#f92672">.</span><span style="color:#111">Tensor</span><span style="color:#111">,</span>  <span style="color:#75715e"># [max_num_reqs], device</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#111">positions</span><span style="color:#111">:</span> <span style="color:#111">torch</span><span style="color:#f92672">.</span><span style="color:#111">Tensor</span><span style="color:#111">,</span>            <span style="color:#75715e"># [max_num_tokens], device</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#111">seq_lens</span><span style="color:#111">:</span> <span style="color:#111">torch</span><span style="color:#f92672">.</span><span style="color:#111">Tensor</span><span style="color:#111">,</span>             <span style="color:#75715e"># [max_num_reqs], device</span>
+</span></span><span style="display:flex;"><span><span style="color:#111">)</span> <span style="color:#f92672">-&gt;</span> <span style="color:#00a8c8">None</span><span style="color:#111">:</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#111">num_reqs</span> <span style="color:#f92672">=</span> <span style="color:#111">idx_mapping</span><span style="color:#f92672">.</span><span style="color:#111">shape</span><span style="color:#111">[</span><span style="color:#ae81ff">0</span><span style="color:#111">]</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#00a8c8">for</span> <span style="color:#111">batch_idx</span> <span style="color:#f92672">in</span> <span style="color:#111">range</span><span style="color:#111">(</span><span style="color:#111">num_reqs</span><span style="color:#111">):</span>
+</span></span><span style="display:flex;"><span>        <span style="color:#111">state_idx</span> <span style="color:#f92672">=</span> <span style="color:#111">int</span><span style="color:#111">(</span><span style="color:#111">idx_mapping</span><span style="color:#111">[</span><span style="color:#111">batch_idx</span><span style="color:#111">])</span>
+</span></span><span style="display:flex;"><span>        <span style="color:#111">start</span> <span style="color:#f92672">=</span> <span style="color:#111">int</span><span style="color:#111">(</span><span style="color:#111">query_start_loc</span><span style="color:#111">[</span><span style="color:#111">batch_idx</span><span style="color:#111">])</span>
+</span></span><span style="display:flex;"><span>        <span style="color:#111">end</span> <span style="color:#f92672">=</span> <span style="color:#111">int</span><span style="color:#111">(</span><span style="color:#111">query_start_loc</span><span style="color:#111">[</span><span style="color:#111">batch_idx</span> <span style="color:#f92672">+</span> <span style="color:#ae81ff">1</span><span style="color:#111">])</span>
+</span></span><span style="display:flex;"><span>        <span style="color:#111">query_len</span> <span style="color:#f92672">=</span> <span style="color:#111">end</span> <span style="color:#f92672">-</span> <span style="color:#111">start</span>
+</span></span><span style="display:flex;"><span>        <span style="color:#111">computed</span> <span style="color:#f92672">=</span> <span style="color:#111">int</span><span style="color:#111">(</span><span style="color:#111">num_computed_tokens</span><span style="color:#111">[</span><span style="color:#111">state_idx</span><span style="color:#111">])</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>        <span style="color:#111">positions</span><span style="color:#111">[</span><span style="color:#111">start</span><span style="color:#111">:</span><span style="color:#111">end</span><span style="color:#111">]</span> <span style="color:#f92672">=</span> <span style="color:#111">torch</span><span style="color:#f92672">.</span><span style="color:#111">arange</span><span style="color:#111">(</span>
+</span></span><span style="display:flex;"><span>            <span style="color:#111">computed</span><span style="color:#111">,</span>
+</span></span><span style="display:flex;"><span>            <span style="color:#111">computed</span> <span style="color:#f92672">+</span> <span style="color:#111">query_len</span><span style="color:#111">,</span>
+</span></span><span style="display:flex;"><span>            <span style="color:#111">device</span><span style="color:#f92672">=</span><span style="color:#111">positions</span><span style="color:#f92672">.</span><span style="color:#111">device</span><span style="color:#111">,</span>
+</span></span><span style="display:flex;"><span>            <span style="color:#111">dtype</span><span style="color:#f92672">=</span><span style="color:#111">positions</span><span style="color:#f92672">.</span><span style="color:#111">dtype</span><span style="color:#111">,</span>
+</span></span><span style="display:flex;"><span>        <span style="color:#111">)</span>
+</span></span><span style="display:flex;"><span>        <span style="color:#111">seq_lens</span><span style="color:#111">[</span><span style="color:#111">batch_idx</span><span style="color:#111">]</span> <span style="color:#f92672">=</span> <span style="color:#111">computed</span> <span style="color:#f92672">+</span> <span style="color:#111">query_len</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#75715e"># Required by FULL CUDA-graph replay.</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#111">seq_lens</span><span style="color:#111">[</span><span style="color:#111">num_reqs</span><span style="color:#111">:]</span> <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>
+</span></span></code></pre></div><p>The production kernel is <code>_prepare_pos_seq_lens_kernel()</code> at
+<a href="https://github.com/vllm-project/vllm/blob/releases/v0.27.0/vllm/v1/worker/gpu/input_batch.py#L267"><code>input_batch.py:267</code></a>.</p>
+<h3 id="103-combine_sampled_and_draft_tokens">10.3 <code>combine_sampled_and_draft_tokens</code></h3>
+<p>This kernel handles the non-contiguous relationship between model input tokens
+and logits during speculative decoding. It:</p>
+<ul>
+<li>Computes the positions of the final target/draft logits.</li>
+<li>Writes the previous sampled token into the first generated-token position.</li>
+<li>Writes draft tokens into the subsequent positions.</li>
+<li>Returns the hidden-state indices that should be passed to
+<code>compute_logits()</code>.</li>
+</ul>
+<p>For a single request, the conceptual operation is:</p>
+<div class="highlight"><pre tabindex="0" style="color:#272822;background-color:#fafafa;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-python" data-lang="python"><span style="display:flex;"><span><span style="color:#00a8c8">def</span> <span style="color:#75af00">combine_sampled_and_draft_tokens_ref</span><span style="color:#111">(</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#111">input_ids</span><span style="color:#111">:</span> <span style="color:#111">torch</span><span style="color:#f92672">.</span><span style="color:#111">Tensor</span><span style="color:#111">,</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#111">last_sampled_token</span><span style="color:#111">:</span> <span style="color:#111">int</span><span style="color:#111">,</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#111">draft_tokens</span><span style="color:#111">:</span> <span style="color:#111">torch</span><span style="color:#f92672">.</span><span style="color:#111">Tensor</span><span style="color:#111">,</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#111">query_start</span><span style="color:#111">:</span> <span style="color:#111">int</span><span style="color:#111">,</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#111">query_end</span><span style="color:#111">:</span> <span style="color:#111">int</span><span style="color:#111">,</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#111">seq_len</span><span style="color:#111">:</span> <span style="color:#111">int</span><span style="color:#111">,</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#111">prefill_len</span><span style="color:#111">:</span> <span style="color:#111">int</span><span style="color:#111">,</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#111">num_new_sampled_tokens</span><span style="color:#111">:</span> <span style="color:#111">int</span> <span style="color:#f92672">=</span> <span style="color:#ae81ff">1</span><span style="color:#111">,</span>
+</span></span><span style="display:flex;"><span><span style="color:#111">)</span> <span style="color:#f92672">-&gt;</span> <span style="color:#111">torch</span><span style="color:#f92672">.</span><span style="color:#111">Tensor</span><span style="color:#111">:</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#111">num_draft</span> <span style="color:#f92672">=</span> <span style="color:#111">draft_tokens</span><span style="color:#f92672">.</span><span style="color:#111">numel</span><span style="color:#111">()</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#111">num_logits</span> <span style="color:#f92672">=</span> <span style="color:#111">num_new_sampled_tokens</span> <span style="color:#f92672">+</span> <span style="color:#111">num_draft</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#111">logits_start</span> <span style="color:#f92672">=</span> <span style="color:#111">query_end</span> <span style="color:#f92672">-</span> <span style="color:#111">num_logits</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#111">logits_indices</span> <span style="color:#f92672">=</span> <span style="color:#111">torch</span><span style="color:#f92672">.</span><span style="color:#111">arange</span><span style="color:#111">(</span>
+</span></span><span style="display:flex;"><span>        <span style="color:#111">logits_start</span><span style="color:#111">,</span> <span style="color:#111">query_end</span><span style="color:#111">,</span> <span style="color:#111">device</span><span style="color:#f92672">=</span><span style="color:#111">input_ids</span><span style="color:#f92672">.</span><span style="color:#111">device</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#111">)</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#75715e"># During decode, the first generated-token input is the previous sample.</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#111">first_logit_seq_pos</span> <span style="color:#f92672">=</span> <span style="color:#111">seq_len</span> <span style="color:#f92672">-</span> <span style="color:#111">num_logits</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#00a8c8">if</span> <span style="color:#111">(</span>
+</span></span><span style="display:flex;"><span>        <span style="color:#111">num_new_sampled_tokens</span> <span style="color:#f92672">&gt;</span> <span style="color:#ae81ff">0</span>
+</span></span><span style="display:flex;"><span>        <span style="color:#f92672">and</span> <span style="color:#111">first_logit_seq_pos</span> <span style="color:#f92672">&gt;=</span> <span style="color:#111">prefill_len</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#111">):</span>
+</span></span><span style="display:flex;"><span>        <span style="color:#111">input_ids</span><span style="color:#111">[</span><span style="color:#111">logits_start</span><span style="color:#111">]</span> <span style="color:#f92672">=</span> <span style="color:#111">last_sampled_token</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#00a8c8">if</span> <span style="color:#111">num_draft</span> <span style="color:#f92672">&gt;</span> <span style="color:#ae81ff">0</span><span style="color:#111">:</span>
+</span></span><span style="display:flex;"><span>        <span style="color:#111">input_ids</span><span style="color:#111">[</span><span style="color:#111">query_end</span> <span style="color:#f92672">-</span> <span style="color:#111">num_draft</span><span style="color:#111">:</span><span style="color:#111">query_end</span><span style="color:#111">]</span> <span style="color:#f92672">=</span> <span style="color:#111">draft_tokens</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#00a8c8">return</span> <span style="color:#111">logits_indices</span>
+</span></span></code></pre></div><p>The actual implementation supports ragged batches and writes all per-request
+logit indices into one contiguous tensor. See
+<a href="https://github.com/vllm-project/vllm/blob/releases/v0.27.0/vllm/v1/worker/gpu/input_batch.py#L325"><code>input_batch.py:325</code></a>.</p>
+<h3 id="104-post_update">10.4 <code>post_update</code></h3>
+<p><code>post_update()</code> applies the result of sampling back to persistent GPU state.
+For each request it:</p>
+<ol>
+<li>Stores the final sampled token as <code>last_sampled_tokens</code>.</li>
+<li>Appends sampled tokens to <code>all_token_ids</code>.</li>
+<li>Increments <code>total_len</code> by the number of sampled tokens.</li>
+<li>Updates penalty counters.</li>
+<li>Advances <code>num_computed_tokens</code> by query length minus rejected draft tokens.</li>
+</ol>
+<p>The following reference implementation omits Triton parallelism and CUDA-stream
+details but mirrors the state transitions:</p>
+<div class="highlight"><pre tabindex="0" style="color:#272822;background-color:#fafafa;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-python" data-lang="python"><span style="display:flex;"><span><span style="color:#00a8c8">def</span> <span style="color:#75af00">post_update_ref</span><span style="color:#111">(</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#111">idx_mapping</span><span style="color:#111">:</span> <span style="color:#111">torch</span><span style="color:#f92672">.</span><span style="color:#111">Tensor</span><span style="color:#111">,</span>          <span style="color:#75715e"># [num_reqs]</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#111">num_computed_tokens</span><span style="color:#111">:</span> <span style="color:#111">torch</span><span style="color:#f92672">.</span><span style="color:#111">Tensor</span><span style="color:#111">,</span>  <span style="color:#75715e"># [max_num_reqs]</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#111">last_sampled_tokens</span><span style="color:#111">:</span> <span style="color:#111">torch</span><span style="color:#f92672">.</span><span style="color:#111">Tensor</span><span style="color:#111">,</span>  <span style="color:#75715e"># [max_num_reqs, 1]</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#111">sampled_tokens</span><span style="color:#111">:</span> <span style="color:#111">torch</span><span style="color:#f92672">.</span><span style="color:#111">Tensor</span><span style="color:#111">,</span>       <span style="color:#75715e"># [num_reqs, max_sample_len]</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#111">num_sampled</span><span style="color:#111">:</span> <span style="color:#111">torch</span><span style="color:#f92672">.</span><span style="color:#111">Tensor</span><span style="color:#111">,</span>          <span style="color:#75715e"># [num_reqs]</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#111">num_rejected</span><span style="color:#111">:</span> <span style="color:#111">torch</span><span style="color:#f92672">.</span><span style="color:#111">Tensor</span><span style="color:#111">,</span>         <span style="color:#75715e"># [num_reqs]</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#111">query_start_loc</span><span style="color:#111">:</span> <span style="color:#111">torch</span><span style="color:#f92672">.</span><span style="color:#111">Tensor</span><span style="color:#111">,</span>      <span style="color:#75715e"># [num_reqs + 1]</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#111">all_token_ids</span><span style="color:#111">:</span> <span style="color:#111">torch</span><span style="color:#f92672">.</span><span style="color:#111">Tensor</span><span style="color:#111">,</span>        <span style="color:#75715e"># [max_num_reqs, max_model_len]</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#111">total_len</span><span style="color:#111">:</span> <span style="color:#111">torch</span><span style="color:#f92672">.</span><span style="color:#111">Tensor</span><span style="color:#111">,</span>            <span style="color:#75715e"># [max_num_reqs]</span>
+</span></span><span style="display:flex;"><span><span style="color:#111">)</span> <span style="color:#f92672">-&gt;</span> <span style="color:#00a8c8">None</span><span style="color:#111">:</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#00a8c8">for</span> <span style="color:#111">batch_idx</span> <span style="color:#f92672">in</span> <span style="color:#111">range</span><span style="color:#111">(</span><span style="color:#111">idx_mapping</span><span style="color:#f92672">.</span><span style="color:#111">shape</span><span style="color:#111">[</span><span style="color:#ae81ff">0</span><span style="color:#111">]):</span>
+</span></span><span style="display:flex;"><span>        <span style="color:#111">state_idx</span> <span style="color:#f92672">=</span> <span style="color:#111">int</span><span style="color:#111">(</span><span style="color:#111">idx_mapping</span><span style="color:#111">[</span><span style="color:#111">batch_idx</span><span style="color:#111">])</span>
+</span></span><span style="display:flex;"><span>        <span style="color:#00a8c8">if</span> <span style="color:#111">state_idx</span> <span style="color:#f92672">&lt;</span> <span style="color:#ae81ff">0</span><span style="color:#111">:</span>
+</span></span><span style="display:flex;"><span>            <span style="color:#00a8c8">continue</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>        <span style="color:#111">n_sampled</span> <span style="color:#f92672">=</span> <span style="color:#111">int</span><span style="color:#111">(</span><span style="color:#111">num_sampled</span><span style="color:#111">[</span><span style="color:#111">batch_idx</span><span style="color:#111">])</span>
+</span></span><span style="display:flex;"><span>        <span style="color:#111">n_rejected</span> <span style="color:#f92672">=</span> <span style="color:#111">int</span><span style="color:#111">(</span><span style="color:#111">num_rejected</span><span style="color:#111">[</span><span style="color:#111">batch_idx</span><span style="color:#111">])</span>
+</span></span><span style="display:flex;"><span>        <span style="color:#111">old_total_len</span> <span style="color:#f92672">=</span> <span style="color:#111">int</span><span style="color:#111">(</span><span style="color:#111">total_len</span><span style="color:#111">[</span><span style="color:#111">state_idx</span><span style="color:#111">])</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>        <span style="color:#00a8c8">if</span> <span style="color:#111">n_sampled</span> <span style="color:#f92672">&gt;</span> <span style="color:#ae81ff">0</span><span style="color:#111">:</span>
+</span></span><span style="display:flex;"><span>            <span style="color:#111">tokens</span> <span style="color:#f92672">=</span> <span style="color:#111">sampled_tokens</span><span style="color:#111">[</span><span style="color:#111">batch_idx</span><span style="color:#111">,</span> <span style="color:#111">:</span><span style="color:#111">n_sampled</span><span style="color:#111">]</span>
+</span></span><span style="display:flex;"><span>            <span style="color:#111">all_token_ids</span><span style="color:#111">[</span>
+</span></span><span style="display:flex;"><span>                <span style="color:#111">state_idx</span><span style="color:#111">,</span> <span style="color:#111">old_total_len</span><span style="color:#111">:</span><span style="color:#111">old_total_len</span> <span style="color:#f92672">+</span> <span style="color:#111">n_sampled</span>
+</span></span><span style="display:flex;"><span>            <span style="color:#111">]</span> <span style="color:#f92672">=</span> <span style="color:#111">tokens</span>
+</span></span><span style="display:flex;"><span>            <span style="color:#111">last_sampled_tokens</span><span style="color:#111">[</span><span style="color:#111">state_idx</span><span style="color:#111">,</span> <span style="color:#ae81ff">0</span><span style="color:#111">]</span> <span style="color:#f92672">=</span> <span style="color:#111">tokens</span><span style="color:#111">[</span><span style="color:#f92672">-</span><span style="color:#ae81ff">1</span><span style="color:#111">]</span>
+</span></span><span style="display:flex;"><span>            <span style="color:#111">total_len</span><span style="color:#111">[</span><span style="color:#111">state_idx</span><span style="color:#111">]</span> <span style="color:#f92672">=</span> <span style="color:#111">old_total_len</span> <span style="color:#f92672">+</span> <span style="color:#111">n_sampled</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>        <span style="color:#111">query_len</span> <span style="color:#f92672">=</span> <span style="color:#111">int</span><span style="color:#111">(</span>
+</span></span><span style="display:flex;"><span>            <span style="color:#111">query_start_loc</span><span style="color:#111">[</span><span style="color:#111">batch_idx</span> <span style="color:#f92672">+</span> <span style="color:#ae81ff">1</span><span style="color:#111">]</span> <span style="color:#f92672">-</span> <span style="color:#111">query_start_loc</span><span style="color:#111">[</span><span style="color:#111">batch_idx</span><span style="color:#111">]</span>
+</span></span><span style="display:flex;"><span>        <span style="color:#111">)</span>
+</span></span><span style="display:flex;"><span>        <span style="color:#111">num_computed_tokens</span><span style="color:#111">[</span><span style="color:#111">state_idx</span><span style="color:#111">]</span> <span style="color:#f92672">+=</span> <span style="color:#111">query_len</span> <span style="color:#f92672">-</span> <span style="color:#111">n_rejected</span>
+</span></span></code></pre></div><p>The production kernel is <code>_post_update_kernel()</code> at
+<a href="https://github.com/vllm-project/vllm/blob/releases/v0.27.0/vllm/v1/worker/gpu/input_batch.py#L480"><code>input_batch.py:480</code></a>.</p>
+<h3 id="105-post_update_num_computed_tokens">10.5 <code>post_update_num_computed_tokens</code></h3>
+<p>This simpler kernel only adds each row’s query length to the GPU computed-token
+counter. It is used for pooling and for the optimistic non-last-PP path, where
+the exact sampled/rejected result is applied later:</p>
+<div class="highlight"><pre tabindex="0" style="color:#272822;background-color:#fafafa;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-python" data-lang="python"><span style="display:flex;"><span><span style="color:#111">num_computed_tokens</span><span style="color:#111">[</span><span style="color:#111">state_idx</span><span style="color:#111">]</span> <span style="color:#f92672">+=</span> <span style="color:#111">query_start_loc</span><span style="color:#111">[</span><span style="color:#111">i</span> <span style="color:#f92672">+</span> <span style="color:#ae81ff">1</span><span style="color:#111">]</span> <span style="color:#f92672">-</span> <span style="color:#111">query_start_loc</span><span style="color:#111">[</span><span style="color:#111">i</span><span style="color:#111">]</span>
+</span></span></code></pre></div><p>See <a href="https://github.com/vllm-project/vllm/blob/releases/v0.27.0/vllm/v1/worker/gpu/input_batch.py#L582"><code>input_batch.py:582</code></a> and
+<a href="https://github.com/vllm-project/vllm/blob/releases/v0.27.0/vllm/v1/worker/gpu/model_runner.py#L1646"><code>model_runner.py:1646</code></a>.</p>
+<h2 id="11-asynchronous-computed-token-synchronization">11. Asynchronous computed-token synchronization</h2>
+<p>The scheduler and worker do not synchronize by reading the GPU counter back to
+the CPU. Instead:</p>
+<div class="highlight"><pre tabindex="0" style="color:#272822;background-color:#fafafa;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-text" data-lang="text"><span style="display:flex;"><span>Scheduler schedules batch i
+</span></span><span style="display:flex;"><span>  -&gt; host num_computed_tokens advances optimistically
+</span></span><span style="display:flex;"><span>  -&gt; SchedulerOutput carries the old starting count to the worker
+</span></span><span style="display:flex;"><span>  -&gt; GPU prepares positions/seq_lens from its GPU counter
+</span></span><span style="display:flex;"><span>  -&gt; GPU postprocess advances its GPU counter
+</span></span><span style="display:flex;"><span>  -&gt; sampled output returns to the scheduler
+</span></span><span style="display:flex;"><span>  -&gt; scheduler rolls back rejected/stale speculative tokens
+</span></span></code></pre></div><p>The scheduler therefore has a reconciled prefix followed by an optimistic
+in-flight suffix. With a queue size of two, when scheduling batch <code>i+2</code>, batch
+<code>i</code> is normally already reconciled while batch <code>i+1</code> may still be optimistic.
+With a larger queue, multiple later batches may remain optimistic.</p>
+<p>This design preserves overlap while keeping the GPU’s execution state exact.
+The host-side <code>num_computed_tokens</code> is authoritative for scheduling decisions;
+the runner-side GPU tensor is authoritative for the currently executing GPU
+metadata and model state.</p>
+<h2 id="12-suggested-reading-order">12. Suggested reading order</h2>
+<p>For a new code reader, the following order is effective:</p>
+<ol>
+<li><a href="https://github.com/vllm-project/vllm/blob/releases/v0.27.0/vllm/v1/worker/gpu/model_runner.py#L127"><code>GPUModelRunner.__init__()</code></a>
+to see persistent components.</li>
+<li><a href="https://github.com/vllm-project/vllm/blob/releases/v0.27.0/vllm/v1/worker/gpu/model_runner.py#L1209"><code>execute_model()</code></a> for the
+complete forward lifecycle.</li>
+<li><a href="https://github.com/vllm-project/vllm/blob/releases/v0.27.0/vllm/v1/worker/gpu/model_runner.py#L932"><code>prepare_inputs()</code></a> and
+<a href="https://github.com/vllm-project/vllm/blob/releases/v0.27.0/vllm/v1/worker/gpu/input_batch.py#L35"><code>InputBatch</code></a> for batch layout.</li>
+<li><a href="https://github.com/vllm-project/vllm/blob/releases/v0.27.0/vllm/v1/worker/gpu/model_runner.py#L1113"><code>prepare_attn()</code></a> and
+<a href="https://github.com/vllm-project/vllm/blob/releases/v0.27.0/vllm/v1/worker/gpu/model_states/default.py#L132"><code>DefaultModelState.prepare_attn()</code></a>
+for attention metadata.</li>
+<li><a href="https://github.com/vllm-project/vllm/blob/releases/v0.27.0/vllm/v1/worker/gpu/dp_utils.py#L88"><code>dispatch_cg_and_sync_dp()</code></a> for
+execution-shape coordination.</li>
+<li><a href="https://github.com/vllm-project/vllm/blob/releases/v0.27.0/vllm/v1/worker/gpu/model_runner.py#L1457"><code>sample_tokens()</code></a> and
+<a href="https://github.com/vllm-project/vllm/blob/releases/v0.27.0/vllm/v1/worker/gpu/model_runner.py#L1177"><code>postprocess_sampled()</code></a> for
+sampling and state advancement.</li>
+<li><a href="https://github.com/vllm-project/vllm/blob/releases/v0.27.0/vllm/v1/worker/gpu/input_batch.py"><code>input_batch.py</code></a> for the GPU
+kernels that connect request state to model inputs and outputs.</li>
+</ol>
+
+                    
+                    <HR width="100%" id="EOF">
+		    <p style="color:#777;">最后修改于 2026-08-21</p>
+                    
+                </div>
+            </div>
+            
+            
+            <nav class="post-pagination">
+
+                
+                <a class="newer-posts" href="/llm/mamba_hybrid/">
+			下回<br>Mamba Hybrid Model State
+                </a>
+                
+                
+                
+                <a class="older-posts" href="/llm/kda_chunk_fwd_kernels/">
+			上回<br>Chunk KDA Kernels
+                </a>
+                
+            </nav>
+            <div class="post-comment-wrapper">
+                
+
+
+
+
+
+
+
+
+
+
+
+
+            </div>
+        </div>
+    </div>
+
+
+                    </div>
+            </div><div id="sideContainer" class="side-container">
+    
+    <a class="a-block nav-head false" href="https://zhixuan-zxli.github.io/">
+    
+        <div class="nav-title">
+            Zhixuan&#39;s Blog
+        </div>
+        
+    </a>
+
+    <div class="nav-link-list">
+        
+        
+            
+            
+            
+                
+            
+            
+            
+            <a class="a-block nav-link-item active" href="/llm">
+                大模型
+            </a>
+            
+        
+            
+            
+            
+            
+            
+            <a class="a-block nav-link-item false" href="/life">
+                生活随记
+            </a>
+            
+        
+    </div>
+
+    
+
+    <div class="nav-footer">
+        
+Hugo Theme <a href="https://github.com/amazingrise/hugo-theme-diary">Diary</a> by <a href="https://risehere.net/">Rise</a>
+<br>
+移植自 <a href="https://mak1t0.cc/" target="_blank" rel="noreferrer noopener">Makito</a>'s <a href="https://github.com/SumiMakito/hexo-theme-journal/" target="_blank" rel="noreferrer noopener">Journal.</a> <br>
+<br>
+
+&copy;
+	
+	2026 Zhixuan&#39;s Blog
+	
+
+    </div>
+    
+</div><div id="extraContainer" class="extra-container">
+    <div class="toc-wrapper">
+        
+
+        
+    </div>
+    <div class="pagination">
+        <a id="globalBackToTop" class="pagination-action animated-visibility" href="#top"
+            :class="{ invisible: scrollY == 0 }">
+            <i class="material-icons pagination-action-icon">
+                keyboard_arrow_up
+            </i>
+        </a>
+        
+        <a type="button" class="pagination-action" id="darkModeToggleButton">
+            <span class="material-icons pagination-action-icon" id="darkModeToggleIcon">
+                dark_mode
+            </span>
+        </a>
+        
+        
+    </div>
+</div>
+
+<div id="single-column-footer">
+Hugo Theme <a href="https://github.com/amazingrise/hugo-theme-diary">Diary</a> by <a href="https://risehere.net/">Rise</a>
+<br>
+移植自 <a href="https://mak1t0.cc/" target="_blank" rel="noreferrer noopener">Makito</a>'s <a href="https://github.com/SumiMakito/hexo-theme-journal/" target="_blank" rel="noreferrer noopener">Journal.</a> <br>
+<br>
+
+&copy;
+	
+	2026 Zhixuan&#39;s Blog
+	
+</div>
+            </div>
+    
+    <script src="/js/journal.js"></script></body>
+</html>
