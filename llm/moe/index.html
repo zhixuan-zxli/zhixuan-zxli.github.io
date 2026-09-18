@@ -62,6 +62,34 @@
 <link rel="stylesheet" href="/css/custom.css">
 
 
+<script type="module">
+  import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@12/dist/mermaid.esm.min.mjs";
+
+  document.addEventListener("DOMContentLoaded", async () => {
+    const nodes = Array.from(
+      document.querySelectorAll("pre > code.language-mermaid")
+    ).map((code, index) => {
+      const pre = code.closest("pre");
+      pre.className = "mermaid";
+      pre.id = `mermaid-${index}`;
+      pre.textContent = code.textContent;
+      return pre;
+    });
+
+    if (!nodes.length) return;
+
+    mermaid.initialize({
+      startOnLoad: false,
+      securityLevel: "loose",
+      flowchart: { useMaxWidth: true }
+    });
+
+    await mermaid.run({ nodes });
+  });
+</script>
+
+
+
 </head>
 <body>
     	<div id="app"><div class="single-column-drawer-container" id="drawer"
