@@ -1,0 +1,637 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<title>MoE流程总结（Routing/DispatchCombine）</title>
+
+
+
+
+<meta charset="utf-8">
+<meta name="X-UA-Compatible" content="IE=edge">
+<meta name="google-site-verification" content="">
+<meta content="width=device-width, initial-scale=1.0, maximum-scale=5, user-scalable=5" name="viewport">
+<meta content="telephone=no" name="format-detection">
+<meta name="description" content="">
+<meta name="renderer" content="webkit">
+<meta name="theme-color" content="#ffffff">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+
+
+
+
+
+    <link type="text/css" rel="stylesheet" href="/vendor/css/bootstrap.min.css">
+
+<link rel="stylesheet" href="/scss/dark-mode.min.6c9b4c2290542df75010d1640eac4339c754ccff3c9b43fc81a23c94e7e12eaf.css" integrity="sha256-bJtMIpBULfdQENFkDqxDOcdUzP88m0P8gaI8lOfhLq8=" media="screen">
+
+
+<link rel="stylesheet"
+          href="https://fonts.googleapis.com/css?family=Material+Icons">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<link rel="stylesheet" href="/css/custom.css">
+
+
+</head>
+<body>
+    	<div id="app"><div class="single-column-drawer-container" id="drawer"
+     v-bind:class="{ 'single-column-drawer-container-active': isDrawerOpen }">
+    <div class="drawer-content">
+        <div class="drawer-menu">
+            
+            
+            
+                
+                
+                
+                    
+                
+                
+                
+                <a class="a-block drawer-menu-item active" href="/llm">
+                    大模型
+                </a>
+                
+            
+                
+                
+                
+                
+                
+                <a class="a-block drawer-menu-item false" href="/life">
+                    生活随记
+                </a>
+                
+            
+            
+            <div class="toc">
+
+
+	<div class="toc-content">
+	
+		
+		
+		
+		<center>- 目录 -</center>
+		
+		
+		<ul>
+			
+				
+				
+					
+						
+						
+						
+						
+							
+								
+									<ul>
+								
+							
+						
+						
+							<li>
+								<a href="#_forward_allgather" class="nav-_forward_allgather">
+									_forward_allgather
+								</a>
+							</li>
+						
+						
+					
+				
+			
+				
+				
+					
+						
+						
+						
+						
+							
+								
+									<ul>
+								
+							
+						
+						
+							<li>
+								<a href="#shape-%e7%ac%a6%e5%8f%b7" class="nav-shape-符号">
+									Shape 符号
+								</a>
+							</li>
+						
+						
+					
+				
+			
+				
+				
+					
+						
+						
+						
+						
+						
+							<li>
+								<a href="#%e6%b5%81%e7%a8%8b%e5%9b%be" class="nav-流程图">
+									流程图
+								</a>
+							</li>
+						
+						
+					
+				
+			
+				
+				
+					
+						
+						
+						
+						
+						
+							<li>
+								<a href="#%e5%85%b3%e9%94%ae%e7%82%b9" class="nav-关键点">
+									关键点
+								</a>
+							</li>
+						
+						
+					
+				
+			
+				
+				
+					
+						
+						
+						
+							
+								</ul>
+							
+						
+						
+						
+							<li>
+								<a href="#_forward_dispatch_combinesingle-batch" class="nav-_forward_dispatch_combinesingle-batch">
+									_forward_dispatch_combine（single batch）
+								</a>
+							</li>
+						
+						
+					
+				
+			
+				
+				
+					
+						
+						
+						
+						
+							
+								
+									<ul>
+								
+							
+						
+						
+							<li>
+								<a href="#shape-%e7%ac%a6%e5%8f%b7-1" class="nav-shape-符号-1">
+									Shape 符号
+								</a>
+							</li>
+						
+						
+					
+				
+			
+				
+				
+					
+						
+						
+						
+						
+						
+							<li>
+								<a href="#%e6%b5%81%e7%a8%8b%e5%9b%be-1" class="nav-流程图-1">
+									流程图
+								</a>
+							</li>
+						
+						
+					
+				
+			
+				
+				
+					
+						
+						
+						
+						
+						
+							<li>
+								<a href="#%e5%85%b3%e9%94%ae%e7%82%b9-1" class="nav-关键点-1">
+									关键点
+								</a>
+							</li>
+						
+						
+					
+				
+			
+		</ul>
+	</div>
+
+</div>
+            
+        </div>
+    </div>
+</div>
+<transition name="fade">
+    <div id="drawer-mask" v-bind:class="{ 'single-column-drawer-mask': mounted }" v-if="isDrawerOpen" v-on:click="toggleDrawer"></div>
+</transition>
+<nav id="navBar" class="navbar sticky-top navbar-light single-column-nav-container">
+    <div id="navBackground" class="nav-background"></div>
+    <div class="container container-narrow nav-content">
+        <button id="nav_dropdown_btn" class="nav-dropdown-toggle" type="button" v-on:click="toggleDrawer">
+            <i class="material-icons">
+                menu
+            </i>
+        </button>
+        <a id="navTitle" class="navbar-brand" href="https://zhixuan-zxli.github.io/">
+            Zhixuan&#39;s Blog
+        </a>
+        
+        <button type="button" class="nav-darkmode-toggle" id="darkModeToggleButton2">
+            <i class="material-icons" id="darkModeToggleIcon2">
+                dark_mode
+            </i>
+        </button>
+        
+    </div>
+</nav>
+<div class="single-column-header-container" id="pageHead"
+     v-bind:style="{ transform: 'translateZ(0px) translateY('+.3*scrollY+'px)', opacity: 1-navOpacity }">
+    <a href="https://zhixuan-zxli.github.io/">
+        <div class="single-column-header-title">Zhixuan&#39;s Blog</div>
+        
+
+    </a>
+</div>
+
+            <div id="content">
+                <div id="streamContainer" class="stream-container">
+
+    <div class="post-list-container post-list-container-shadow">
+        <div class="post">
+            
+            
+            
+
+            <div class="post-head-wrapper-text-only"
+                
+            >
+                <div class="post-title">
+                    MoE流程总结（Routing/DispatchCombine）
+                    
+                    <div class="post-meta">
+                        
+                        <time itemprop="datePublished">
+                            2026-09-08 00:00
+                        </time>
+                        
+
+                        
+
+                        
+                        
+                    </div>
+                </div>
+            </div>
+            
+            <div class="post-body-wrapper">
+                
+                <div class="post-body" v-pre>
+                
+                    <h2 id="_forward_allgather"><code>_forward_allgather</code></h2>
+<p>本文只描述 <code>_is_quant == False</code> 的 BF16
+<code>AllGather → MoE → ReduceScatter</code> 路径。</p>
+<h3 id="shape-符号">Shape 符号</h3>
+<table>
+	<thead>
+			<tr>
+					<th>符号</th>
+					<th>含义</th>
+			</tr>
+	</thead>
+	<tbody>
+			<tr>
+					<td><code>T_local</code></td>
+					<td>当前 EP rank 输入的 token 数</td>
+			</tr>
+			<tr>
+					<td><code>T</code></td>
+					<td>AllGather 后 routed experts 实际处理的 token 数，<code>T = T_local * ep_size</code></td>
+			</tr>
+			<tr>
+					<td><code>H</code></td>
+					<td><code>hidden_size</code></td>
+			</tr>
+			<tr>
+					<td><code>I</code></td>
+					<td><code>moe_intermediate_size</code></td>
+			</tr>
+			<tr>
+					<td><code>E</code></td>
+					<td>routed expert 总数</td>
+			</tr>
+			<tr>
+					<td><code>E_local</code></td>
+					<td>当前 EP rank 持有的 physical expert 数</td>
+			</tr>
+			<tr>
+					<td><code>K</code></td>
+					<td>每个 token 选择的 expert 数，即 <code>top_k</code></td>
+			</tr>
+			<tr>
+					<td><code>M</code></td>
+					<td>routing 展开后的总行数，<code>M = T * K</code></td>
+			</tr>
+			<tr>
+					<td><code>A</code></td>
+					<td>当前 EP rank 的有效 expert-token assignment 数，<code>A = sum(expert_tokens) &lt;= M</code></td>
+			</tr>
+	</tbody>
+</table>
+<h3 id="流程图">流程图</h3>
+<pre tabindex="0"><code class="language-mermaid" data-lang="mermaid">flowchart TD
+    IN[&#34;输入 hidden_states&lt;br/&gt;BF16 [T_local, H]&lt;br/&gt;Gate 可选用 FP32 副本 [T_local, H]&#34;]
+    IN --&gt; SAVE[&#34;保留 shared_input&lt;br/&gt;BF16 [T_local, H]&#34;]
+    IN --&gt; GATE[&#34;Gate&lt;br/&gt;[T_local, H] -&gt; router_logits [T_local, E]&#34;]
+    GATE --&gt; TOPK[&#34;npu_moe_gating_top_k&lt;br/&gt;logits [T_local, E]&lt;br/&gt;-&gt; topk_weights / topk_ids [T_local, K]&#34;]
+
+    TOPK --&gt; AG[&#34;EP AllGather&lt;br/&gt;hidden_states: [T_local, H] -&gt; [T, H]&lt;br/&gt;weights / ids: [T_local, K] -&gt; [T, K]&lt;br/&gt;T = T_local * ep_size&#34;]
+
+    AG --&gt; INIT[&#34;npu_moe_init_routing_v2&lt;br/&gt;输入: hidden_states [T, H], topk_ids [T, K]&lt;br/&gt;输出: sorted_tokens [M, H]&lt;br/&gt;expanded_x_idx [M]&lt;br/&gt;expert_tokens [E_local]&#34;]
+    INIT --&gt; GMM1[&#34;GroupedMatMul 1（gate/up projection）&lt;br/&gt;BF16 [M, H] -&gt; BF16 [M, 2I]&#34;]
+    GMM1 --&gt; ACT[&#34;npu_swiglu&lt;br/&gt;BF16 [M, 2I] -&gt; BF16 [M, I]&#34;]
+    ACT --&gt; GMM2[&#34;GroupedMatMul 2（down projection）&lt;br/&gt;BF16 [M, I] -&gt; BF16 [M, H]&#34;]
+    GMM2 --&gt; FINAL[&#34;npu_moe_finalize_routing&lt;br/&gt;输入: expert rows [M, 1, H]&lt;br/&gt;weights / ids [T, K], index [M]&lt;br/&gt;输出: moe_output [T, H]&#34;]
+
+    FINAL --&gt; RS[&#34;EP ReduceScatter&lt;br/&gt;[T, H] -&gt; [T / ep_size, H]&lt;br/&gt;= routed_output [T_local, H]&#34;]
+
+    SAVE -. &#34;可在 side_stream 上并行&#34; .-&gt; SHARED[&#34;Shared experts&lt;br/&gt;[T_local, H] -&gt; shared_output [T_local, H]&#34;]
+    RS --&gt; ADD[&#34;逐元素相加&lt;br/&gt;routed_output + shared_output&#34;]
+    SHARED --&gt; ADD
+    ADD --&gt; OUT[&#34;result [T_local, H]&#34;]
+</code></pre><h3 id="关键点">关键点</h3>
+<ol>
+<li>Gate 和 TopK 在 AllGather <strong>之前</strong>执行，所以最初的 <code>router_logits</code>、<code>topk_weights</code> 和 <code>topk_ids</code> 第一维都是 <code>T_local</code>。</li>
+<li>Routed 分支先将输入和 routing 信息 AllGather 到 <code>[T, ...]</code>，完成专家计算后再 ReduceScatter 回 <code>[T_local, H]</code>。</li>
+<li><code>npu_moe_init_routing_v2</code> 分配 <code>M = T*K</code> 行，但当前 rank 只计算前 <code>A = sum(expert_tokens)</code> 个有效行。<code>expert_tokens: [E_local]</code> 同时表示后续 GroupedMatMul 的每组行数。</li>
+<li>Shared expert 始终使用未 AllGather 的 <code>shared_input: [T_local, H]</code>；开启 side stream 时，它可以与 routed expert 路径重叠，汇合前通过 event 同步。</li>
+</ol>
+<h2 id="_forward_dispatch_combinesingle-batch"><code>_forward_dispatch_combine</code>（single batch）</h2>
+<p>本文只描述 <code>_is_quant == False</code> 且 <code>T_local &lt;= max_batch_size</code> 的 BF16
+single-batch 路径；当前代码中的 <code>max_batch_size = 128</code>，不涉及切片和
+<code>torch.cat</code>。</p>
+<h3 id="shape-符号-1">Shape 符号</h3>
+<table>
+	<thead>
+			<tr>
+					<th>符号</th>
+					<th>含义</th>
+			</tr>
+	</thead>
+	<tbody>
+			<tr>
+					<td><code>T_local</code></td>
+					<td>当前 EP rank 输入及最终输出的 token 数，single-batch 下 <code>T_local &lt;= 128</code></td>
+			</tr>
+			<tr>
+					<td><code>H</code></td>
+					<td><code>hidden_size</code></td>
+			</tr>
+			<tr>
+					<td><code>I</code></td>
+					<td><code>moe_intermediate_size</code></td>
+			</tr>
+			<tr>
+					<td><code>E</code></td>
+					<td>routed expert 总数</td>
+			</tr>
+			<tr>
+					<td><code>E_local</code></td>
+					<td>当前 EP rank 持有的 physical expert 数</td>
+			</tr>
+			<tr>
+					<td><code>K</code></td>
+					<td>每个 token 选择的 expert 数，即 <code>top_k</code></td>
+			</tr>
+			<tr>
+					<td><code>D</code></td>
+					<td>Dispatch 在当前 rank 分配的接收缓冲区行数；<code>torch_npu</code> 文档将其记为 <code>A</code></td>
+			</tr>
+			<tr>
+					<td><code>V</code></td>
+					<td>当前 rank 实际收到的有效 expert-token assignment 数，<code>V = sum(expert_tokens) &lt;= D</code></td>
+			</tr>
+	</tbody>
+</table>
+<h3 id="流程图-1">流程图</h3>
+<pre tabindex="0"><code class="language-mermaid" data-lang="mermaid">flowchart TD
+    IN[&#34;输入 hidden_states&lt;br/&gt;BF16 [T_local, H]，T_local &lt;= 128&lt;br/&gt;Gate 可选用 FP32 副本 [T_local, H]&#34;]
+    IN --&gt; SAVE[&#34;保留 shared_input&lt;br/&gt;BF16 [T_local, H]&#34;]
+    IN --&gt; GATE[&#34;Gate&lt;br/&gt;[T_local, H] -&gt; router_logits [T_local, E]&#34;]
+    GATE --&gt; TOPK[&#34;npu_moe_gating_top_k&lt;br/&gt;logits [T_local, E]&lt;br/&gt;-&gt; topk_weights / topk_ids [T_local, K]&#34;]
+    TOPK --&gt; MASK[&#34;获取可选 x_active_mask&lt;br/&gt;[T_local] 或 [T_local, K]&#34;]
+
+    MASK --&gt; DISPATCH[&#34;npu_moe_distribute_dispatch_v2&lt;br/&gt;输入: x [T_local, H], expert_ids [T_local, K]&lt;br/&gt;quant_mode = 0，执行 EP 通信和 expert 排序&lt;br/&gt;输出: expand_x [D, H]&lt;br/&gt;expand_idx [D * 128]&lt;br/&gt;expert_token_nums [E_local]&lt;br/&gt;ep_recv_counts / tp_recv_counts（一维通信元数据）&#34;]
+    DISPATCH --&gt; COUNTS[&#34;expert_token_nums 转为 INT64&lt;br/&gt;expert_tokens [E_local]&lt;br/&gt;V = sum(expert_tokens)&#34;]
+    COUNTS --&gt; GMM1[&#34;GroupedMatMul 1（gate/up projection）&lt;br/&gt;BF16 [D, H] -&gt; BF16 [D, 2I]&lt;br/&gt;前 V 行为有效 expert rows&#34;]
+    GMM1 --&gt; ACT[&#34;npu_swiglu&lt;br/&gt;BF16 [D, 2I] -&gt; BF16 [D, I]&#34;]
+    ACT --&gt; GMM2[&#34;GroupedMatMul 2（down projection）&lt;br/&gt;BF16 [D, I] -&gt; BF16 [D, H]&#34;]
+    GMM2 --&gt; COMBINE[&#34;npu_moe_distribute_combine_v2&lt;br/&gt;输入: expert output [D, H]&lt;br/&gt;ids / weights [T_local, K]&lt;br/&gt;expand_idx [D * 128] + Dispatch 通信元数据&lt;br/&gt;执行反向 EP 通信、unpermute、加权求和&lt;br/&gt;输出: moe_output [T_local, H]&#34;]
+
+    SAVE -. &#34;可在 side_stream 上并行&#34; .-&gt; SHARED[&#34;Shared experts&lt;br/&gt;[T_local, H] -&gt; shared_output [T_local, H]&#34;]
+    COMBINE --&gt; ADD[&#34;逐元素相加&lt;br/&gt;moe_output + shared_output&#34;]
+    SHARED --&gt; ADD
+    ADD --&gt; OUT[&#34;final_output [T_local, H]&#34;]
+</code></pre><h3 id="关键点-1">关键点</h3>
+<ol>
+<li>Dispatch 前所有 tensor 都保持本地 token 维度：<code>hidden_states: [T_local, H]</code>，<code>topk_weights/topk_ids: [T_local, K]</code>。</li>
+<li><code>npu_moe_distribute_dispatch_v2</code> 同时完成跨 EP 通信和按本地 expert 排序。<code>expand_x: [D, H]</code> 是容量为 <code>D</code> 的接收缓冲区，实际参与 GMM 的行数由 <code>expert_tokens: [E_local]</code> 给出，即 <code>V = sum(expert_tokens)</code>。</li>
+<li><code>expand_idx</code>、<code>ep_recv_counts</code> 和 <code>tp_recv_counts</code> 是 Dispatch/Combine 配套使用的通信元数据；业务代码只负责原样传回 Combine，不依赖其具体内容。</li>
+<li>两次 GroupedMatMul 和 SwiGLU 都保持 Dispatch 缓冲区的第一维 <code>D</code>；有效的前 <code>V</code> 行按 <code>expert_tokens</code> 分组计算。</li>
+<li><code>npu_moe_distribute_combine_v2</code> 沿 Dispatch 路径反向通信，将 <code>[D, H]</code> 的 expert 输出 unpermute，并使用 <code>[T_local, K]</code> 的权重合并为 <code>[T_local, H]</code>。</li>
+<li>Shared expert 始终处理本地 <code>[T_local, H]</code>，开启 side stream 时可与整个 <code>gating -&gt; dispatch -&gt; GMM -&gt; combine</code> 路径重叠。</li>
+</ol>
+
+                    
+                    <HR width="100%" id="EOF">
+		    <p style="color:#777;">最后修改于 2026-09-08</p>
+                    
+                </div>
+            </div>
+            
+            
+            <nav class="post-pagination">
+
+                
+                <a class="newer-posts" href="/llm/dsv41_kv/">
+			下回<br>DeepSeek V4.1 KV Cache Layout
+                </a>
+                
+                
+                
+                <a class="older-posts" href="/llm/mamba_hybrid/">
+			上回<br>Mamba Hybrid Model State
+                </a>
+                
+            </nav>
+            <div class="post-comment-wrapper">
+                
+
+
+
+
+
+
+
+
+
+
+
+
+            </div>
+        </div>
+    </div>
+
+
+                    </div>
+            </div><div id="sideContainer" class="side-container">
+    
+    <a class="a-block nav-head false" href="https://zhixuan-zxli.github.io/">
+    
+        <div class="nav-title">
+            Zhixuan&#39;s Blog
+        </div>
+        
+    </a>
+
+    <div class="nav-link-list">
+        
+        
+            
+            
+            
+                
+            
+            
+            
+            <a class="a-block nav-link-item active" href="/llm">
+                大模型
+            </a>
+            
+        
+            
+            
+            
+            
+            
+            <a class="a-block nav-link-item false" href="/life">
+                生活随记
+            </a>
+            
+        
+    </div>
+
+    
+
+    <div class="nav-footer">
+        
+Hugo Theme <a href="https://github.com/amazingrise/hugo-theme-diary">Diary</a> by <a href="https://risehere.net/">Rise</a>
+<br>
+移植自 <a href="https://mak1t0.cc/" target="_blank" rel="noreferrer noopener">Makito</a>'s <a href="https://github.com/SumiMakito/hexo-theme-journal/" target="_blank" rel="noreferrer noopener">Journal.</a> <br>
+<br>
+
+&copy;
+	
+	2026 Zhixuan&#39;s Blog
+	
+
+    </div>
+    
+</div><div id="extraContainer" class="extra-container">
+    <div class="toc-wrapper">
+        
+
+        
+    </div>
+    <div class="pagination">
+        <a id="globalBackToTop" class="pagination-action animated-visibility" href="#top"
+            :class="{ invisible: scrollY == 0 }">
+            <i class="material-icons pagination-action-icon">
+                keyboard_arrow_up
+            </i>
+        </a>
+        
+        <a type="button" class="pagination-action" id="darkModeToggleButton">
+            <span class="material-icons pagination-action-icon" id="darkModeToggleIcon">
+                dark_mode
+            </span>
+        </a>
+        
+        
+    </div>
+</div>
+
+<div id="single-column-footer">
+Hugo Theme <a href="https://github.com/amazingrise/hugo-theme-diary">Diary</a> by <a href="https://risehere.net/">Rise</a>
+<br>
+移植自 <a href="https://mak1t0.cc/" target="_blank" rel="noreferrer noopener">Makito</a>'s <a href="https://github.com/SumiMakito/hexo-theme-journal/" target="_blank" rel="noreferrer noopener">Journal.</a> <br>
+<br>
+
+&copy;
+	
+	2026 Zhixuan&#39;s Blog
+	
+</div>
+            </div>
+    
+    <script src="/js/journal.js"></script></body>
+</html>

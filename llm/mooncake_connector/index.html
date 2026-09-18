@@ -562,8 +562,80 @@
 						
 						
 							<li>
-								<a href="#store-connector-flow" class="nav-store-connector-flow">
-									Store connector flow
+								<a href="#one-time-worker-setup-1" class="nav-one-time-worker-setup-1">
+									One-time worker setup
+								</a>
+							</li>
+						
+						
+					
+				
+			
+				
+				
+					
+						
+						
+						
+						
+						
+							<li>
+								<a href="#saving-kv-to-the-store-any-producer-instance" class="nav-saving-kv-to-the-store-any-producer-instance">
+									Saving KV to the store (any producer instance)
+								</a>
+							</li>
+						
+						
+					
+				
+			
+				
+				
+					
+						
+						
+						
+						
+						
+							<li>
+								<a href="#looking-up-and-loading-kv-any-consumer-instance" class="nav-looking-up-and-loading-kv-any-consumer-instance">
+									Looking up and loading KV (any consumer instance)
+								</a>
+							</li>
+						
+						
+					
+				
+			
+				
+				
+					
+						
+						
+						
+						
+						
+							<li>
+								<a href="#end-to-end-timeline-1" class="nav-end-to-end-timeline-1">
+									End-to-end timeline
+								</a>
+							</li>
+						
+						
+					
+				
+			
+				
+				
+					
+						
+						
+						
+						
+						
+							<li>
+								<a href="#completion-chains-how-loads-and-saves-finish-end-to-end" class="nav-completion-chains-how-loads-and-saves-finish-end-to-end">
+									Completion chains: how loads and saves finish end-to-end
 								</a>
 							</li>
 						
@@ -945,33 +1017,327 @@ connector.get_finished()
 </ul>
 <h3 id="load-error-reporting">Load-error reporting</h3>
 <p>Exposes <code>get_block_ids_with_load_errors</code> so the scheduler can invalidate a bad prefix hit and fall through to local recompute. The P2P connector has no equivalent because a failed transfer aborts the whole request.</p>
-<h3 id="store-connector-flow">Store connector flow</h3>
-<pre tabindex="0"><code>─── Producer side (any instance) ───────────────
-Scheduler: update_state_after_alloc → mark blocks to store
-Scheduler: build_connector_meta → MooncakeStoreConnectorMetadata
+<h3 id="one-time-worker-setup-1">One-time worker setup</h3>
+<pre tabindex="0"><code>Worker __init__ (every rank)                  Worker __init__ (rank 0 only)
+├── MooncakeDistributedStore.setup(           └── LookupKeyServer(...) thread
+│      hostname, metadata_server,                 ├── ZMQ REP bound to an IPC path
+│      global_segment_size, local_buffer_size,    │      unique per (host, dp_rank)
+│      protocol, device_name, master_addr)        └── loop:
+│      # embedded mode: this rank contributes          ├── LOOKUP_MSG → worker.lookup()
+│      # a segment to the shared pool;                   │      └── reply hit_count (u32 BE)
+│      # standalone-store: 0 — an external               └── RESET_MSG → drain send queue,
+│      # mooncake_client owns pool + SSD tier               store.remove_all(force=True),
+│                                                            reply RESP_OK / RESP_ERR
+└── register_kv_caches(kv_caches)
+    ├── for each unique tensor storage ptr:
+    │      store.register_buffer(base_addr, nbytes)
+    │         # pins local KV memory so the store can RDMA-read it
+    ├── stride-based layout detection per tensor:
+    │      blocks-first (FlashInfer / MLA) → one segment
+    │      K/V-first (FlashAttn) → split into K and V segments
+    ├── per group: ChunkedTokenDatabase.set_kv_caches_base_addr /
+    │      set_block_len   # token range → (addrs, sizes) mapping
+    ├── (kv_producer | kv_both)
+    │      KVCacheStoreSendingThread.start()
+    └── N × KVCacheStoreRecvingThread.start()
+           # N = VLLM_MOONCAKE_LOAD_RECV_THREADS (default 1)
+</code></pre><h3 id="saving-kv-to-the-store-any-producer-instance">Saving KV to the store (any producer instance)</h3>
+<pre tabindex="0"><code>─── Scheduler process ──────────────────────────────────────────────────
+Engine step
+└── connector.update_state_after_alloc(req, blocks, n_ext)
+       └── _unfinished_requests[req_id] = (request, block_ids)
 
-Worker: get_finished(finished_ids, metadata)
+Engine step (end)
+├── connector.build_connector_meta(sched_out)
+│      └── MooncakeStoreScheduler.build_connector_meta:
+│          ├── finished / preempted → purge trackers &amp; load specs
+│          ├── scheduled new requests → RequestTracker + ReqMeta
+│          │     (token_ids, allocated_block_ids, block_hashes,
+│          │      is_last_chunk; skip_save for kv_consumer)
+│          ├── decode / chunked → tracker.update(new_block_ids),
+│          │     ReqMeta(can_save=True) until prefill_end
+│          ├── resumed-from-preemption → fresh tracker over
+│          │     all_token_ids (prompt + already generated)
+│          └── partial-tail offloads attached to save metas
+│                                                          │
+└── connector.request_finished(req, block_ids)              │
+       └── tracker.num_saved_tokens &gt; 0                    │
+           → return (delay_free_blocks=True, None)         │
+             # GPU blocks stay pinned until the store       │
+             # has actually consumed them                   │
+                                                     MooncakeStoreConnectorMetadata
+                                                           │
+─── Worker process ─────────────────────────▼───────────────────────────
+connector.get_finished(finished_req_ids)
+└── MooncakeStoreWorker.get_finished(...)   # called after compute launched
+    ├── issue loads (see below)             # so I/O overlaps compute
+    ├── for request in meta.requests where can_save:
+    │      request.current_event = torch.cuda.Event()   # recorded once,
+    │      kv_send_thread.add_stored_request(req_id)    # per-step, shared
+    │      kv_send_thread.add_request(request)          # queue.Queue
+    │
+    └── _get_and_clear_finished_sending(...)
+           ├── preempted → delete from stored_requests
+           └── req finished AND in-flight counter == 0 → done_sending
+               # scheduler frees the blocks it delayed
+
+┌────────────── KVCacheStoreSendingThread ────────────────────────────┐
+│                                                                      │
+│  _handle_request(req_meta)                                           │
+│  ├── token_len = token_len_chunk // lcm_block_size * lcm_block_size  │
+│  ├── partial_tail_offloads? → _maybe_offload_partial_tail()          │
+│  │     # sub-block tail keyed by boundary sub-hash; fences the       │
+│  │     # CoW copy event before the put                               │
+│  ├── save_start = _saved_offset[req_id]   # resume where we left     │
+│  ├── store_masks = coord.store_mask(token_len, save_start, ...)      │
+│  │     # reachable_block_mask mirror: SWA windows, retention, ...    │
+│  ├── for g_idx, db in token_dbs:                                     │
+│  │      put_step = group_tp_replication_factors[g_idx]               │
+│  │      put_step_rank = (tp_rank + g_idx) % put_step                 │
+│  │      # MLA / GQA replicas stripe puts across byte-identical ranks │
+│  │      for start, end, hash in db.process_tokens(                   │
+│  │              token_len, block_hashes, mask_num=save_start,        │
+│  │              chunk_mask=store_masks[g_idx], put_step=...):        │
+│  │          keys.append(db.key_for(hash))                            │
+│  │          # key = model@tp:r@pcp@dcp@pp:r@group:g@chunk_hash       │
+│  ├── exists = store.batch_is_exist(keys)  # dedup vs the shared pool │
+│  │      → keep only missing keys                                     │
+│  ├── addrs, sizes = db.prepare_values(chunks, block_ids[g_idx])      │
+│  │      # scatter-gather (addr, size) per K/V segment                │
+│  ├── current_event.synchronize()   # fence compute: KV is final      │
+│  ├── res = store.batch_put_from_multi_buffers(                       │
+│  │          keys, addrs, sizes, replicate_config)                    │
+│  │      # Mooncake RDMA-pulls from our registered buffers;           │
+│  │      # offload mode may stage into the SSD tier                   │
+│  ├── failures with code MOONCAKE_NO_AVAILABLE_HANDLE (-200)          │
+│  │      → CPU/disk-offload pressure → skip future batches for this   │
+│  │        request until one succeeds (_saved_offset tracks resume)   │
+│  ├── emit BlockStored KV events (parent_block_hash chain per group)  │
+│  └── finally: dec_stored_request(req_id); task_done()                │
+│                                                                      │
+└──────────────────────────────────────────────────────────────────────┘
+</code></pre><h3 id="looking-up-and-loading-kv-any-consumer-instance">Looking up and loading KV (any consumer instance)</h3>
+<pre tabindex="0"><code>─── Scheduler process ──────────────────────────────────────────────────
+Engine step
+└── connector.get_num_new_matched_tokens(req, num_computed_tokens)
+    └── MooncakeStoreScheduler:
+        ├── align = hash_block_size if partial_hash_hits else block_size
+        │     # requests shorter than one aligned unit → (0, False)
+        ├── num_external_hit_tokens = client.lookup(
+        │       req_id, num_tokens, block_hashes, non_block=lookup_async)
+        │   └── LookupKeyClient (scheduler process)
+        │       ├── ThreadPoolExecutor.submit(_lookup)     # async lookup
+        │       └── ZMQ REQ ──ipc──▶ LookupKeyServer (worker rank 0)
+        │           └── worker.lookup(num_tokens, block_hashes)
+        │               ├── candidate keys: every (group, chunk hash)
+        │               │     expanded across all rank namespaces
+        │               │     (TP shards × PCP × PP; replicated groups
+        │               │      share one namespace)
+        │               ├── store.batch_is_exist(candidate_keys)
+        │               │     # master metadata query — no data movement
+        │               ├── ExternalCachedBlockPool(exists_set)
+        │               └── coord.find_longest_cache_hit(...)
+        │                     # mirrors HybridKVCacheCoordinator:
+        │                     # per-group hit convergence, eagle
+        │                     # last-block drop
+        │                     └── full hit → re-derive at
+        │                         num_tokens - 1   # last token is
+        │                         # recomputed locally for sampling
+        │       └── hit count back over ZMQ (u32 BE)
+        ├── (async lookup still in flight) → (None, False)
+        │     # scheduler retries this request on a later step
+        └── need_to_allocate = hit - computed &gt; 0
+            → load_specs[req_id] = LoadSpec(vllm_cached_tokens,
+                kvpool_cached_tokens, can_load=False)
+            → return (need_to_allocate, load_async)
+
+Engine step
+└── connector.update_state_after_alloc(req, blocks, n_ext)
+       ├── _unfinished_requests[req_id] = (request, local_block_ids)
+       └── load_spec.can_load = True
+
+Engine step (end)
+└── connector.build_connector_meta(sched_out)
+       └── ReqMeta.from_request_tracker(tracker, load_spec=load_spec,
+              block_hashes=..., block_ids=allocated local blocks)
+              # a ReqMeta never carries both a save and a load —
+              # bytes being looked up right now are not re-saved
+
+                                                     MooncakeStoreConnectorMetadata
+                                                           │
+─── Worker process ─────────────────────────▼───────────────────────────
+connector.get_finished(finished_req_ids)
 └── MooncakeStoreWorker.get_finished(...)
-    └── enqueue puts to background thread
-        └── store.batch_put(keys=[hash(block)], values=[tensor_slice])
-              # Mooncake distributed store handles RDMA internally
-        └── emit KVCacheEvent(BlockStored, hash) → aggregator → take_events
+    ├── for request in meta.requests:
+    │      if load_spec and load_spec.can_load:
+    │          load_spec.token_len = kvpool_cached_tokens
+    │          recv_request_queue.put(request)
+    │
+    └── done_recving = ∪ recv_thread.get_and_clear_finished_requests()
 
-─── Consumer side (any instance) ───────────────
-Scheduler: get_num_new_matched_tokens
-└── MooncakeStoreScheduler probes store for block hashes → returns hit count
+┌────────────── KVCacheStoreRecvingThread ─────────────────────────────┐
+│                                                                      │
+│  _handle_request(req_meta)                                           │
+│  ├── token_len = load_spec.token_len    # kvpool_cached_tokens       │
+│  ├── mask_num = vllm_cached_tokens // block_size * block_size        │
+│  │     # the locally computed prefix is not re-fetched               │
+│  ├── load_mask = coord.load_mask(block_hashes, token_len)            │
+│  │     # skip chunks the local spec wouldn&#39;t populate (e.g. SWA      │
+│  │     # pre-window), even if the producer stored them               │
+│  ├── for g_idx, db in token_dbs:                                     │
+│  │      for start, end, hash in db.process_tokens(                   │
+│  │              token_len, block_hashes, mask_num):                  │
+│  │          if masked out: continue                                  │
+│  │          keys.append(db.key_for(hash))                            │
+│  │      g_addrs, g_sizes, g_block_ids = db.prepare_values(           │
+│  │          chunks, block_ids[g_idx])                                │
+│  │          # destinations are our own registered KV buffers         │
+│  ├── rotate key/addr/size lists by tp_rank   # spread master load    │
+│  ├── (disk offload) split into sub-batches bounded by the owner&#39;s    │
+│  │     staging-buffer budget                                         │
+│  └── for batch:                                                      │
+│      res = store.batch_get_into_multi_buffers(keys, addrs, sizes)    │
+│            # Mooncake fetches from the owner (memory replica or      │
+│            # SSD tier) and writes directly into our registered       │
+│            # KV buffers — no local copy on this side                 │
+│      failures → _add_load_error_block_ids(block_ids)                 │
+│  └── set_finished_request(req_id); task_done()                       │
+│                                                                      │
+└──────────────────────────────────────────────────────────────────────┘
 
-Scheduler: build_connector_meta → keys to fetch
-Worker: get_finished(...)
-└── MooncakeStoreWorker.get_finished(...)
-    └── store.batch_get(keys) → writes into registered KV memory
-    └── on failure: get_block_ids_with_load_errors() → scheduler recomputes
-</code></pre><p>Key differences vs the P2P flow:</p>
+─── failure path ───────────────────────────────────────────────────────
+Worker main thread
+connector.get_block_ids_with_load_errors()
+└── ∪ recv_thread.get_and_clear_block_ids_with_load_errors()
+       └── scheduler invalidates the bad prefix hit and falls back to
+           local recompute — no whole-request abort (unlike P2P)
+</code></pre><h3 id="end-to-end-timeline-1">End-to-end timeline</h3>
+<pre tabindex="0"><code>Consumer sched    Consumer worker   Mooncake store    Producer worker  Producer sched
+       │                 │                 │                 │                │
+       get_num_new_matched_tokens
+       ├─ ZMQ lookup ────▶
+                         ├─ batch_is_exist ▶
+                         ◀───────── exists ┤
+       ◀────── hit count ┤
+       update_state_after_alloc
+                                                                              update_state_after_alloc
+       ├─ build_meta ────▶
+                                                                              build_meta
+                         recv_queue.put ──▶ recv thread
+                         ├─ batch_get ─────▶
+                  owner serves (mem / SSD) ┤
+       ◀─── done_recving ┤
+       (decode unblocked)
+                                                             ◀── get_finished ┤
+                                      batch_is_exist (dedup) ┤
+                                                             sync CUDA event
+                                                                              request_finished
+                                           ◀────── batch_put ┤
+                                                             done_sending
+                                                             ├─ free blocks ──▶
+</code></pre><p>Notes on the abbreviated labels:</p>
 <ul>
-<li>No ZMQ side-channel, no bootstrap HTTP — the Mooncake master is the single rendezvous.</li>
-<li>No <code>_sender_listener</code> / <code>_sender_worker</code> machinery. Both put and get are issued from inside <code>get_finished</code> (<code>start_load_kv</code> is a no-op) so they naturally overlap with compute.</li>
-<li>No P-D asymmetry: any instance does both puts and gets. Prefix reuse across requests and across instances is automatic because keys are content hashes.</li>
+<li><code>build_meta</code> = <code>build_connector_meta</code>. The consumer&rsquo;s meta carries the
+<code>LoadSpec</code> and the freshly allocated local block IDs; the producer&rsquo;s
+carries <code>can_save=True</code> and the block hashes to key on.</li>
+<li><code>batch_get</code> = <code>batch_get_into_multi_buffers</code> — the owner writes directly
+into the consumer&rsquo;s registered KV buffers, no local copy on the consumer
+side.</li>
+<li><code>batch_put</code> = <code>batch_put_from_multi_buffers</code> — the store RDMA-pulls from
+the producer&rsquo;s registered buffers after the send thread fences the
+compute CUDA event (offload mode may stage into the SSD tier).</li>
+<li>The producer scheduler&rsquo;s <code>request_finished</code> returns
+<code>delay_free_blocks=True</code>; the actual free happens only once the worker
+reports <code>done_sending</code> (in-flight put counter at zero).</li>
+<li>Load-failure path (not drawn): <code>get_block_ids_with_load_errors</code> → the
+consumer scheduler invalidates the bad hit and recomputes locally.</li>
 </ul>
+<p>Key differences vs the P2P flow:</p>
+<ul>
+<li>The store itself is the rendezvous (Mooncake master for metadata, owner
+segments for data) — no cross-instance ZMQ or bootstrap HTTP. The only
+ZMQ is intra-instance: the scheduler&rsquo;s <code>LookupKeyClient</code> ↔ rank-0
+worker&rsquo;s <code>LookupKeyServer</code> over an IPC socket, used for hash lookups
+and <code>reset</code>.</li>
+<li>No <code>_sender_listener</code> / <code>_sender_worker</code> machinery. Both put and get are
+issued from inside <code>get_finished</code> (<code>start_load_kv</code> is a no-op) so they
+naturally overlap with compute, and the actual I/O runs on dedicated
+<code>KVCacheStoreSendingThread</code> / <code>KVCacheStoreRecvingThread</code> daemon
+threads fed by <code>queue.Queue</code>s.</li>
+<li>The store API is scatter-gather rather than block descriptors:
+<code>batch_put_from_multi_buffers(keys, addrs, sizes, replicate_config)</code>
+and <code>batch_get_into_multi_buffers(keys, addrs, sizes)</code>, with
+<code>batch_is_exist</code> for dedup and lookup.</li>
+<li>No P-D asymmetry: any instance does both puts and gets. Prefix reuse
+across requests and across instances is automatic because keys are
+content hashes. Producer and consumer are only weakly coupled through
+the master — a failed load invalidates the hit and recomputes, while a
+failed put is silently retried later via the <code>_saved_offset</code> high-water
+mark.</li>
+</ul>
+<h3 id="completion-chains-how-loads-and-saves-finish-end-to-end">Completion chains: how loads and saves finish end-to-end</h3>
+<p>The call stacks above show how I/O is issued; this section summarizes how
+its completion is signalled back to the scheduler. Both chains use the
+same channel: the worker thread records completion in a per-thread set,
+<code>MooncakeStoreWorker.get_finished()</code> reaps it into
+<code>done_recving</code> / <code>done_sending</code>, the model runner attaches those sets to
+<code>KVConnectorOutput</code> at step end
+(<code>vllm/v1/worker/kv_connector_model_runner_mixin.py:102</code>), and the core
+scheduler consumes them in <code>_update_from_kv_xfer_finished</code>
+(<code>vllm/v1/core/sched/scheduler.py:2714</code>).</p>
+<p><strong>Save chain — forward pass → put → block release</strong></p>
+<ol>
+<li>The model runner calls <code>get_finished()</code> in its connector-output
+<code>finally</code>, after the step&rsquo;s compute has been launched. For every
+<code>can_save</code> request the worker records one shared <code>torch.cuda.Event()</code>
+on the compute stream, then <code>add_stored_request(req_id)</code> (in-flight
+counter +1) and enqueues the <code>ReqMeta</code> to the sending thread.</li>
+<li>The sending thread dedups keys, prepares the scatter-gather lists,
+and calls <code>current_event.synchronize()</code>
+(<code>store/worker.py:858</code>) — this is the forward-pass completion
+dependency: the put cannot start until the compute stream has
+finished writing those blocks. Then <code>batch_put_from_multi_buffers</code>
+RDMA-pulls from the registered buffers.</li>
+<li>On completion the thread&rsquo;s <code>finally</code> decrements the counter.
+<code>_get_and_clear_finished_sending</code> pairs a zeroed counter with a
+finished request — either finished this step (<code>finished_req_ids</code>) or
+parked in <code>finished_store_req</code> while puts were still in flight — and
+returns it in <code>done_sending</code>. Preempted requests just have their
+counters dropped.</li>
+<li><code>done_sending</code> rides back as <code>KVConnectorOutput.finished_sending</code>;
+<code>_update_from_kv_xfer_finished</code> then calls <code>_free_blocks(req)</code>. This
+is why <code>MooncakeStoreScheduler.request_finished</code> returned
+<code>delay_free_blocks=True</code>: <code>_free_request</code> skips the immediate free,
+keeping the blocks pinned until the store has actually consumed
+them.</li>
+</ol>
+<p><strong>Load chain — lookup → GET → reschedulable</strong></p>
+<ol>
+<li>The request enters <code>WAITING_FOR_REMOTE_KVS</code> at admission with blocks
+allocated but KV not yet present; <code>update_state_after_alloc</code> flips
+<code>can_load=True</code> and <code>build_connector_meta</code> emits the <code>ReqMeta</code>.</li>
+<li>The worker&rsquo;s <code>get_finished()</code> puts every <code>can_load</code> request on the
+shared <code>recv_request_queue</code>; any of the N
+<code>KVCacheStoreRecvingThread</code>s picks it up, rotates the key/addr/size
+lists by <code>tp_rank</code>, and issues <code>batch_get_into_multi_buffers</code>
+directly into the consumer&rsquo;s registered KV buffers. Failures are
+recorded as invalid block IDs; the thread then calls
+<code>set_finished_request(req_id)</code> + <code>task_done()</code>.</li>
+<li><code>done_recving</code> (union over threads) rides back as
+<code>KVConnectorOutput.finished_recving</code>. The scheduler adds the req_id
+to <code>finished_recving_kv_req_ids</code>; if the request already finished
+while the load was in flight, its blocks are freed instead.</li>
+<li>On a later step <code>_try_promote_blocked_waiting_request</code> promotes the
+request: <code>_update_waiting_for_remote_kv</code> caches the loaded blocks
+(backing <code>num_computed_tokens</code> off by one on a full-prompt hit so
+the last token is recomputed for sampling), and the request returns
+to <code>WAITING</code> (or <code>PREEMPTED</code>), eligible for scheduling.</li>
+<li>Failure path: <code>get_block_ids_with_load_errors</code> surfaces the bad
+blocks as <code>KVConnectorOutput.invalid_block_ids</code>;
+<code>_update_requests_with_invalid_blocks</code> rewinds
+<code>num_computed_tokens</code> to the longest valid prefix, and the request
+is still promoted — the failed range is recomputed locally.</li>
+</ol>
 <hr>
 <h2 id="4-quick-comparison">4. Quick comparison</h2>
 <table>
