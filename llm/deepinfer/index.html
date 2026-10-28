@@ -1,0 +1,1605 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<title>DeepInfer 调研</title>
+
+
+
+
+<meta charset="utf-8">
+<meta name="X-UA-Compatible" content="IE=edge">
+<meta name="google-site-verification" content="">
+<meta content="width=device-width, initial-scale=1.0, maximum-scale=5, user-scalable=5" name="viewport">
+<meta content="telephone=no" name="format-detection">
+<meta name="description" content="">
+<meta name="renderer" content="webkit">
+<meta name="theme-color" content="#ffffff">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+
+
+
+
+
+    <link type="text/css" rel="stylesheet" href="/vendor/css/bootstrap.min.css">
+
+<link rel="stylesheet" href="/scss/dark-mode.min.6c9b4c2290542df75010d1640eac4339c754ccff3c9b43fc81a23c94e7e12eaf.css" integrity="sha256-bJtMIpBULfdQENFkDqxDOcdUzP88m0P8gaI8lOfhLq8=" media="screen">
+
+
+<link rel="stylesheet"
+          href="https://fonts.googleapis.com/css?family=Material+Icons">
+
+
+
+
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.13.13/dist/katex.min.css" integrity="sha384-RZU/ijkSsFbcmivfdRBQDtwuwVqK7GMOw6IMvKyeWL2K5UAlyp6WonmB8m7Jd0Hn" crossorigin="anonymous">
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.13.13/dist/katex.min.js" integrity="sha384-pK1WpvzWVBQiP0/GjnvRxV4mOb0oxFuyRxJlk6vVw146n3egcN5C925NCP7a7BY8" crossorigin="anonymous"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.13.13/dist/contrib/auto-render.min.js" integrity="sha384-vZTG03m+2yp6N6BNi5iM4rW4oIwk5DfcNdFfxkk9ZWpDriOkXX8voJBFrAO7MpVl" crossorigin="anonymous"></script>
+<script>
+    document.addEventListener("DOMContentLoaded", function() {
+        renderMathInElement(document.body, {
+          
+          
+          delimiters: [
+              {left: '$$', right: '$$', display: true},
+              {left: '$', right: '$', display: false},
+              {left: '\\(', right: '\\)', display: false},
+              {left: '\\[', right: '\\]', display: true}
+          ],
+          
+          throwOnError : false
+        });
+    });
+</script>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<link rel="stylesheet" href="/css/custom.css">
+
+
+
+
+</head>
+<body>
+    	<div id="app"><div class="single-column-drawer-container" id="drawer"
+     v-bind:class="{ 'single-column-drawer-container-active': isDrawerOpen }">
+    <div class="drawer-content">
+        <div class="drawer-menu">
+            
+            
+            
+                
+                
+                
+                    
+                
+                
+                
+                <a class="a-block drawer-menu-item active" href="/llm">
+                    大模型
+                </a>
+                
+            
+                
+                
+                
+                
+                
+                <a class="a-block drawer-menu-item false" href="/life">
+                    生活随记
+                </a>
+                
+            
+            
+            <div class="toc">
+
+
+	<div class="toc-content">
+	
+		
+		
+		
+		<center>- 目录 -</center>
+		
+		
+		<ul>
+			
+				
+				
+					
+						
+						
+						
+						
+						
+							<li>
+								<a href="#deepinfer-%e8%b0%83%e7%a0%94" class="nav-deepinfer-调研">
+									DeepInfer 调研
+								</a>
+							</li>
+						
+						
+					
+				
+			
+				
+				
+					
+						
+						
+						
+						
+							
+								
+									<ul>
+								
+							
+						
+						
+							<li>
+								<a href="#20261026" class="nav-20261026">
+									2026/10/26
+								</a>
+							</li>
+						
+						
+					
+				
+			
+				
+				
+					
+						
+						
+						
+						
+						
+							<li>
+								<a href="#deepinfer%e4%b8%ba%e4%bb%80%e4%b9%88%e5%81%9a%e6%95%88%e6%9e%9c%e5%a6%82%e4%bd%95" class="nav-deepinfer为什么做效果如何">
+									DeepInfer：为什么做，效果如何
+								</a>
+							</li>
+						
+						
+					
+				
+			
+				
+				
+					
+						
+						
+						
+						
+						
+							<li>
+								<a href="#%e6%a6%82%e8%a7%88--%e6%9e%b6%e6%9e%84" class="nav-概览--架构">
+									概览 &amp; 架构
+								</a>
+							</li>
+						
+						
+					
+				
+			
+				
+				
+					
+						
+						
+						
+						
+						
+							<li>
+								<a href="#%e8%b0%83%e5%ba%a6--kv-cache--%e7%ae%97%e6%b3%95%e4%bc%98%e5%8c%96---9-%e4%b8%aa%e4%b8%bb%e8%a6%81%e7%89%b9%e6%80%a7" class="nav-调度--kv-cache--算法优化---9-个主要特性">
+									调度 / KV Cache / 算法优化 - 9 个主要特性
+								</a>
+							</li>
+						
+						
+					
+				
+			
+				
+				
+					
+						
+						
+						
+						
+						
+							<li>
+								<a href="#01c-scheduler" class="nav-01c-scheduler">
+									01｜C&#43;&#43; Scheduler
+								</a>
+							</li>
+						
+						
+					
+				
+			
+				
+				
+					
+						
+						
+						
+						
+						
+							<li>
+								<a href="#02pd-%e6%b7%b7%e9%83%a8%e8%b0%83%e5%ba%a6%e7%ad%96%e7%95%a5" class="nav-02pd-混部调度策略">
+									02｜PD 混部调度策略
+								</a>
+							</li>
+						
+						
+					
+				
+			
+				
+				
+					
+						
+						
+						
+						
+						
+							<li>
+								<a href="#03zero-overhead-scheduler-zos" class="nav-03zero-overhead-scheduler-zos">
+									03｜Zero-Overhead Scheduler (ZOS)
+								</a>
+							</li>
+						
+						
+					
+				
+			
+				
+				
+					
+						
+						
+						
+						
+						
+							<li>
+								<a href="#04%e6%a8%a1%e5%9e%8b%e6%9e%b6%e6%9e%84--kv-cache-%e6%a0%bc%e5%bc%8f" class="nav-04模型架构--kv-cache-格式">
+									04｜模型架构 &amp; KV Cache 格式
+								</a>
+							</li>
+						
+						
+					
+				
+			
+				
+				
+					
+						
+						
+						
+						
+						
+							<li>
+								<a href="#04kv-cache-%e5%b8%83%e5%b1%80" class="nav-04kv-cache-布局">
+									04｜KV Cache 布局
+								</a>
+							</li>
+						
+						
+					
+				
+			
+				
+				
+					
+						
+						
+						
+						
+						
+							<li>
+								<a href="#05%e5%89%8d%e7%bc%80%e7%bc%93%e5%ad%98" class="nav-05前缀缓存">
+									05｜前缀缓存
+								</a>
+							</li>
+						
+						
+					
+				
+			
+				
+				
+					
+						
+						
+						
+						
+						
+							<li>
+								<a href="#06swa-bounded-replay" class="nav-06swa-bounded-replay">
+									06｜SWA Bounded Replay
+								</a>
+							</li>
+						
+						
+					
+				
+			
+				
+				
+					
+						
+						
+						
+						
+						
+							<li>
+								<a href="#07dspark%e5%8f%98%e9%95%bf%e6%8a%95%e6%9c%ba%e9%aa%8c%e8%af%81" class="nav-07dspark变长投机验证">
+									07｜DSpark：变长投机验证
+								</a>
+							</li>
+						
+						
+					
+				
+			
+				
+				
+					
+						
+						
+						
+						
+						
+							<li>
+								<a href="#08%e5%b9%b6%e8%a1%8cdp-x-cp-attention--ep-moe--eplb" class="nav-08并行dp-x-cp-attention--ep-moe--eplb">
+									08｜并行：DP x CP-Attention &#43; EP-MoE &#43; EPLB
+								</a>
+							</li>
+						
+						
+					
+				
+			
+				
+				
+					
+						
+						
+						
+						
+						
+							<li>
+								<a href="#09%e9%ab%98%e6%80%a7%e8%83%bd%e8%9e%8d%e5%90%88%e7%ae%97%e5%ad%90" class="nav-09高性能融合算子">
+									09｜高性能融合算子
+								</a>
+							</li>
+						
+						
+					
+				
+			
+				
+				
+					
+						
+						
+						
+						
+						
+							<li>
+								<a href="#%e6%80%bb%e7%bb%93" class="nav-总结">
+									总结
+								</a>
+							</li>
+						
+						
+					
+				
+			
+		</ul>
+	</div>
+
+</div>
+            
+        </div>
+    </div>
+</div>
+<transition name="fade">
+    <div id="drawer-mask" v-bind:class="{ 'single-column-drawer-mask': mounted }" v-if="isDrawerOpen" v-on:click="toggleDrawer"></div>
+</transition>
+<nav id="navBar" class="navbar sticky-top navbar-light single-column-nav-container">
+    <div id="navBackground" class="nav-background"></div>
+    <div class="container container-narrow nav-content">
+        <button id="nav_dropdown_btn" class="nav-dropdown-toggle" type="button" v-on:click="toggleDrawer">
+            <i class="material-icons">
+                menu
+            </i>
+        </button>
+        <a id="navTitle" class="navbar-brand" href="https://zhixuan-zxli.github.io/">
+            Zhixuan&#39;s Blog
+        </a>
+        
+        <button type="button" class="nav-darkmode-toggle" id="darkModeToggleButton2">
+            <i class="material-icons" id="darkModeToggleIcon2">
+                dark_mode
+            </i>
+        </button>
+        
+    </div>
+</nav>
+<div class="single-column-header-container" id="pageHead"
+     v-bind:style="{ transform: 'translateZ(0px) translateY('+.3*scrollY+'px)', opacity: 1-navOpacity }">
+    <a href="https://zhixuan-zxli.github.io/">
+        <div class="single-column-header-title">Zhixuan&#39;s Blog</div>
+        
+
+    </a>
+</div>
+
+            <div id="content">
+                <div id="streamContainer" class="stream-container">
+
+    <div class="post-list-container post-list-container-shadow">
+        <div class="post">
+            
+            
+            
+
+            <div class="post-head-wrapper-text-only"
+                
+            >
+                <div class="post-title">
+                    DeepInfer 调研
+                    
+                    <div class="post-meta">
+                        
+                        <time itemprop="datePublished">
+                            2026-10-28 00:00
+                        </time>
+                        
+
+                        
+
+                        
+                            <i class="material-icons" style="">label</i>
+                            
+                                <a href="/tags/deepseek">DeepSeek</a>
+                                &nbsp;
+                            
+                                <a href="/tags/%E6%8E%A8%E7%90%86">推理</a>
+                                &nbsp;
+                            
+                        
+                        
+                    </div>
+                </div>
+            </div>
+            
+            <div class="post-body-wrapper">
+                
+                <div class="post-body" v-pre>
+                
+                    <style>
+.post-body section {
+  font-family: "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans CJK SC", sans-serif;
+  font-size: 20px;
+  line-height: 1.6;
+  color: #1f2937;
+  background: #ffffff;
+  padding: 84px 54px 42px;
+  align-content: start !important;
+}
+.post-body h1 { font-size: 58px; color: #0f172a; letter-spacing: -0.03em; margin: 0 0 6px; }
+.post-body h2 {
+  font-size: 32px; color: #0f172a; line-height: 1.2;
+  margin: 0 0 2px; padding-left: 14px;
+  border-left: 7px solid #2563eb; border-bottom: none;
+}
+.post-body h3 { font-size: 21px; color: #0f172a; margin: 0 0 6px; }
+.post-body p { margin: 0.32em 0; }
+.post-body ul, .post-body ol { margin: 0.15em 0 0.35em 1.1em; padding: 0; }
+.post-body li { margin: 0.16em 0; }
+.post-body strong { color: #0f172a; }
+.post-body code {
+  font-family: "SFMono-Regular", Menlo, Consolas, monospace;
+  font-size: 0.85em; background: #f1f5f9; color: #0f172a;
+  padding: 1px 4px; border-radius: 4px;
+}
+.post-body pre {
+  background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px;
+  padding: 9px 11px; margin: 5px 0 0;
+}
+.post-body pre code { background: none; padding: 0; font-size: 12px; line-height: 1.45; }
+.post-body blockquote {
+  border-left: 4px solid #2563eb; background: #eff6ff;
+  margin: 5px 0 10px; padding: 7px 12px;
+  color: #1e3a8a; font-size: 17px;
+}
+.post-body blockquote p { margin: 0; }
+.post-body section.lead {
+  align-content: center !important;
+  background: linear-gradient(135deg, #f8fbff 0%, #eef4ff 100%);
+  text-align: left;
+}
+.post-body section.lead h1 { font-size: 78px; margin-bottom: 4px; }
+.post-body section.lead h2 {
+  font-size: 31px; font-weight: 600; color: #1e3a8a;
+  border: none; padding: 0; margin: 0 0 14px;
+}
+.post-body section.lead p { color: #475569; font-size: 16.5px; margin: 0.2em 0; }
+.post-body section::after { font-size: 11px; color: #94a3b8; }
+.post-body a { color: #2563eb; text-decoration: underline; }
+.post-body .cols { display: grid; grid-template-columns: 1.02fr 1fr; gap: 26px; align-items: start; }
+.post-body .cols3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; align-items: start; }
+.post-body .cols4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+.post-body .cols-wide { display: grid; grid-template-columns: 2.3fr 1fr; gap: 26px; align-items: start; }
+.post-body .cols > div, .post-body .cols3 > div, .post-body .cols4 > div, .post-body .cols-wide > div { min-width: 0; }
+.post-body .label {
+  font-size: 11.5px; font-weight: 700; letter-spacing: .12em;
+  color: #2563eb; margin: 12px 0 3px;
+}
+.post-body .label.first { margin-top: 0; }
+.post-body .takeaway {
+  margin: 14px 0 0; font-size: 15px; color: #1e3a8a;
+  background: #eff6ff; border-left: 3px solid #2563eb;
+  padding: 7px 12px; border-radius: 0 6px 6px 0;
+}
+.post-body .takeaway b { color: #1d4ed8; }
+.post-body .note { margin-top: 10px; font-size: 13px; color: #64748b; }
+.post-body .meta { margin-top: 16px; font-size: 13px; color: #94a3b8; letter-spacing: .04em; }
+.post-body .kicker { font-size: 12px; font-weight: 700; color: #2563eb; letter-spacing: .18em; margin-bottom: 6px; }
+.post-body .cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; margin-top: 12px; align-items: stretch; }
+.post-body .panel {
+  background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px;
+  padding: 16px 18px;
+}
+.post-body .tree pre code { font-size: 13px; line-height: 1.55; }
+.post-body .bigline { font-size: 24px; font-weight: 600; color: #0f172a; margin: 20px 0 0; }
+.post-body .zos {
+  margin: 14px 0 0; padding: 10px 12px 8px;
+  border: 1px solid #e2e8f0; border-radius: 8px; background: #fbfdff;
+}
+.post-body .zos-row { display: grid; grid-template-columns: 26px 1fr; gap: 8px; align-items: center; }
+.post-body .zos-row + .zos-row { margin-top: 6px; }
+.post-body .zos-tag { font-size: 9.5px; font-weight: 700; letter-spacing: .08em; text-align: right; }
+.post-body .zos-tag.gpu { color: #2563eb; }
+.post-body .zos-tag.cpu { color: #64748b; }
+.post-body .zos-track { position: relative; height: 30px; }
+.post-body .zos-cell {
+  position: absolute; top: 0; bottom: 0;
+  display: flex; align-items: center; justify-content: center;
+  box-sizing: border-box; padding: 0 3px;
+  font-size: 10px; line-height: 1; white-space: nowrap;
+  border: 1px solid transparent; border-radius: 4px;
+}
+.post-body .zos-fwd { background: #2563eb; border-color: #1d4ed8; color: #ffffff; font-weight: 600; }
+.post-body .zos-smp { background: #dbeafe; border-color: #bfdbfe; color: #1e3a8a; }
+.post-body .zos-sch { background: #f1f5f9; border-color: #cbd5e1; color: #334155; }
+.post-body .zos-prep { background: #e2e8f0; border-color: #cbd5e1; color: #334155; }
+.post-body .zos-post { background: #ffffff; border: 1px dashed #94a3b8; color: #475569; }
+.post-body .zos-gpu .zos-cell { font-size: 12px; border-radius: 0; border-right: 2px solid #fbfdff; }
+.post-body .zos-gpu .zos-cell:nth-child(1) { left: 0; width: 42%; border-radius: 4px 0 0 4px; }
+.post-body .zos-gpu .zos-cell:nth-child(2) { left: 42%; width: 8%; }
+.post-body .zos-gpu .zos-cell:nth-child(3) { left: 50%; width: 42%; }
+.post-body .zos-gpu .zos-cell:nth-child(4) { left: 92%; width: 8%; border-right: 0; border-radius: 0 4px 4px 0; }
+.post-body .zos-cpu .zos-cell:nth-child(1) { left: 0; width: 5.5%; }
+.post-body .zos-cpu .zos-cell:nth-child(2) { left: 5.5%; width: 7.8%; }
+.post-body .zos-cpu .zos-cell:nth-child(3) { left: 13.3%; width: 7.8%; }
+.post-body .zos-cpu .zos-cell:nth-child(4) { left: 50%; width: 5.5%; }
+.post-body .zos-cpu .zos-cell:nth-child(5) { left: 55.5%; width: 7.8%; }
+.post-body .zos-cpu .zos-cell:nth-child(6) { left: 63.3%; width: 7.8%; }
+.post-body .zos-axis { margin-top: 2px; text-align: right; font-size: 9px; color: #94a3b8; }
+.post-body .dspark { width: fit-content; margin: 14px 0 0; }
+.post-body .dspark-grid {
+  display: grid; grid-template-columns: 16px 62px 62px; gap: 5px 6px;
+  align-items: center; width: max-content;
+}
+.post-body .dspark-r { text-align: right; font-size: 11.5px; font-weight: 600; color: #64748b; }
+.post-body .dspark-c {
+  height: 30px; display: flex; align-items: center; justify-content: center;
+  border: 1px solid #e2e8f0; border-radius: 5px; background: #ffffff;
+  font-family: "SFMono-Regular", Menlo, Consolas, monospace;
+  font-size: 13px; font-weight: 600; color: #334155;
+  font-variant-numeric: tabular-nums;
+}
+.post-body .dspark-c.on { background: #dbeafe; border-color: #bfdbfe; color: #1e3a8a; }
+.post-body .card {
+  background: #f8fafc; border: 1px solid #e2e8f0; border-top: 4px solid #2563eb;
+  border-radius: 8px; padding: 16px 18px;
+  display: flex; flex-direction: column;
+}
+.post-body .card .resp {
+  margin-top: auto; padding-top: 9px; border-top: 1px dashed #dbe3ee;
+  color: #1d4ed8; font-weight: 600; font-size: 13.5px;
+}
+.post-body .card .k { font-size: 12.5px; font-weight: 700; color: #2563eb; letter-spacing: .1em; }
+.post-body .card .num { font-size: 21px; font-weight: 700; color: #0f172a; margin: 4px 0; }
+.post-body .card p { font-size: 13.5px; color: #475569; margin: 4px 0 0; }
+.post-body .map3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; margin-top: 10px; }
+.post-body .g { font-size: 12.5px; font-weight: 700; color: #2563eb; letter-spacing: .1em; margin-bottom: 3px; }
+.post-body .gitem { border-bottom: 1px solid #eef2f7; padding: 9px 0; }
+.post-body .gitem .n { color: #94a3b8; font-size: 11px; margin-right: 5px; }
+.post-body .gitem b { font-size: 15.5px; color: #0f172a; }
+.post-body .gitem span { display: block; font-size: 12px; color: #64748b; margin-top: 1px; }
+.post-body .map4 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; margin-top: 8px; }
+.post-body .map-compact { margin-top: 8px; }
+.post-body .map-compact .g { margin-bottom: 1px; }
+.post-body .map-compact .gitem { padding: 5px 0; }
+.post-body .map-compact .gitem b { font-size: 14.5px; }
+.post-body .map-compact .gitem span { font-size: 11px; margin-top: 0; }
+.post-body .map-compact .gitem .n { font-size: 10px; }
+.post-body .big { font-size: 23px; font-weight: 600; color: #0f172a; line-height: 1.45; }
+.post-body section table { width: 100% !important; display: table !important; font-size: 15px; border-collapse: collapse; }
+.post-body th { background: #f1f5f9; color: #0f172a; font-weight: 600; }
+.post-body td, .post-body th { padding: 6px 10px; border: 1px solid #e2e8f0; }
+.post-body .stat-tbl td, .post-body .stat-tbl th { padding: 3px 8px; line-height: 1.4; }
+.post-body .cpfig { margin: 13px 0 0; }
+.post-body .cp-strip { display: flex; align-items: stretch; }
+.post-body .cp-half { flex: 1; display: grid; grid-template-columns: repeat(2, 1fr); gap: 7px; }
+.post-body .cp-mid { flex: none; width: 22px; position: relative; }
+.post-body .cp-mid::before {
+  content: ""; position: absolute; left: 50%; top: 3px; bottom: 3px;
+  border-left: 2px dashed #cbd5e1;
+}
+.post-body .cp-b { border: 1px solid transparent; border-radius: 7px; padding: 9px 6px; text-align: center; }
+.post-body .cp-b b { display: block; font-size: 14.5px; font-weight: 700; line-height: 1.22; }
+.post-body .cp-b span {
+  display: block; font-size: 11px; line-height: 1.3;
+  font-variant-numeric: tabular-nums; opacity: .88;
+}
+.post-body .cp-b.r0 { background: #2563eb; border-color: #1d4ed8; color: #ffffff; }
+.post-body .cp-b.r1 { background: #dbeafe; border-color: #bfdbfe; color: #1e3a8a; }
+.post-body .cp-own { margin-top: 6px; }
+.post-body .cp-own .cp-mid::before { display: none; }
+.post-body .cp-o { text-align: center; font-size: 11.5px; font-weight: 700; letter-spacing: .08em; line-height: 1; }
+.post-body .cp-o.r0 { color: #1d4ed8; }
+.post-body .cp-o.r1 { color: #1e3a8a; }
+</style>
+<!-- _class: lead -->
+<!-- _paginate: false -->
+<!-- _footer: '' -->
+<!-- <div class="kicker">vLLM V1 → DEEPINFER</div> -->
+<h1 id="deepinfer-调研">DeepInfer 调研</h1>
+<h2 id="20261026">2026/10/26</h2>
+<!-- ## 保留 vLLM 的壳，换上 DeepSeek 的芯 -->
+<hr>
+<h2 id="deepinfer为什么做效果如何">DeepInfer：为什么做，效果如何</h2>
+<div class="cols">
+<div>
+<p><a href="https://zhuanlan.zhihu.com/p/2095560295930508953">《DeepSeek V4.1 Flash 大规模推理部署实践》</a>：</p>
+<div class="label">设计目标</div>
+<ol>
+<li>兼容多种厂商的计算芯片</li>
+<li>常见 8 卡做 Prefill，64–128 卡超节点做 Decode</li>
+<li>KVCache 保留 72 小时以上</li>
+</ol>
+<blockquote>
+<p>围绕这些目标，Deepseek持续优化计算、通信、调度与存储，在满足延迟要求的前提下提高系统的有效吞吐，用<strong>更少的算力与能源</strong>支撑更多请求，让智能服务以更低的价格触达更多用户。</p>
+</blockquote>
+</div>
+<div class="stat-tbl">
+<div class="label first">线上数字</div>
+<ul>
+<li>单集群 <strong>155 万亿 tokens/天</strong></li>
+<li>整体收入 <strong>$38/GPU-hour</strong>（谷价）</li>
+<li>输入缓存命中率 <strong>96%</strong></li>
+</ul>
+<table>
+	<thead>
+			<tr>
+					<th>阶段</th>
+					<th>指标</th>
+					<th>实测</th>
+			</tr>
+	</thead>
+	<tbody>
+			<tr>
+					<td>prefill</td>
+					<td>每卡吞吐（不含缓存命中）</td>
+					<td><strong>60K tps</strong></td>
+			</tr>
+			<tr>
+					<td>prefill</td>
+					<td>每卡吞吐（含缓存命中）</td>
+					<td><strong>1.5M tps</strong></td>
+			</tr>
+			<tr>
+					<td>prefill</td>
+					<td>平均输入缓存命中率</td>
+					<td><strong>96%</strong></td>
+			</tr>
+			<tr>
+					<td>prefill</td>
+					<td>TTFT 平均 / P99</td>
+					<td><strong>400 ms / 1000 ms</strong></td>
+			</tr>
+			<tr>
+					<td>prefill</td>
+					<td>平均输入长度</td>
+					<td>77K tokens</td>
+			</tr>
+			<tr>
+					<td>decode</td>
+					<td>每卡吞吐</td>
+					<td><strong>14K tps</strong></td>
+			</tr>
+			<tr>
+					<td>decode</td>
+					<td>吐字速度</td>
+					<td>230 tps（代码 300）</td>
+			</tr>
+			<tr>
+					<td>kvcache</td>
+					<td>不活跃后保存</td>
+					<td><strong>72 小时</strong></td>
+			</tr>
+	</tbody>
+</table>
+<div class="bigline">1.5M tps 的关键是 96% 的缓存命中！</div>
+<div class="note">实际部署 P:D 接近 1:1。来源：DeepSeek 知乎。</div>
+</div>
+</div>
+<hr>
+<h2 id="概览--架构">概览 &amp; 架构</h2>
+<ul>
+<li>平台：GPU + Ascend NPU</li>
+<li>自研算子：FlashMLA / DeepGEMM / DeepEP / Tile Kernel</li>
+<li>边界：离线推理，不能上线</li>
+<li>缺什么：API Server / TP &amp; PP / 量化 / 负载均衡 / <strong>KV 传输 &amp; KV 池</strong></li>
+<li>沿用 vLLM：Paged Attention / Chunked Prefill / CUDA Graph / Structured Output</li>
+</ul>
+<div class="cols-wide">
+<div>
+<div style="text-align:center">
+<p><img src="/llm/deepinfer/images/architecture_overview.png" alt="DeepSeek 推理架构概览"></p>
+</div>
+<div class="note">图源：DeepSeek 知乎。黑线请求，蓝线 KVCache。</div>
+</div>
+<div>
+<div class="label first">请求</div>
+<p>Recipe（JSON ↔ token）→ Entrypoint → Prefill / Decode LB</p>
+<div class="label">服务</div>
+<p>Prefill / Decode Service，各自带 Expert-Parallel LB</p>
+<div class="label">存储与并行</div>
+<p>Block KV 在 3FS；SWA 在本机；Prefill EP2–8、Decode EP64–128</p>
+</div>
+</div>
+<hr>
+<h2 id="调度--kv-cache--算法优化---9-个主要特性">调度 / KV Cache / 算法优化 - 9 个主要特性</h2>
+<div class="map4 map-compact">
+<div>
+<div class="g">执行流水线</div>
+<div class="gitem"><span class="n">01</span><b>C++ Scheduler</b><span>调度状态机下沉，释放 GIL</span></div>
+<div class="gitem"><span class="n">02</span><b>PD 混部调度策略</b><span>ALL / ANY 投票 + LCFS</span></div>
+<div class="gitem"><span class="n">03</span><b>ZOS</b><span>异步流水 + GPU metadata</span></div>
+</div>
+<div>
+<div class="g">KV Cache</div>
+<div class="gitem"><span class="n">04</span><b>Compressed + Indexer + SWA</b><span>128 block + 双池 + 压缩</span></div>
+<div class="gitem"><span class="n">05</span><b>前缀缓存</b><span>引擎内无 hash</span></div>
+</div>
+<div>
+<div class="g">算法优化</div>
+<div class="gitem"><span class="n">06</span><b>SWA Bounded Replay</b><span>只重算一段后缀</span></div>
+<div class="gitem"><span class="n">07</span><b>DSpark</b><span>变长投机验证</span></div>
+<div class="gitem"><span class="n">08</span><b>并行 + EPLB</b><span>DP-Attn / EP-MoE</span></div>
+<div class="gitem"><span class="n">09</span><b>高性能融合算子</b><span>DeepGEMM / DeepEP / FlashMLA / DeepSelect</span></div>
+</div>
+</div>
+<hr>
+<h2 id="01c-scheduler">01｜C++ Scheduler</h2>
+<blockquote>
+<p><strong>一句话</strong>：把 调度、block 分配、序列状态更新、输出构造全部搬进 C++。</p>
+</blockquote>
+<div class="cols">
+<div>
+<div class="label first">优点</div>
+<ul>
+<li>极致低开销：每步省掉大量 Python 结构体 / 循环 / List / 结构体 / GC</li>
+<li>调度期间释放 GIL，可与其他 Python 线程重叠 （e.g. KV 池 / KV 传输 / ZMQ 通信 / 打包输出）</li>
+</ul>
+<div class="label">代价</div>
+<ul>
+<li>改策略要写 C++；</li>
+<li>调试跨 pybind；</li>
+<li>基本无法跟 vLLM 上游 merge。</li>
+</ul>
+</div>
+<div>
+<div class="label first">原理</div>
+<ol>
+<li>C++ <code>Scheduler</code> 持有 BlockManager + Block Pool + State Pool</li>
+<li>进 / 出 <code>Scheduler</code> 会释放 / 加上 GIL 锁</li>
+<li>Block / State Pool 由 C++ Mutex 上锁</li>
+<li>调度输出是 <code>std::vector&lt;std::shared_ptr&lt;Sequence&gt;&gt;</code>，并构造<code>numpy</code> view 提供给 Python 侧</li>
+</ol>
+<div class="highlight"><pre tabindex="0" style="color:#272822;background-color:#fafafa;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-cpp" data-lang="cpp"><span style="display:flex;"><span><span style="color:#00a8c8">struct</span> <span style="color:#75af00">Sequence</span> <span style="color:#111">{</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#00a8c8">int64_t</span> <span style="color:#111">seq_id</span><span style="color:#111">;</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#111">std</span><span style="color:#f92672">::</span><span style="color:#111">string</span> <span style="color:#111">request_id</span><span style="color:#111">;</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#111">std</span><span style="color:#f92672">::</span><span style="color:#111">vector</span><span style="color:#f92672">&lt;</span><span style="color:#00a8c8">int</span><span style="color:#f92672">&gt;</span> <span style="color:#111">token_ids</span><span style="color:#111">;</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#00a8c8">int</span> <span style="color:#111">prompt_len</span><span style="color:#111">;</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#00a8c8">int</span> <span style="color:#111">block_size</span><span style="color:#111">;</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#00a8c8">int</span> <span style="color:#111">num_tokens</span><span style="color:#111">;</span> <span style="color:#75715e">// 已提交 KV cache token 数
+</span></span></span><span style="display:flex;"><span>  <span style="color:#111">std</span><span style="color:#f92672">::</span><span style="color:#111">vector</span><span style="color:#f92672">&lt;</span><span style="color:#00a8c8">int</span><span style="color:#f92672">&gt;</span> <span style="color:#111">block_table</span><span style="color:#111">;</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#111">std</span><span style="color:#f92672">::</span><span style="color:#111">vector</span><span style="color:#f92672">&lt;</span><span style="color:#00a8c8">int</span><span style="color:#f92672">&gt;</span> <span style="color:#111">accepted_tokens</span><span style="color:#111">;</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#75715e">// ...
+</span></span></span><span style="display:flex;"><span><span style="color:#111">};</span>
+</span></span></code></pre></div></div>
+</div>
+<hr>
+<h2 id="02pd-混部调度策略">02｜PD 混部调度策略</h2>
+<blockquote>
+<p><strong>一句话</strong>：每 N 个 decode step 在 DP 组内投票，决定这一步全组做 prefill 还是 decode</p>
+</blockquote>
+<div class="cols">
+<div>
+<div class="label first">优点</div>
+<ul>
+<li>ANY step 防止 prefill 请求积压</li>
+<li>ALL step 防止个别 rank 空转</li>
+<li>步型一致 → EP all-to-all / CUDA graph shape 稳定</li>
+<li>模型前向无混批，逻辑单一，方便算子优化</li>
+</ul>
+<div class="label">代价</div>
+<ul>
+<li>prefill 要等几十个 decode step，TTFT 变差</li>
+<li>生产场景基本不会用</li>
+</ul>
+</div>
+<div>
+<div class="label first">原理</div>
+<div class="highlight"><pre tabindex="0" style="color:#272822;background-color:#fafafa;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-cpp" data-lang="cpp"><span style="display:flex;"><span><span style="color:#00a8c8">bool</span> <span style="color:#111">is_any_point</span><span style="color:#111">;</span> <span style="color:#75715e">// 第 0 步不能算 ANY 步
+</span></span></span><span style="display:flex;"><span><span style="color:#00a8c8">bool</span> <span style="color:#111">is_all_point</span><span style="color:#111">;</span> <span style="color:#75715e">// 第 0 步可以算 ALL 步
+</span></span></span><span style="display:flex;"><span><span style="color:#00a8c8">if</span> <span style="color:#111">(</span><span style="color:#f92672">!</span><span style="color:#111">is_any_point</span> <span style="color:#f92672">&amp;&amp;</span> <span style="color:#f92672">!</span><span style="color:#111">is_all_point</span><span style="color:#111">)</span> 
+</span></span><span style="display:flex;"><span>  <span style="color:#00a8c8">return</span> <span style="color:#111">_schedule_decode</span><span style="color:#111">(</span><span style="color:#111">acquire</span><span style="color:#111">);</span>   <span style="color:#75715e">// 绝大多数步走这里
+</span></span></span><span style="display:flex;"><span><span style="color:#00a8c8">bool</span> <span style="color:#111">want</span> <span style="color:#f92672">=</span> <span style="color:#111">cache_usage</span><span style="color:#111">()</span> <span style="color:#f92672">&lt;=</span> <span style="color:#ae81ff">0.9</span> <span style="color:#f92672">&amp;&amp;</span> <span style="color:#111">_has_prefill_waiting</span><span style="color:#111">();</span>
+</span></span><span style="display:flex;"><span><span style="color:#00a8c8">bool</span> <span style="color:#111">do_prefill</span> <span style="color:#f92672">=</span> <span style="color:#111">is_any</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">?</span> <span style="color:#111">_dp_allreduce</span><span style="color:#111">(</span><span style="color:#111">want</span> <span style="color:#f92672">?</span> <span style="color:#ae81ff">0</span> <span style="color:#f92672">:</span> <span style="color:#ae81ff">1</span><span style="color:#111">,</span> <span style="color:#111">MIN</span><span style="color:#111">)</span> <span style="color:#f92672">==</span> <span style="color:#ae81ff">0</span>   <span style="color:#75715e">// 任一想做
+</span></span></span><span style="display:flex;"><span>  <span style="color:#f92672">:</span> <span style="color:#111">_dp_allreduce</span><span style="color:#111">(</span><span style="color:#111">want</span> <span style="color:#f92672">?</span> <span style="color:#ae81ff">1</span> <span style="color:#f92672">:</span> <span style="color:#ae81ff">0</span><span style="color:#111">,</span> <span style="color:#111">MIN</span><span style="color:#111">)</span> <span style="color:#f92672">==</span> <span style="color:#ae81ff">1</span><span style="color:#111">;</span>  <span style="color:#75715e">// 全员想做
+</span></span></span><span style="display:flex;"><span><span style="color:#00a8c8">if</span> <span style="color:#111">(</span><span style="color:#f92672">!</span><span style="color:#111">do_prefill</span><span style="color:#111">)</span> 
+</span></span><span style="display:flex;"><span>  <span style="color:#00a8c8">return</span> <span style="color:#111">_schedule_decode</span><span style="color:#111">(</span><span style="color:#111">lock</span><span style="color:#111">);</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e">// 即便是 want, 也有可能因为 KV 不够不能调度 prefill 请求
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">// 后续还会有二次投票，若全员无法调度则退回 decode
+</span></span></span></code></pre></div><ul>
+<li>注：<code>_dp_allreduce</code> 走 CPU gloo</li>
+</ul>
+</div>
+</div>
+<hr>
+<h2 id="03zero-overhead-scheduler-zos">03｜Zero-Overhead Scheduler (ZOS)</h2>
+<blockquote>
+<p><strong>一句话</strong>：GPU forward(N) 掩盖 CPU schedule(N+1) / post-process(N-1)</p>
+</blockquote>
+<div class="cols">
+<div>
+<div class="label first">优点</div>
+<ul>
+<li>GPU 接近或达成零气泡</li>
+<li>压榨极限 TPOT</li>
+</ul>
+<div class="label">代价</div>
+<ul>
+<li>CPU / GPU 账本分离</li>
+<li>CPU 的调度 / 分配逻辑要考虑 inflight tokens</li>
+</ul>
+<div class="highlight"><pre tabindex="0" style="color:#272822;background-color:#fafafa;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-cpp" data-lang="cpp"><span style="display:flex;"><span><span style="color:#75715e">// seqlen_k = 已提交 KV + 已发射未回填的 KV + 本步 query
+</span></span></span><span style="display:flex;"><span><span style="color:#00a8c8">int</span> <span style="color:#111">seqlen_k</span> <span style="color:#f92672">=</span> <span style="color:#111">num_tokens</span> <span style="color:#f92672">+</span> <span style="color:#111">total_inflight_tokens</span> <span style="color:#f92672">+</span> <span style="color:#111">seqlen_q</span><span style="color:#111">;</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e">// GPU 修正 metadata.seqlen_k：去掉本步 query，再退掉未接受的 draft
+</span></span></span><span style="display:flex;"><span><span style="color:#111">seqlens_k_base</span>  <span style="color:#f92672">=</span> <span style="color:#111">metadata</span><span style="color:#111">.</span><span style="color:#111">seqlen_k</span> <span style="color:#f92672">-</span> <span style="color:#111">seqlen_q</span><span style="color:#111">;</span>
+</span></span><span style="display:flex;"><span><span style="color:#111">seqlens_k_base</span> <span style="color:#f92672">-=</span> <span style="color:#111">nextn</span> <span style="color:#f92672">-</span> <span style="color:#111">prev_num_accepted</span><span style="color:#111">;</span>
+</span></span></code></pre></div></div>
+<div>
+<div class="label first">原理</div>
+<ol>
+<li>按 <code>total_inflight_tokens = nextn + 1</code> 乐观预留 block</li>
+<li>乐观推进 Metadata: seqlens / KV len / max position</li>
+<li>Sample 之后，在 GPU kernel 修 seqlens，再回传给CPU</li>
+</ol>
+<pre tabindex="0"><code>engine.step() 
+├─ scheduler.schedule(N)
+└─ execute_model_step(N)
+    ├─ ① launch forward(N)      
+    ├─ ② post_process(N-1)      
+    ├─ ③ launch sample(N)       
+</code></pre></div>
+</div>
+<div class="zos">
+  <div class="zos-row zos-cpu">
+    <div class="zos-tag cpu">CPU</div>
+    <div class="zos-track">
+      <div class="zos-cell zos-post">post(N-1)</div>
+      <div class="zos-cell zos-sch">schedule(N+1)</div>
+      <div class="zos-cell zos-prep">prepare(N+1)</div>
+      <div class="zos-cell zos-post">post(N)</div>
+      <div class="zos-cell zos-sch">schedule(N+2)</div>
+      <div class="zos-cell zos-prep">prepare(N+2)</div>
+    </div>
+  </div>
+  <div class="zos-row zos-gpu">
+    <div class="zos-tag gpu">GPU</div>
+    <div class="zos-track">
+      <div class="zos-cell zos-fwd">forward(N)</div>
+      <div class="zos-cell zos-smp">sample(N)</div>
+      <div class="zos-cell zos-fwd">forward(N+1)</div>
+      <div class="zos-cell zos-smp">sample(N+1)</div>
+    </div>
+  </div>
+  <div class="zos-axis">时间 →</div>
+</div>
+<hr>
+<h2 id="04模型架构--kv-cache-格式">04｜模型架构 &amp; KV Cache 格式</h2>
+<div class="cols">
+<div>
+<p><img src="/llm/deepinfer/images/model_arch.png" alt="DeepSeek 模型架构"></p>
+<div class="note">绿框 Full = L2/L8/L14/L20，只有它们写 paged KV；黄框 Reuse 复用前一层 Full 的 KV；蓝框 Reindex 复用 L20 的 KV、自算 top-k。</div>
+<div class="label first">四类 Cache</div>
+<table>
+	<thead>
+			<tr>
+					<th>Cache Type</th>
+					<th>生产层</th>
+					<th>格式</th>
+					<th>每 token</th>
+			</tr>
+	</thead>
+	<tbody>
+			<tr>
+					<td>Compressor <code>ca_cache</code></td>
+					<td>L2/8/14/20</td>
+					<td>FP4/BS16</td>
+					<td>288 B</td>
+			</tr>
+			<tr>
+					<td>Indexer <code>ica_cache</code></td>
+					<td>L2/8/14/20</td>
+					<td>FP4/BS32</td>
+					<td>68 B</td>
+			</tr>
+			<tr>
+					<td>SWA</td>
+					<td>20 (E) + 23 (D)</td>
+					<td>FP8/BS32</td>
+					<td>528 B</td>
+			</tr>
+			<tr>
+					<td>State</td>
+					<td>L2/8/14（C2）</td>
+					<td>FP32</td>
+					<td>-</td>
+			</tr>
+	</tbody>
+</table>
+</div>
+<div class="stat-tbl">
+<div class="label">KV Cache Format</div>
+<ul>
+<li>两个 raw tensors:</li>
+</ul>
+<pre tabindex="0"><code># 储存 ca_cache + ica_cache, block_size = 128
+cache_tensor: (num_blocks, block_size_bytes = 113920 B)
+# 储存 SWA cache + state
+state_tensor: (num_slots = 1.2 * max_num_seqs, state_size_bytes = 3128928 B)
+</code></pre><ul>
+<li>每种 cache 是 raw_tensor 的 strided view, e.g.</li>
+</ul>
+<pre tabindex="0"><code>ca_cache: [num_blocks, block_size // ratio, 1, bytes_per_token]
+ica_cache: [num_blocks, block_size // ratio, 1, index_bytes_per_token]
+ca_state: [num_state_seqs, ring_size = 7, 2, dim]
+swa_cache: [num_state_seqs, swa_block_size = 134, 1, 528]
+</code></pre><ul>
+<li>非状态类 KV Cache 占用为</li>
+</ul>
+<pre tabindex="0"><code>(288 + 68) * (3/2 + 1) = 890 B / token
+</code></pre><ul>
+<li>未闭合 C2 state 每请求占用为</li>
+</ul>
+<pre tabindex="0"><code>ring_size * 2 * dim * fp32_bytes = 7 * 2 * 512 * 4 = 28672 B
+</code></pre><ul>
+<li>Indexer 的输入是 compressed latent，无 C2 state，<code>ica_state</code>字段实际没用</li>
+</ul>
+</div>
+</div>
+<hr>
+<h2 id="04kv-cache-布局">04｜KV Cache 布局</h2>
+<div class="label first">Paged Block Layout</div>
+<div style="background:#f8fafc;border:1px solid #e2e8f0;border-top:3px solid #2563eb;border-radius:0px;padding:7px 12px 6px;">
+<svg viewBox="0 0 1320 164" style="display:block;width:100%;height:auto;font-family:inherit;" role="img" aria-label="block 字节切分">
+  <defs>
+    <clipPath id="kv41-clip"><rect x="0" y="64" width="1320" height="64" rx="10"/></clipPath>
+    <pattern id="kv41-hatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+      <rect width="6" height="6" fill="#f1f5f9"/>
+      <line x1="0" y1="0" x2="0" y2="6" stroke="#cbd5e1" stroke-width="2"/>
+    </pattern>
+  </defs>
+  <text x="4" y="14" text-anchor="start" font-size="15" font-weight="600" fill="#0f172a">① L2 · index K</text>
+  <text x="4" y="29" text-anchor="start" font-size="13" font-family="SFMono-Regular,Menlo,Consolas,monospace" fill="#64748b">4,352 B · @0</text>
+  <line x1="25.2" y1="34" x2="25.2" y2="64" stroke="#cbd5e1"/>
+  <text x="288.9" y="14" text-anchor="middle" font-size="15" font-weight="600" fill="#0f172a">③ L8 · index K</text>
+  <text x="288.9" y="29" text-anchor="middle" font-size="13" font-family="SFMono-Regular,Menlo,Consolas,monospace" fill="#64748b">4,352 B · @22,784</text>
+  <line x1="288.9" y1="34" x2="288.9" y2="64" stroke="#cbd5e1"/>
+  <text x="552.6" y="14" text-anchor="middle" font-size="15" font-weight="600" fill="#0f172a">⑤ L14 · index K</text>
+  <text x="552.6" y="29" text-anchor="middle" font-size="13" font-family="SFMono-Regular,Menlo,Consolas,monospace" fill="#64748b">4,352 B · @45,568</text>
+  <line x1="552.6" y1="34" x2="552.6" y2="64" stroke="#cbd5e1"/>
+  <text x="841.5" y="14" text-anchor="middle" font-size="15" font-weight="600" fill="#0f172a">⑦ L20 · index K</text>
+  <text x="841.5" y="29" text-anchor="middle" font-size="13" font-family="SFMono-Regular,Menlo,Consolas,monospace" fill="#64748b">8,704 B · @68,352</text>
+  <line x1="841.5" y1="34" x2="841.5" y2="64" stroke="#cbd5e1"/>
+  <text x="1305" y="14" text-anchor="end" font-size="15" font-weight="600" fill="#0f172a">⑨ pad</text>
+  <text x="1305" y="29" text-anchor="end" font-size="13" font-family="SFMono-Regular,Menlo,Consolas,monospace" fill="#64748b">128 B · @113,920</text>
+  <line x1="1319.3" y1="34" x2="1319.3" y2="64" stroke="#cbd5e1"/>
+  <g clip-path="url(#kv41-clip)" stroke="#f8fafc" stroke-width="2">
+    <rect x="0" y="64" width="50.37" height="64" fill="#93c5fd"/>
+    <rect x="50.37" y="64" width="213.33" height="64" fill="#2563eb"/>
+    <rect x="263.70" y="64" width="50.37" height="64" fill="#93c5fd"/>
+    <rect x="314.07" y="64" width="213.33" height="64" fill="#2563eb"/>
+    <rect x="527.40" y="64" width="50.37" height="64" fill="#93c5fd"/>
+    <rect x="577.77" y="64" width="213.33" height="64" fill="#2563eb"/>
+    <rect x="791.10" y="64" width="100.76" height="64" fill="#93c5fd"/>
+    <rect x="891.86" y="64" width="426.67" height="64" fill="#2563eb"/>
+  </g>
+  <rect x="1318.52" y="64" width="1.48" height="64" fill="url(#kv41-hatch)" stroke="none"/>
+  <rect x="0.5" y="64.5" width="1319" height="63" rx="9.5" fill="none" stroke="#dbe3ee"/>
+  <text x="157" y="89" text-anchor="middle" font-size="15" font-weight="700" fill="#ffffff">② L2 · main</text>
+  <text x="157" y="105" text-anchor="middle" font-size="12.5" font-family="SFMono-Regular,Menlo,Consolas,monospace" fill="#dbeafe">18,432 B · @4,352</text>
+  <text x="420.7" y="89" text-anchor="middle" font-size="15" font-weight="700" fill="#ffffff">④ L8 · main</text>
+  <text x="420.7" y="105" text-anchor="middle" font-size="12.5" font-family="SFMono-Regular,Menlo,Consolas,monospace" fill="#dbeafe">18,432 B · @27,136</text>
+  <text x="684.4" y="89" text-anchor="middle" font-size="15" font-weight="700" fill="#ffffff">⑥ L14 · main</text>
+  <text x="684.4" y="105" text-anchor="middle" font-size="12.5" font-family="SFMono-Regular,Menlo,Consolas,monospace" fill="#dbeafe">18,432 B · @49,920</text>
+  <text x="1105.2" y="89" text-anchor="middle" font-size="15" font-weight="700" fill="#ffffff">⑧ L20 · main · C1</text>
+  <text x="1105.2" y="105" text-anchor="middle" font-size="12.5" font-family="SFMono-Regular,Menlo,Consolas,monospace" fill="#dbeafe">36,864 B · @77,056</text>
+  <line x1="0" y1="142" x2="1320" y2="142" stroke="#e2e8f0"/>
+  <text x="4" y="158" font-size="11.5" font-family="SFMono-Regular,Menlo,Consolas,monospace" fill="#94a3b8">0 B</text>
+  <text x="660" y="158" text-anchor="middle" font-size="11.5" font-family="SFMono-Regular,Menlo,Consolas,monospace" fill="#94a3b8">block 内字节偏移 →</text>
+  <text x="1312" y="158" text-anchor="end" font-size="11.5" font-family="SFMono-Regular,Menlo,Consolas,monospace" fill="#94a3b8">114,048 B</text>
+</svg>
+<div style="display:flex;justify-content:space-between;align-items:center;gap:12px;font-size:11px;color:#475569;margin-top:2px;">
+  <div><span style="display:inline-block;width:9px;height:9px;border-radius:2px;background:#2563eb;margin-right:4px;"></span>main KV · 288 B/token　<span style="display:inline-block;width:9px;height:9px;border-radius:2px;background:#93c5fd;margin-right:4px;"></span>index K · 68 B/token　<span style="display:inline-block;width:9px;height:9px;border-radius:2px;background:repeating-linear-gradient(135deg,#e2e8f0 0 3px,#f8fafc 3px 6px);margin-right:4px;"></span>pad</div>
+  <div style="font-family:SFMono-Regular,Menlo,Consolas,monospace;color:#64748b;text-align:right;">113,920 B = 890 B/token × 128；+128 pad = 114,048 B</div>
+</div>
+</div>
+<div class="note" style="margin-top:6px;">4 个 Full 层：L2 / L8 / L14（C2）+ L20（C1）；其余 39 层 0 B。C2 每 block 64 个压缩 token，C1 是 128 个；index K 与 main 共用压缩位置。</div>
+<div class="label" style="margin-top:8px;">State Slot Layout</div>
+<div style="background:#f8fafc;border:1px solid #e2e8f0;border-top:3px solid #2563eb;border-radius:0px;padding:8px 12px 6px;">
+<div style="display:flex;height:38px;border-radius:6px;overflow:hidden;border:1px solid #dbe3ee;">
+  <div style="flex:1415040;background:#1d4ed8;color:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;min-width:0;white-space:nowrap;overflow:hidden;"><b style="font-size:12px;">stored SWA · L0–L19</b><span style="font-family:SFMono-Regular,Menlo,Consolas,monospace;font-size:10.5px;opacity:.9;margin-top:2px;">20 层 · 1,415,040 B</span></div>
+  <div style="flex:1627296;background:#bfdbfe;color:#1e3a8a;display:flex;flex-direction:column;align-items:center;justify-content:center;min-width:0;white-space:nowrap;overflow:hidden;"><b style="font-size:12px;">dropped SWA · L20–L42</b><span style="font-family:SFMono-Regular,Menlo,Consolas,monospace;font-size:10.5px;opacity:.9;margin-top:2px;">23 层 · 1,627,296 B</span></div>
+  <div style="flex:86016;background:#60a5fa;min-width:0;"></div>
+  <div style="flex:576;background:repeating-linear-gradient(135deg,#e2e8f0 0 3px,#f8fafc 3px 6px);min-width:0;"></div>
+</div>
+<div style="display:flex;font-family:SFMono-Regular,Menlo,Consolas,monospace;font-size:10.5px;color:#64748b;margin-top:4px;">
+  <span style="flex:1415040;text-align:center;">1,415,040 B</span><span style="flex:1627296;text-align:center;">1,627,296 B</span><span style="flex:86016;text-align:right;color:#1d4ed8;font-weight:700;padding-right:2px;white-space:nowrap;">86,016 B</span><span style="flex:576;"></span>
+</div>
+<div style="display:flex;gap:16px;font-size:10.5px;color:#475569;margin-top:3px;"><span><span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:#1d4ed8;margin-right:4px;"></span>stored · persistent</span><span><span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:#bfdbfe;margin-right:4px;"></span>dropped · non-persistent</span><span><span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:#60a5fa;margin-right:4px;"></span>C2 state · non-persistent</span></div>
+</div>
+<div class="note" style="margin-top:6px;">stored 20 × 134 × 528 = 1,415,040 B；dropped 23 × 70,752 = 1,627,296 B；C2 state 3 × 28,672 = 86,016 B；total 3,128,928 B。</div>
+<hr>
+<h2 id="05前缀缓存">05｜前缀缓存</h2>
+<div class="cols">
+<div>
+<div class="label first">原理</div>
+<ul>
+<li>前缀命中由 3FS + entrypoint 算好后通知 Engine</li>
+<li><code>BlockManager</code> 只是带 refcount / pin / unpin 的空闲链表，不储存 hash</li>
+<li>若前缀命中，Engine 侧会 <code>fork_seq</code></li>
+</ul>
+<div class="label">优点</div>
+<ul>
+<li>简化引擎（前缀匹配在 Router / LB 侧本来也要做一遍, e.g. Mooncake）</li>
+<li>Block KV 留存超 72 小时，提升命中率</li>
+<li>极致性能，省掉 hash 开销</li>
+</ul>
+</div>
+<div>
+<div class="label first">命中逻辑</div>
+<ol>
+<li>输入长度 L, 最大命中 L - 128 - 6</li>
+<li>查询 block KV 命中，128 倍数向下取整</li>
+<li>查询 SWA KV 命中，128 倍数向上取整</li>
+</ol>
+<div class="label">fork_seq 例子</div>
+<p>设 <code>block_size=128</code>, 子请求命中了 260 tokens:</p>
+<div style="margin-top:12px;background:#f8fafc;border:1px solid #e2e8f0;border-top:2px solid #2563eb;padding:6px 8px;">
+<svg viewBox="0 0 600 140" style="display:block;width:100%;height:auto;font-family:inherit;" role="img" aria-label="fork 的 block 共享、拷贝与 unpin">
+  <defs>
+    <pattern id="fork-hatch" width="5" height="5" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+      <rect width="5" height="5" fill="#f1f5f9"/>
+      <line x1="0" y1="0" x2="0" y2="5" stroke="#cbd5e1" stroke-width="1.5"/>
+    </pattern>
+    <marker id="fork-arrow-blue" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#2563eb"/>
+    </marker>
+  </defs>
+  <text x="0" y="29" font-size="11.5" font-weight="600" fill="#475569">父请求</text>
+  <text x="0" y="113" font-size="11.5" font-weight="600" fill="#475569">子请求</text>
+  <g transform="translate(46,0)">
+  <rect x="6" y="6" width="128" height="38" rx="5" fill="#2563eb"/>
+  <text x="70" y="30" text-anchor="middle" font-size="12" font-weight="700" fill="#ffffff">B0</text>
+  <rect x="142" y="6" width="128" height="38" rx="5" fill="#2563eb"/>
+  <text x="206" y="30" text-anchor="middle" font-size="12" font-weight="700" fill="#ffffff">B1</text>
+  <rect x="278" y="6" width="112" height="38" rx="5" fill="#dbeafe" stroke="#60a5fa" stroke-dasharray="3 2"/>
+  <text x="334" y="30" text-anchor="middle" font-size="12" font-weight="700" fill="#1e3a8a">B2</text>
+  <rect x="284" y="36" width="100" height="4" rx="2" fill="#bfdbfe"/>
+  <rect x="284" y="36" width="34" height="4" rx="2" fill="#2563eb"/>
+  <rect x="398" y="6" width="128" height="38" rx="5" fill="url(#fork-hatch)" stroke="#94a3b8" stroke-dasharray="3 2"/>
+  <text x="462" y="30" text-anchor="middle" font-size="12" font-weight="700" fill="#475569">B3</text>
+  <rect x="278" y="90" width="112" height="38" rx="5" fill="#93c5fd" stroke="#1d4ed8" stroke-dasharray="3 2"/>
+  <text x="334" y="114" text-anchor="middle" font-size="12" font-weight="700" fill="#1e3a8a">B2'</text>
+  <line x1="334" y1="44" x2="334" y2="90" stroke="#2563eb" stroke-width="1.8" marker-end="url(#fork-arrow-blue)"/>
+  </g>
+</svg>
+</div>
+</div>
+</div>
+<table>
+	<thead>
+			<tr>
+					<th style="text-align: left">Cache 种类</th>
+					<th style="text-align: left">放在哪</th>
+					<th style="text-align: left">生命周期</th>
+					<th style="text-align: left">由谁管理</th>
+			</tr>
+	</thead>
+	<tbody>
+			<tr>
+					<td style="text-align: left">in-flight block KV + state</td>
+					<td style="text-align: left">HBM</td>
+					<td style="text-align: left">&gt;= 72 hrs</td>
+					<td style="text-align: left">P/D instances</td>
+			</tr>
+			<tr>
+					<td style="text-align: left">SWA KV cache</td>
+					<td style="text-align: left">Local DRAM</td>
+					<td style="text-align: left">~ minutes</td>
+					<td style="text-align: left">P/D instances &amp; pulls</td>
+			</tr>
+			<tr>
+					<td style="text-align: left">Block KV cache</td>
+					<td style="text-align: left">3FS cluster (~100 PiB)</td>
+					<td style="text-align: left">LRU</td>
+					<td style="text-align: left">distributed KV pool</td>
+			</tr>
+	</tbody>
+</table>
+<hr>
+<h2 id="06swa-bounded-replay">06｜SWA Bounded Replay</h2>
+<div class="cols">
+<div>
+<div class="label first">背景</div>
+<ul>
+<li>精确重建需要重算 <code>n_layers * n_win</code> tokens：很贵</li>
+<li>SWA KV 的生命周期本来就不长：分钟级</li>
+</ul>
+<div class="label">算法</div>
+<p><strong>1. Encoder SWA Bounded Replay</strong></p>
+<ul>
+<li>假设 prefill 时前缀命中长度 <code>L</code>， 但SWA KV miss</li>
+<li>重放<code>L - 128 ~ L</code>，生成 SWA KV，但不覆盖 block KV</li>
+<li>未命中的部分正常前向，生成 SWA + block KV</li>
+</ul>
+<p><strong>2. Decoder SWA Bounded Replay</strong></p>
+<ul>
+<li>假设 prefill prompt 长度为 <code>L</code></li>
+<li>前 <code>L-128</code> tokens 只跑 Encoder, 只生成 Encoder SWA KV</li>
+<li>最后 128 tokens 跑 Encoder + Decoder，生成 E+D SWA KV</li>
+</ul>
+</div>
+<div>
+<div class="label first">收益</div>
+<ul>
+<li>存储上：SWA KV 可以按分钟级别丢弃</li>
+<li>计算上：
+<ul>
+<li>Prefill 计算量 / 激活量减半</li>
+<li>前缀匹配可容忍 SWA KV miss，且可以控制重算代价</li>
+</ul>
+</li>
+</ul>
+<div class="label">代价</div>
+<ul>
+<li>数学上与精确重算不等价，可能会给精度对齐带来困难</li>
+<li>论文 argue 几乎不影响生成质量（SWA 感受野其实没那么大）</li>
+<li>训练侧需要模拟 Bounded Replay</li>
+</ul>
+</div>
+</div>
+<hr>
+<h2 id="07dspark变长投机验证">07｜DSpark：变长投机验证</h2>
+<blockquote>
+<p><strong>一句话</strong>：draft 每步固定生成 5 个，但按 confidence 把所有请求的所有 draft 排序，选一个全局预算，使“期望接受 token 数 / 预计 step 时间”最大。</p>
+</blockquote>
+<div class="cols">
+<div>
+<div class="label first">目标</div>
+<ul>
+<li>调整总验证预算 $B$ 和每请求预算</li>
+<li>最大化吞吐 $\tau\cdot\text{SPS}(B)$</li>
+</ul>
+<div class="label">代价</div>
+<ul>
+<li>调度与采样逻辑变复杂</li>
+<li>低并发可能负收益</li>
+<li>需要在线维护时间模型 $\text{SPS}(B)$</li>
+</ul>
+</div>
+<div>
+<div class="label first">算法</div>
+<ol>
+<li>先用 N-2 轮数据选取最优 $B$ (CPU 调度侧)</li>
+<li>再用 N-1 轮置信度贪心地分配预算</li>
+<li>例: <code>num_req = 3, nextn = 2, B = 6</code> | <code>seqlen_q=[3,2,1]</code></li>
+</ol>
+<div class="dspark">
+  <div class="dspark-grid">
+    <div class="dspark-r">A</div>
+    <div class="dspark-c on">0.90</div>
+    <div class="dspark-c on">0.80</div>
+    <div class="dspark-r">B</div>
+    <div class="dspark-c on">0.70</div>
+    <div class="dspark-c">0.50</div>
+    <div class="dspark-r">C</div>
+    <div class="dspark-c">0.60</div>
+    <div class="dspark-c">0.40</div>
+  </div>
+</div>
+</div>
+</div>
+<div class="label">收益（nextn = 5）</div>
+<table>
+	<thead>
+			<tr>
+					<th style="text-align: right">并发</th>
+					<th style="text-align: right">静态验证长度</th>
+					<th style="text-align: right">动态验证长度</th>
+					<th style="text-align: right">静态接收长度</th>
+					<th style="text-align: right">动态接受长度</th>
+					<th style="text-align: right">静态吞吐 (tok/s/rank)</th>
+					<th style="text-align: right">动态吞吐 (tok/s/rank)</th>
+					<th style="text-align: right">收益</th>
+			</tr>
+	</thead>
+	<tbody>
+			<tr>
+					<td style="text-align: right">16</td>
+					<td style="text-align: right">5</td>
+					<td style="text-align: right">4.44</td>
+					<td style="text-align: right">3.32</td>
+					<td style="text-align: right">3.24</td>
+					<td style="text-align: right">4891</td>
+					<td style="text-align: right">4816</td>
+					<td style="text-align: right">−1.5%</td>
+			</tr>
+			<tr>
+					<td style="text-align: right">32</td>
+					<td style="text-align: right">5</td>
+					<td style="text-align: right">3.65</td>
+					<td style="text-align: right">3.25</td>
+					<td style="text-align: right">3.17</td>
+					<td style="text-align: right">8964</td>
+					<td style="text-align: right">9111</td>
+					<td style="text-align: right">+1.6%</td>
+			</tr>
+			<tr>
+					<td style="text-align: right">48</td>
+					<td style="text-align: right">5</td>
+					<td style="text-align: right">3.94</td>
+					<td style="text-align: right">3.3</td>
+					<td style="text-align: right">3.26</td>
+					<td style="text-align: right">12032</td>
+					<td style="text-align: right">12467</td>
+					<td style="text-align: right">+3.6%</td>
+			</tr>
+	</tbody>
+</table>
+<hr>
+<h2 id="08并行dp-x-cp-attention--ep-moe--eplb">08｜并行：DP x CP-Attention + EP-MoE + EPLB</h2>
+<div class="cols">
+<div>
+<div class="label first">DP x CP Attention</div>
+<ul>
+<li>DP x CP 布局，CP 域在更高速的通信域里</li>
+<li>无 TP All-reduce，节省通信但增加权重占用</li>
+<li>Balanced (Zigzag) CP 布局，平衡 Attn KV 计算量</li>
+<li>需要 All-gather latent KV (通信量很小)</li>
+<li>KV 通信可以和 Q 分支的计算掩盖</li>
+<li>少数长请求的情况下，负载比 DP 更均衡</li>
+</ul>
+<div class="cpfig">
+  <div class="cp-strip">
+    <div class="cp-half">
+      <div class="cp-b r0"><b>b0</b><span>0–7</span></div>
+      <div class="cp-b r1"><b>b1</b><span>8–15</span></div>
+    </div>
+    <div class="cp-mid"></div>
+    <div class="cp-half">
+      <div class="cp-b r1"><b>b2</b><span>16–23</span></div>
+      <div class="cp-b r0"><b>b3</b><span>24–31</span></div>
+    </div>
+  </div>
+  <div class="cp-strip cp-own">
+    <div class="cp-half">
+      <div class="cp-o r0">R0</div>
+      <div class="cp-o r1">R1</div>
+    </div>
+    <div class="cp-mid"></div>
+    <div class="cp-half">
+      <div class="cp-o r1">R1</div>
+      <div class="cp-o r0">R0</div>
+    </div>
+  </div>
+</div>
+</div>
+<div>
+<div class="label first">EP & EPLB</div>
+<ul>
+<li>
+<p>Wide-EP 64 - 128, 但 A2A 受最慢卡约束</p>
+</li>
+<li>
+<p>EPLB 的目标是极小化 $\sum_i \max_{e}(\text{load}_e / \text{count}_e)$</p>
+</li>
+<li>
+<p>先决定给哪个专家增加副本；再贪心地选择把副本放到哪张卡</p>
+</li>
+<li>
+<p>重排的权重搬运，单机内走<code>symm_mem</code> IPC，跨机走 NCCL</p>
+</li>
+<li>
+<p>Prefill: 冗余 4 / 每 100 步统计 / 每 1k 步重排 / <code>moe_lb</code> = slowest / mean = 1.074 (EP4)</p>
+</li>
+<li>
+<p>Decode: 冗余 1 / 每 1k 步统计 / 每 10k 步重排 / <code>moe_lb</code> = 1.090 (EP64)</p>
+</li>
+</ul>
+</div>
+</div>
+<hr>
+<h2 id="09高性能融合算子">09｜高性能融合算子</h2>
+<table>
+	<thead>
+			<tr>
+					<th>库</th>
+					<th>涉及算子</th>
+			</tr>
+	</thead>
+	<tbody>
+			<tr>
+					<td><strong>DeepGEMM</strong></td>
+					<td>GEMM / GMM / Mega MoE / MQA logits</td>
+			</tr>
+			<tr>
+					<td><strong>DeepEP</strong></td>
+					<td>EP A2A / Dispatch / Combine</td>
+			</tr>
+			<tr>
+					<td><strong>TileKernels</strong></td>
+					<td>Quant / RoPE / MoE routing / Engram / mHC</td>
+			</tr>
+			<tr>
+					<td><strong>FlashMLA</strong></td>
+					<td>Sparse MLA</td>
+			</tr>
+			<tr>
+					<td><strong>DeepSelect</strong></td>
+					<td>Indexer TopK / sampler TopK</td>
+			</tr>
+	</tbody>
+</table>
+<table>
+	<thead>
+			<tr>
+					<th>算子族</th>
+					<th>融合内容</th>
+					<th>使用位置</th>
+			</tr>
+	</thead>
+	<tbody>
+			<tr>
+					<td><code>fused_norm_rope_hadamard_cast_store_kvcache</code></td>
+					<td>RMSNorm + RoPE + cast + store</td>
+					<td>SWA KV、Compressor 主 KV、Indexer Q/K</td>
+			</tr>
+			<tr>
+					<td><code>fused_norm_rope_attn_rope_cast</code></td>
+					<td>Q RMSNorm + RoPE + sparse MLA + 输出反 RoPE + FP8 cast</td>
+					<td>SWA prefill / decode</td>
+			</tr>
+			<tr>
+					<td><code>compress_and_update_state_{prefill,decode}</code></td>
+					<td>state 读写 + 逐维 softmax + 加权和 + bf16</td>
+					<td>Compressor C2</td>
+			</tr>
+			<tr>
+					<td>DeepGEMM <code>mqa_logits</code></td>
+					<td>GEMM + ReLU + head 加权归约</td>
+					<td>Indexer logits</td>
+			</tr>
+	</tbody>
+</table>
+<div class="label first">优点</div>
+<ul>
+<li>节省 IO / 头开销</li>
+<li>为特性定 shape 优化</li>
+<li>Metadata 下沉</li>
+</ul>
+<hr>
+<h2 id="总结">总结</h2>
+<ul>
+<li>Infra 指导模型架构 (CED / CSA / Hier Indexer)</li>
+<li>低开销异步调度</li>
+<li>融合算子 / 并行设计 / Bounded Replay 降低时延</li>
+<li>DSpark 置信验证提升吞吐</li>
+</ul>
+<p><strong>但是</strong></p>
+<ul>
+<li>DS V4.1 极致高性价比主要来源于<strong>超高前缀命中率</strong></li>
+<li><strong>分布式 KV 池</strong>的硬件、Infra 和留存策略很关键</li>
+<li>未必算是开源了印钞机</li>
+</ul>
+<p><strong>思考</strong></p>
+<ul>
+<li>框架的发展路线可能是模型特化(Qwen, Hy, DS)、硬件特化（计算架构、内存架构、算力带宽比）</li>
+<li>大规模部署要配套相应的分布式 KV 池 (e.g. Mooncake Store)</li>
+</ul>
+
+                    
+                    <HR width="100%" id="EOF">
+		    <p style="color:#777;">最后修改于 2026-10-28</p>
+                    
+                </div>
+            </div>
+            
+            
+            <nav class="post-pagination">
+
+                
+                <a class="newer-posts" href="/life/reading_2026/">
+			下回<br>读书 2026
+                </a>
+                
+                
+                
+                <a class="older-posts" href="/llm/dsv41_kv/">
+			上回<br>DeepSeek V4.1 KV Cache Layout
+                </a>
+                
+            </nav>
+            <div class="post-comment-wrapper">
+                
+
+
+
+
+
+
+
+
+
+
+
+
+            </div>
+        </div>
+    </div>
+
+
+                    </div>
+            </div><div id="sideContainer" class="side-container">
+    
+    <a class="a-block nav-head false" href="https://zhixuan-zxli.github.io/">
+    
+        <div class="nav-title">
+            Zhixuan&#39;s Blog
+        </div>
+        
+    </a>
+
+    <div class="nav-link-list">
+        
+        
+            
+            
+            
+                
+            
+            
+            
+            <a class="a-block nav-link-item active" href="/llm">
+                大模型
+            </a>
+            
+        
+            
+            
+            
+            
+            
+            <a class="a-block nav-link-item false" href="/life">
+                生活随记
+            </a>
+            
+        
+    </div>
+
+    
+
+    <div class="nav-footer">
+        
+Hugo Theme <a href="https://github.com/amazingrise/hugo-theme-diary">Diary</a> by <a href="https://risehere.net/">Rise</a>
+<br>
+移植自 <a href="https://mak1t0.cc/" target="_blank" rel="noreferrer noopener">Makito</a>'s <a href="https://github.com/SumiMakito/hexo-theme-journal/" target="_blank" rel="noreferrer noopener">Journal.</a> <br>
+<br>
+
+&copy;
+	
+	2026 Zhixuan&#39;s Blog
+	
+
+    </div>
+    
+</div><div id="extraContainer" class="extra-container">
+    <div class="toc-wrapper">
+        
+
+        
+    </div>
+    <div class="pagination">
+        <a id="globalBackToTop" class="pagination-action animated-visibility" href="#top"
+            :class="{ invisible: scrollY == 0 }">
+            <i class="material-icons pagination-action-icon">
+                keyboard_arrow_up
+            </i>
+        </a>
+        
+        <a type="button" class="pagination-action" id="darkModeToggleButton">
+            <span class="material-icons pagination-action-icon" id="darkModeToggleIcon">
+                dark_mode
+            </span>
+        </a>
+        
+        
+    </div>
+</div>
+
+<div id="single-column-footer">
+Hugo Theme <a href="https://github.com/amazingrise/hugo-theme-diary">Diary</a> by <a href="https://risehere.net/">Rise</a>
+<br>
+移植自 <a href="https://mak1t0.cc/" target="_blank" rel="noreferrer noopener">Makito</a>'s <a href="https://github.com/SumiMakito/hexo-theme-journal/" target="_blank" rel="noreferrer noopener">Journal.</a> <br>
+<br>
+
+&copy;
+	
+	2026 Zhixuan&#39;s Blog
+	
+</div>
+            </div>
+    
+    <script src="/js/journal.js"></script></body>
+</html>

@@ -251,6 +251,12 @@
 			</tr>
 	</tbody>
 </table>
+<ul>
+<li>SWA cache: 512 E4M3 FP8 + UE8M0 scale per 32-element group = 528 bytes</li>
+<li>Compressor cache: 512 E2M1 + E4M3 scale per 16-element group = 288 bytes</li>
+<li>Indexer cache: 128 FP4 + UE8M0 scale per 32-element group = 68 bytes</li>
+<li>Compressor ring cache: 512 FP32 for latent and score, respectively = 4096 bytes</li>
+</ul>
 <!doctype html>
 <html lang="en" data-visualize-standalone>
 <head>
@@ -2013,8 +2019,8 @@ html&gt;body{padding:0}&lt;/style&gt;
             <nav class="post-pagination">
 
                 
-                <a class="newer-posts" href="/life/reading_2026/">
-			下回<br>读书 2026
+                <a class="newer-posts" href="/llm/deepinfer/">
+			下回<br>DeepInfer 调研
                 </a>
                 
                 
