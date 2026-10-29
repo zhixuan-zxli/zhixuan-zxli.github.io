@@ -1,0 +1,1778 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<title>DeepSeek V4.1-Flash：SWA / Compressor / Indexer 融合算子</title>
+
+
+
+
+<meta charset="utf-8">
+<meta name="X-UA-Compatible" content="IE=edge">
+<meta name="google-site-verification" content="">
+<meta content="width=device-width, initial-scale=1.0, maximum-scale=5, user-scalable=5" name="viewport">
+<meta content="telephone=no" name="format-detection">
+<meta name="description" content="">
+<meta name="renderer" content="webkit">
+<meta name="theme-color" content="#ffffff">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+
+
+
+
+
+    <link type="text/css" rel="stylesheet" href="/vendor/css/bootstrap.min.css">
+
+<link rel="stylesheet" href="/scss/dark-mode.min.6c9b4c2290542df75010d1640eac4339c754ccff3c9b43fc81a23c94e7e12eaf.css" integrity="sha256-bJtMIpBULfdQENFkDqxDOcdUzP88m0P8gaI8lOfhLq8=" media="screen">
+
+
+<link rel="stylesheet"
+          href="https://fonts.googleapis.com/css?family=Material+Icons">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<link rel="stylesheet" href="/css/custom.css">
+
+
+
+
+</head>
+<body>
+    	<div id="app"><div class="single-column-drawer-container" id="drawer"
+     v-bind:class="{ 'single-column-drawer-container-active': isDrawerOpen }">
+    <div class="drawer-content">
+        <div class="drawer-menu">
+            
+            
+            
+                
+                
+                
+                    
+                
+                
+                
+                <a class="a-block drawer-menu-item active" href="/llm">
+                    大模型
+                </a>
+                
+            
+                
+                
+                
+                
+                
+                <a class="a-block drawer-menu-item false" href="/life">
+                    生活随记
+                </a>
+                
+            
+            
+            <div class="toc">
+
+
+	<div class="toc-content">
+	
+		
+		
+		
+		<center>- 目录 -</center>
+		
+		
+		<ul>
+			
+				
+				
+					
+						
+						
+						
+						
+							
+								
+									<ul>
+								
+							
+						
+						
+							<li>
+								<a href="#0-%e7%bb%93%e8%ae%ba%e9%80%9f%e8%a7%88" class="nav-0-结论速览">
+									0. 结论速览
+								</a>
+							</li>
+						
+						
+					
+				
+			
+				
+				
+					
+						
+						
+						
+						
+						
+							<li>
+								<a href="#1-%e5%8f%a3%e5%be%84%e4%b8%8e-shape-%e8%ae%b0%e5%8f%b7" class="nav-1-口径与-shape-记号">
+									1. 口径与 shape 记号
+								</a>
+							</li>
+						
+						
+					
+				
+			
+				
+				
+					
+						
+						
+						
+						
+							
+								
+									<ul>
+								
+							
+						
+						
+							<li>
+								<a href="#11-%e5%88%86%e7%b1%bb%e5%8f%a3%e5%be%84" class="nav-11-分类口径">
+									1.1 分类口径
+								</a>
+							</li>
+						
+						
+					
+				
+			
+				
+				
+					
+						
+						
+						
+						
+						
+							<li>
+								<a href="#12-shape-%e8%ae%b0%e5%8f%b7" class="nav-12-shape-记号">
+									1.2 shape 记号
+								</a>
+							</li>
+						
+						
+					
+				
+			
+				
+				
+					
+						
+						
+						
+							
+								</ul>
+							
+						
+						
+						
+							<li>
+								<a href="#2-swa%e6%bb%91%e5%8a%a8%e7%aa%97%e5%8f%a3%e6%b3%a8%e6%84%8f%e5%8a%9b" class="nav-2-swa滑动窗口注意力">
+									2. SWA：滑动窗口注意力
+								</a>
+							</li>
+						
+						
+					
+				
+			
+				
+				
+					
+						
+						
+						
+						
+							
+								
+									<ul>
+								
+							
+						
+						
+							<li>
+								<a href="#21-%e6%a8%a1%e5%9d%97%e8%81%8c%e8%b4%a3" class="nav-21-模块职责">
+									2.1 模块职责
+								</a>
+							</li>
+						
+						
+					
+				
+			
+				
+				
+					
+						
+						
+						
+						
+						
+							<li>
+								<a href="#22-%e8%9e%8d%e5%90%88%e7%ae%97%e5%ad%90" class="nav-22-融合算子">
+									2.2 融合算子
+								</a>
+							</li>
+						
+						
+					
+				
+			
+				
+				
+					
+						
+						
+						
+						
+						
+							<li>
+								<a href="#23-kv_swa-%e8%9e%8d%e5%90%88%e5%86%99" class="nav-23-kv_swa-融合写">
+									2.3 KV_SWA 融合写
+								</a>
+							</li>
+						
+						
+					
+				
+			
+				
+				
+					
+						
+						
+						
+						
+						
+							<li>
+								<a href="#24-q-%e8%b7%af%e5%be%84%e4%b8%8e-flashmla-%e7%9a%84%e8%9e%8d%e5%90%88%e8%be%b9%e7%95%8c" class="nav-24-q-路径与-flashmla-的融合边界">
+									2.4 Q 路径与 FlashMLA 的融合边界
+								</a>
+							</li>
+						
+						
+					
+				
+			
+				
+				
+					
+						
+						
+						
+						
+						
+							<li>
+								<a href="#25-%e4%b8%a4%e4%b8%aa%e5%90%88%e5%b9%b6-gemm" class="nav-25-两个合并-gemm">
+									2.5 两个合并 GEMM
+								</a>
+							</li>
+						
+						
+					
+				
+			
+				
+				
+					
+						
+						
+						
+						
+						
+							<li>
+								<a href="#26-tilelang-%e7%b4%a2%e5%bc%95%e4%b8%8e%e6%90%ac%e8%bf%90" class="nav-26-tilelang-索引与搬运">
+									2.6 TileLang 索引与搬运
+								</a>
+							</li>
+						
+						
+					
+				
+			
+				
+				
+					
+						
+						
+						
+						
+						
+							<li>
+								<a href="#27-prefill--decode-%e6%95%b0%e6%8d%ae%e6%b5%81" class="nav-27-prefill--decode-数据流">
+									2.7 prefill / decode 数据流
+								</a>
+							</li>
+						
+						
+					
+				
+			
+				
+				
+					
+						
+						
+						
+						
+						
+							<li>
+								<a href="#28-%e6%a0%bc%e5%bc%8f%e4%b8%8e-shape" class="nav-28-格式与-shape">
+									2.8 格式与 shape
+								</a>
+							</li>
+						
+						
+					
+				
+			
+				
+				
+					
+						
+						
+						
+							
+								</ul>
+							
+						
+						
+						
+							<li>
+								<a href="#3-compressor%e5%8e%8b%e7%bc%a9-kv" class="nav-3-compressor压缩-kv">
+									3. Compressor：压缩 KV
+								</a>
+							</li>
+						
+						
+					
+				
+			
+				
+				
+					
+						
+						
+						
+						
+							
+								
+									<ul>
+								
+							
+						
+						
+							<li>
+								<a href="#31-%e6%a8%a1%e5%9d%97%e8%81%8c%e8%b4%a3" class="nav-31-模块职责">
+									3.1 模块职责
+								</a>
+							</li>
+						
+						
+					
+				
+			
+				
+				
+					
+						
+						
+						
+						
+						
+							<li>
+								<a href="#32-%e8%9e%8d%e5%90%88%e7%ae%97%e5%ad%90" class="nav-32-融合算子">
+									3.2 融合算子
+								</a>
+							</li>
+						
+						
+					
+				
+			
+				
+				
+					
+						
+						
+						
+						
+						
+							<li>
+								<a href="#33-c2-%e5%8e%8b%e7%bc%a9-kernel-%e7%9a%84%e7%bb%86%e8%8a%82" class="nav-33-c2-压缩-kernel-的细节">
+									3.3 C2 压缩 kernel 的细节
+								</a>
+							</li>
+						
+						
+					
+				
+			
+				
+				
+					
+						
+						
+						
+						
+						
+							<li>
+								<a href="#34-%e4%b8%bb-kv-%e8%9e%8d%e5%90%88%e5%86%99" class="nav-34-主-kv-融合写">
+									3.4 主 KV 融合写
+								</a>
+							</li>
+						
+						
+					
+				
+			
+				
+				
+					
+						
+						
+						
+						
+						
+							<li>
+								<a href="#35-%e5%90%88%e5%b9%b6%e6%8a%95%e5%bd%b1" class="nav-35-合并投影">
+									3.5 合并投影
+								</a>
+							</li>
+						
+						
+					
+				
+			
+				
+				
+					
+						
+						
+						
+						
+						
+							<li>
+								<a href="#36-cp-%e4%b8%8e%e5%85%b1%e4%ba%ab" class="nav-36-cp-与共享">
+									3.6 CP 与共享
+								</a>
+							</li>
+						
+						
+					
+				
+			
+				
+				
+					
+						
+						
+						
+						
+						
+							<li>
+								<a href="#37-%e6%a0%bc%e5%bc%8f%e4%b8%8e-shape" class="nav-37-格式与-shape">
+									3.7 格式与 shape
+								</a>
+							</li>
+						
+						
+					
+				
+			
+				
+				
+					
+						
+						
+						
+							
+								</ul>
+							
+						
+						
+						
+							<li>
+								<a href="#4-indexer%e7%a8%80%e7%96%8f%e7%b4%a2%e5%bc%95%e5%99%a8" class="nav-4-indexer稀疏索引器">
+									4. Indexer：稀疏索引器
+								</a>
+							</li>
+						
+						
+					
+				
+			
+				
+				
+					
+						
+						
+						
+						
+							
+								
+									<ul>
+								
+							
+						
+						
+							<li>
+								<a href="#41-%e6%a8%a1%e5%9d%97%e8%81%8c%e8%b4%a3" class="nav-41-模块职责">
+									4.1 模块职责
+								</a>
+							</li>
+						
+						
+					
+				
+			
+				
+				
+					
+						
+						
+						
+						
+						
+							<li>
+								<a href="#42-%e8%9e%8d%e5%90%88%e7%ae%97%e5%ad%90" class="nav-42-融合算子">
+									4.2 融合算子
+								</a>
+							</li>
+						
+						
+					
+				
+			
+				
+				
+					
+						
+						
+						
+						
+						
+							<li>
+								<a href="#43-q-%e4%b8%8e-k-%e7%9a%84%e4%b8%8d%e5%af%b9%e7%a7%b0" class="nav-43-q-与-k-的不对称">
+									4.3 Q 与 K 的不对称
+								</a>
+							</li>
+						
+						
+					
+				
+			
+				
+				
+					
+						
+						
+						
+						
+						
+							<li>
+								<a href="#44-deepgemm-logits-%e8%9e%8d%e5%90%88" class="nav-44-deepgemm-logits-融合">
+									4.4 DeepGEMM logits 融合
+								</a>
+							</li>
+						
+						
+					
+				
+			
+				
+				
+					
+						
+						
+						
+						
+						
+							<li>
+								<a href="#45-%e5%80%99%e9%80%89%e5%9d%97%e4%b8%8e-top-k-%e7%b4%a2%e5%bc%95%e9%93%be" class="nav-45-候选块与-top-k-索引链">
+									4.5 候选块与 top-k 索引链
+								</a>
+							</li>
+						
+						
+					
+				
+			
+				
+				
+					
+						
+						
+						
+						
+						
+							<li>
+								<a href="#46-%e5%85%b1%e4%ba%ab%e5%b1%82%e8%a1%8c%e4%b8%ba" class="nav-46-共享层行为">
+									4.6 共享层行为
+								</a>
+							</li>
+						
+						
+					
+				
+			
+				
+				
+					
+						
+						
+						
+						
+						
+							<li>
+								<a href="#47-%e6%a0%bc%e5%bc%8f%e4%b8%8e-shape" class="nav-47-格式与-shape">
+									4.7 格式与 shape
+								</a>
+							</li>
+						
+						
+					
+				
+			
+				
+				
+					
+						
+						
+						
+							
+								</ul>
+							
+						
+						
+						
+							<li>
+								<a href="#5-%e6%a8%aa%e5%90%91%e5%af%b9%e6%af%94" class="nav-5-横向对比">
+									5. 横向对比
+								</a>
+							</li>
+						
+						
+					
+				
+			
+				
+				
+					
+						
+						
+						
+						
+							
+								
+									<ul>
+								
+							
+						
+						
+							<li>
+								<a href="#51-%e5%ae%b9%e6%98%93%e8%af%af%e5%88%a4%e7%9a%84%e7%82%b9" class="nav-51-容易误判的点">
+									5.1 容易误判的点
+								</a>
+							</li>
+						
+						
+					
+				
+			
+				
+				
+					
+						
+						
+						
+							
+								</ul>
+							
+						
+						
+						
+							<li>
+								<a href="#6-%e9%99%84%e5%bd%95" class="nav-6-附录">
+									6. 附录
+								</a>
+							</li>
+						
+						
+					
+				
+			
+				
+				
+					
+						
+						
+						
+						
+							
+								
+									<ul>
+								
+							
+						
+						
+							<li>
+								<a href="#61-%e5%85%a8%e9%87%8f%e7%ae%97%e5%ad%90%e9%80%9f%e6%9f%a5" class="nav-61-全量算子速查">
+									6.1 全量算子速查
+								</a>
+							</li>
+						
+						
+					
+				
+			
+				
+				
+					
+						
+						
+						
+						
+						
+							<li>
+								<a href="#62-%e6%ba%90%e7%a0%81%e7%b4%a2%e5%bc%95" class="nav-62-源码索引">
+									6.2 源码索引
+								</a>
+							</li>
+						
+						
+					
+				
+			
+				
+				
+					
+						
+						
+						
+						
+						
+							<li>
+								<a href="#63-%e5%9b%be%e4%b8%8e%e6%ba%90%e6%96%87%e4%bb%b6" class="nav-63-图与源文件">
+									6.3 图与源文件
+								</a>
+							</li>
+						
+						
+					
+				
+			
+		</ul>
+	</div>
+
+</div>
+            
+        </div>
+    </div>
+</div>
+<transition name="fade">
+    <div id="drawer-mask" v-bind:class="{ 'single-column-drawer-mask': mounted }" v-if="isDrawerOpen" v-on:click="toggleDrawer"></div>
+</transition>
+<nav id="navBar" class="navbar sticky-top navbar-light single-column-nav-container">
+    <div id="navBackground" class="nav-background"></div>
+    <div class="container container-narrow nav-content">
+        <button id="nav_dropdown_btn" class="nav-dropdown-toggle" type="button" v-on:click="toggleDrawer">
+            <i class="material-icons">
+                menu
+            </i>
+        </button>
+        <a id="navTitle" class="navbar-brand" href="https://zhixuan-zxli.github.io/">
+            Zhixuan&#39;s Blog
+        </a>
+        
+        <button type="button" class="nav-darkmode-toggle" id="darkModeToggleButton2">
+            <i class="material-icons" id="darkModeToggleIcon2">
+                dark_mode
+            </i>
+        </button>
+        
+    </div>
+</nav>
+<div class="single-column-header-container" id="pageHead"
+     v-bind:style="{ transform: 'translateZ(0px) translateY('+.3*scrollY+'px)', opacity: 1-navOpacity }">
+    <a href="https://zhixuan-zxli.github.io/">
+        <div class="single-column-header-title">Zhixuan&#39;s Blog</div>
+        
+
+    </a>
+</div>
+
+            <div id="content">
+                <div id="streamContainer" class="stream-container">
+
+    <div class="post-list-container post-list-container-shadow">
+        <div class="post">
+            
+            
+            
+
+            <div class="post-head-wrapper-text-only"
+                
+            >
+                <div class="post-title">
+                    DeepSeek V4.1-Flash：SWA / Compressor / Indexer 融合算子
+                    
+                    <div class="post-meta">
+                        
+                        <time itemprop="datePublished">
+                            2026-10-29 00:00
+                        </time>
+                        
+
+                        
+
+                        
+                            <i class="material-icons" style="">label</i>
+                            
+                                <a href="/tags/deepseek">DeepSeek</a>
+                                &nbsp;
+                            
+                                <a href="/tags/%E6%8E%A8%E7%90%86">推理</a>
+                                &nbsp;
+                            
+                        
+                        
+                    </div>
+                </div>
+            </div>
+            
+            <div class="post-body-wrapper">
+                
+                <div class="post-body" v-pre>
+                
+                    <blockquote>
+<p>代码位置按当前 checkout 标注（DeepInfer @ <code>2c37138</code>）；shape 使用 <code>T</code> / <code>B</code> 记号。</p>
+</blockquote>
+<p>本文按 <strong>SWA、Compressor、Indexer</strong> 三条链路分类，说明模型脚本中实际使用的融合算子、合并 GEMM、TileLang 索引/搬运 kernel，以及它们在 prefill / decode 下的数据流和 tensor shape。</p>
+<p>文中三张架构图较宽，点击图片可查看原尺寸。</p>
+<hr>
+<h2 id="0-结论速览">0. 结论速览</h2>
+<p>这三块一共用到 <strong>4 个融合 kernel 家族</strong>：</p>
+<table>
+	<thead>
+			<tr>
+					<th>融合 kernel 家族</th>
+					<th>融合内容</th>
+					<th>使用位置</th>
+			</tr>
+	</thead>
+	<tbody>
+			<tr>
+					<td><code>fused_norm_rope_hadamard_cast_store_kvcache</code></td>
+					<td>RMSNorm + RoPE + cast + store；可选 <code>cast_back</code>，也可输出 pre-RoPE 副产物</td>
+					<td>SWA KV、Compressor 主 KV、Indexer Q/K</td>
+			</tr>
+			<tr>
+					<td><code>fused_norm_rope_attn_rope_cast</code></td>
+					<td>Q RMSNorm + RoPE + sparse MLA + 输出反 RoPE + FP8 cast</td>
+					<td>SWA prefill / decode</td>
+			</tr>
+			<tr>
+					<td><code>compress_and_update_state_{prefill,decode}</code></td>
+					<td>state 读写 + 逐维 softmax + 加权和 + bf16</td>
+					<td>Compressor C2</td>
+			</tr>
+			<tr>
+					<td>DeepGEMM <code>mqa_logits</code> 系列</td>
+					<td>GEMM + ReLU + head 加权归约</td>
+					<td>Indexer logits</td>
+			</tr>
+	</tbody>
+</table>
+<p>这里的 4 个是底层 kernel 家族；同一个 <code>fused_norm_rope_hadamard_cast_store_kvcache</code> 会在 SWA / Compressor / Indexer 重复出现，因此按子系统拆开会看到 6 个使用类别。</p>
+<p>另有 <strong>3 处合并 GEMM</strong>（host 侧拼权重，仍是一次普通 GEMM）：</p>
+<table>
+	<thead>
+			<tr>
+					<th>合并 GEMM</th>
+					<th>权重拼接</th>
+					<th>使用位置</th>
+			</tr>
+	</thead>
+	<tbody>
+			<tr>
+					<td><code>q_a_kv_swa_proj</code></td>
+					<td><code>[Wq.A ∥ Wkv.A]</code></td>
+					<td>SWA 共用前端</td>
+			</tr>
+			<tr>
+					<td><code>q_b_proj</code></td>
+					<td><code>[Wq.B ∥ index q_B]</code></td>
+					<td>SWA + Indexer 共用</td>
+			</tr>
+			<tr>
+					<td><code>current_hidden_proj</code></td>
+					<td><code>[Gate ∥ A ∥ index weights_proj]</code></td>
+					<td>Compressor 共用前端</td>
+			</tr>
+	</tbody>
+</table>
+<p>以及一组 TileLang 索引/搬运 kernel：<code>expand_swa_index</code>、<code>kv_index_cat</code>、<code>get_kv_swa_index_decode</code>、<code>load_paged_kv_cache</code>、<code>store_kv_cache</code>、<code>candidate_block_max</code>、<code>get_candidate_compact_lens</code>、<code>restore_candidate_indices_inplace</code>、<code>convert_kv_index</code>。</p>
+<blockquote>
+<p>说明：<code>fused_norm_rope_hadamard_cast_store_kvcache</code> 名字里带 Hadamard，但 SWA / Compressor / Indexer 三条路径的调用点都是 <code>hadamard_args=None</code>；<code>HadamardArgs</code> 只在测试里出现。</p>
+</blockquote>
+<hr>
+<h2 id="1-口径与-shape-记号">1. 口径与 shape 记号</h2>
+<h3 id="11-分类口径">1.1 分类口径</h3>
+<ul>
+<li><strong>FUSED</strong>：一个 kernel 内完成 ≥ 2 个逻辑阶段，例如 <code>norm + rope + cast + store</code>、<code>state 更新 + softmax + 加权和</code>。</li>
+<li><strong>MERGED GEMM</strong>：host 侧把多个权重 concat 成一个权重，仍然只 launch 一次普通 GEMM；它不是 kernel 内融合，但确实减少了 launch 和中间张量。</li>
+<li><strong>TILELANG</strong>：专用索引/搬运 kernel，可能同时做量化/反量化，但不属于多阶段计算融合。</li>
+<li><strong>VENDOR</strong>：FlashMLA、DeepGEMM、DeepSelect 等外部 kernel。</li>
+</ul>
+<h3 id="12-shape-记号">1.2 shape 记号</h3>
+<table>
+	<thead>
+			<tr>
+					<th>符号</th>
+					<th>含义</th>
+			</tr>
+	</thead>
+	<tbody>
+			<tr>
+					<td><code>T</code></td>
+					<td>prefill 的 query token 数</td>
+			</tr>
+			<tr>
+					<td><code>B</code></td>
+					<td>decode 的 batch token 数</td>
+			</tr>
+			<tr>
+					<td><code>T/B</code></td>
+					<td>两条路径共用，prefill 用 T、decode 用 B</td>
+			</tr>
+			<tr>
+					<td><code>H</code></td>
+					<td>hidden size</td>
+			</tr>
+			<tr>
+					<td><code>Rq</code></td>
+					<td>q_lora_rank</td>
+			</tr>
+			<tr>
+					<td><code>N_h</code></td>
+					<td>主注意力 head 数</td>
+			</tr>
+			<tr>
+					<td><code>N_i</code></td>
+					<td>indexer head 数</td>
+			</tr>
+			<tr>
+					<td><code>D</code></td>
+					<td>主注意力 head_dim，V4.1 layout 为 512（448 latent + 64 RoPE）</td>
+			</tr>
+			<tr>
+					<td><code>D_i</code></td>
+					<td>indexer head_dim，128</td>
+			</tr>
+			<tr>
+					<td><code>W</code></td>
+					<td>SWA window_size</td>
+			</tr>
+			<tr>
+					<td><code>W_s</code></td>
+					<td>SWA cache block size（window + backtracking）</td>
+			</tr>
+			<tr>
+					<td><code>K</code></td>
+					<td>topk_tokens</td>
+			</tr>
+			<tr>
+					<td><code>C</code></td>
+					<td>compressed KV cache 的逻辑长度</td>
+			</tr>
+			<tr>
+					<td><code>L_c</code></td>
+					<td>当前 query 可见的 compressed KV 长度（klen）</td>
+			</tr>
+			<tr>
+					<td><code>K_v</code></td>
+					<td>prefill 时 gather 出来的 KV 总长度</td>
+			</tr>
+			<tr>
+					<td><code>K_b</code></td>
+					<td>candidate block 数</td>
+			</tr>
+			<tr>
+					<td><code>N</code></td>
+					<td>kv_compress_ratio，本模型为 1 或 2</td>
+			</tr>
+			<tr>
+					<td><code>S</code></td>
+					<td>compressor state ring 大小</td>
+			</tr>
+	</tbody>
+</table>
+<hr>
+<h2 id="2-swa滑动窗口注意力">2. SWA：滑动窗口注意力</h2>
+<h3 id="21-模块职责">2.1 模块职责</h3>
+<p>SWA 分支负责：</p>
+<ol>
+<li>从 hidden states 一次投影出 <code>q_a</code> 和 <code>kv_swa</code>；</li>
+<li>把 <code>kv_swa</code> 做 norm + RoPE + FP8 量化，写入 <code>swa_cache</code>；</li>
+<li>prefill 时把历史 SWA KV、当前 KV、压缩 KV 拼成连续 buffer，并把 SWA 索引与压缩 topk 索引拼成一条 <code>kv_index</code>；</li>
+<li>decode 时把 <code>swa_cache</code> 的 ring slot 和 <code>ca_cache</code> 的 paged slot 作为两组 indices，传给同一个 FlashMLA。</li>
+</ol>
+<p><a href="/llm/dsv41-fused-operators/images/swa_architecture.svg"><img src="/llm/dsv41-fused-operators/images/swa_architecture.svg" alt="SWA 架构图"></a></p>
+<h3 id="22-融合算子">2.2 融合算子</h3>
+<table>
+	<thead>
+			<tr>
+					<th>算子</th>
+					<th>类型</th>
+					<th>融合阶段</th>
+					<th>输入 → 输出</th>
+					<th>代码位置</th>
+			</tr>
+	</thead>
+	<tbody>
+			<tr>
+					<td><code>fused_norm_rope_hadamard_cast_store_kvcache</code></td>
+					<td><strong>FUSED</strong></td>
+					<td>RMSNorm → RoPE（尾 64）→ FP8 E4M3 per-32 cast → store</td>
+					<td><code>kv_swa [T/B,512]</code> → <code>swa_cache</code>；prefill 走 cast_back 出 bf16</td>
+					<td><code>attn.py:402-451</code>、<code>fused_transform.py:189</code></td>
+			</tr>
+			<tr>
+					<td><code>fused_norm_rope_attn_rope_cast.prefill</code></td>
+					<td><strong>FUSED</strong></td>
+					<td>Q RMSNorm + RoPE → sparse MLA + sink → 输出反 RoPE → FP8 cast</td>
+					<td><code>q_raw [T,N_h·512]</code> + <code>kv [K_v,512]</code> → <code>context [T,N_h,512]</code></td>
+					<td><code>attn.py:589-626</code>、<code>attention_backend.py:29</code></td>
+			</tr>
+			<tr>
+					<td><code>fused_norm_rope_attn_rope_cast.decode</code></td>
+					<td><strong>FUSED</strong></td>
+					<td>Q RMSNorm + RoPE → SWA/CA 双缓存 sparse MLA + sink → 输出反 RoPE → FP8 cast</td>
+					<td><code>q_raw [B,N_h·512]</code> + <code>swa_cache</code> + <code>ca_cache</code> → <code>context [B,N_h,512]</code></td>
+					<td><code>attn.py:628-670</code>、<code>attention_backend.py:74</code></td>
+			</tr>
+	</tbody>
+</table>
+<h3 id="23-kv_swa-融合写">2.3 KV_SWA 融合写</h3>
+<p><code>_prepare_swa_kv</code>（<code>attn.py:402-451</code>）把四件事合成一次 kernel：</p>
+<ol>
+<li><code>RMSNorm(kv_swa_norm)</code>；</li>
+<li>RoPE，作用在最后 64 维，offset = <code>512 - 64 = 448</code>；</li>
+<li>FP8 E4M3 per-32 量化，scale 为 UE8M0；</li>
+<li>store 到 <code>swa_cache</code>。</li>
+</ol>
+<p>prefill 和 decode 的差异：</p>
+<ul>
+<li><strong>prefill</strong>：<code>CastArgs(..., cast_back=True)</code>，输出 bf16；如果 CP &gt; 1，再对 <code>kv_swa</code> 做 <code>all_gather</code>。由于 ring slot 可能与历史读区间重叠，当前 KV 的 <code>store_kv_cache</code> 必须等 <code>load_paged_kv_cache</code> 读完历史后再执行。
+<ul>
+<li>这意味着 prefill 会做一次“量化 round-trip → bf16”，store 时再量化一次；代码里这是有意的顺序约束。</li>
+</ul>
+</li>
+<li><strong>decode</strong>：<code>KVCacheOutArgs(swa_cache, slot_mapping_store_swa)</code>，直接写量化后的 cache，不返回 bf16。</li>
+</ul>
+<p>Hadamard 在本模型没有启用。</p>
+<h3 id="24-q-路径与-flashmla-的融合边界">2.4 Q 路径与 FlashMLA 的融合边界</h3>
+<p>主 Q 的 norm+RoPE <strong>默认不在投影后单独做</strong>，而是折叠进注意力 kernel：</p>
+<ul>
+<li>当 <code>use_fused_norm_rope_attn_rope_cast</code> 为真时，<code>q_b_proj</code> 的输出 <code>q_raw</code> 保持“未 norm、未 RoPE”的状态，直接送进 <code>prefill_attn_varlen_sparse</code> / <code>decode_mla_mqa_sparse</code>；</li>
+<li><code>fused_norm_rope_attn_rope_cast</code> 在 kernel 内完成 Q RMSNorm、RoPE、sparse MLA、attention sink、输出反 RoPE，以及给 WV einsum 用的 per-32 FP8 cast；</li>
+<li>这个路径要求 <strong>GPU</strong> 且 <strong>num_heads ∈ {64, 128}</strong>；否则退回“同一个 fused transform 单独做 norm+RoPE → 普通 FlashMLA”，数值等价。</li>
+</ul>
+<p>Q 的单算子 fallback 在 <code>_q_b_norm_rope</code>（<code>attn.py:158-172</code>）：
+<code>fused_norm_rope_hadamard_cast_store_kvcache</code>，只做 norm + RoPE，不做 cast/store。</p>
+<h3 id="25-两个合并-gemm">2.5 两个合并 GEMM</h3>
+<table>
+	<thead>
+			<tr>
+					<th>GEMM</th>
+					<th>拼接</th>
+					<th>输出</th>
+					<th>说明</th>
+			</tr>
+	</thead>
+	<tbody>
+			<tr>
+					<td><code>q_a_kv_swa_proj</code></td>
+					<td><code>[Wq.A ∥ Wkv.A]</code></td>
+					<td><code>q_a [T/B,Rq]</code>、<code>kv_swa [T/B,512]</code></td>
+					<td>一次 GEMM 出两路；YOCO shared-hidden 场景改走独立 <code>kv_swa_proj</code></td>
+			</tr>
+			<tr>
+					<td><code>q_b_proj</code></td>
+					<td><code>[Wq.B ∥ index q_B]</code></td>
+					<td><code>q_raw [T/B,N_h·512]</code>、<code>index_q_b [T/B,N_i·128]</code></td>
+					<td>主 Q 与 indexer Q 共用一次 GEMM；split 后分别使用</td>
+			</tr>
+	</tbody>
+</table>
+<h3 id="26-tilelang-索引与搬运">2.6 TileLang 索引与搬运</h3>
+<table>
+	<thead>
+			<tr>
+					<th>算子</th>
+					<th>作用</th>
+					<th>代码位置</th>
+			</tr>
+	</thead>
+	<tbody>
+			<tr>
+					<td><code>expand_swa_index</code></td>
+					<td>把 <code>[T,4]</code> pivots 展开成稠密 <code>[T,W]</code> SWA index，<code>-1</code> 表示 masked</td>
+					<td><code>swa_index.py:8</code></td>
+			</tr>
+			<tr>
+					<td><code>kv_index_cat</code></td>
+					<td>把 SWA index 与压缩 topk index 拼成 <code>[T,W+K]</code>，压缩部分加 offset，<code>-1</code> 保留</td>
+					<td><code>kv_index_cat.py:10</code></td>
+			</tr>
+			<tr>
+					<td><code>get_kv_swa_index_decode</code></td>
+					<td>把 <code>[B,2]</code> 的 offset/len 展开成 ring-buffer slot <code>[B,W]</code></td>
+					<td><code>get_kv_index.py:97</code></td>
+			</tr>
+			<tr>
+					<td><code>load_paged_kv_cache</code></td>
+					<td>prefill 按 <code>load_segments_swa</code> 从 ring cache gather 历史，反量化到 bf16</td>
+					<td><code>load_paged_kv_cache.py:28</code></td>
+			</tr>
+			<tr>
+					<td><code>store_kv_cache</code></td>
+					<td>prefill 在当前 KV 写入 ring cache；按 cache layout 量化；<code>slot=-1</code> 跳过</td>
+					<td><code>store_kv_cache.py:33</code></td>
+			</tr>
+	</tbody>
+</table>
+<p>dense 层（无 indexer）没有 topk：压缩侧的 <code>kv_ca_index</code> 由 <code>get_kv_ca_index_prefill/decode</code> 从 offset/len 展开（<code>input_metadata.py:357-383</code>），之后仍走同样的 <code>kv_index_cat</code>。</p>
+<h3 id="27-prefill--decode-数据流">2.7 prefill / decode 数据流</h3>
+<p><strong>Prefill</strong></p>
+<div class="highlight"><pre tabindex="0" style="color:#272822;background-color:#fafafa;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-text" data-lang="text"><span style="display:flex;"><span>hidden [T,H]
+</span></span><span style="display:flex;"><span>  ├─ q_a_kv_swa_proj ──► q_a [T,Rq] ──► q_b_proj ──► q_raw [T,N_h·512]
+</span></span><span style="display:flex;"><span>  │                                                   index_q_b [T,N_i·128]
+</span></span><span style="display:flex;"><span>  └─ kv_swa [T,512] ──► fused norm+rope+cast（cast_back）
+</span></span><span style="display:flex;"><span>                         ├─► CP all_gather（可选）
+</span></span><span style="display:flex;"><span>                         └─► store_kv_cache
+</span></span><span style="display:flex;"><span>swa_cache（历史）──► load_paged_kv_cache ──► kv [K_v,512]
+</span></span><span style="display:flex;"><span>kv_swa（当前）────────────────────────────┘
+</span></span><span style="display:flex;"><span>expand_swa_index ──► kv_index_cat ──► kv_index [T,W+K]
+</span></span><span style="display:flex;"><span>q_raw + kv + kv_index ──► fused sparse MLA ──► context [T,N_h,512]
+</span></span></code></pre></div><p><strong>Decode</strong></p>
+<div class="highlight"><pre tabindex="0" style="color:#272822;background-color:#fafafa;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-text" data-lang="text"><span style="display:flex;"><span>swa_cache + ca_cache
+</span></span><span style="display:flex;"><span>get_kv_swa_index_decode ──► swa_idx [B,W]
+</span></span><span style="display:flex;"><span>kv_ca_index（Indexer） ──► ca_idx [B,K]
+</span></span><span style="display:flex;"><span>q_raw [B,N_h·512] + 两组 indices
+</span></span><span style="display:flex;"><span>  └─► fused decode MLA（双缓存 + sink）──► context [B,N_h,512]
+</span></span></code></pre></div><h3 id="28-格式与-shape">2.8 格式与 shape</h3>
+<ul>
+<li><code>swa_cache</code>：MXFP8，逻辑 shape <code>[blocks, W_s, 512]</code>，每 token 512 个 E4M3 值 + 16 个 UE8M0 scale = <strong>528 B/token</strong>。</li>
+<li><code>context</code>：<code>[T,N_h,512]</code> / <code>[B,N_h,512]</code>，融合输出为 <code>(fp8, sf)</code>。</li>
+<li><code>kv_index</code>：prefill <code>[T,W+K]</code> int32；decode 为 <code>[B,W]</code> + <code>[B,K]</code> 两组索引。</li>
+</ul>
+<hr>
+<h2 id="3-compressor压缩-kv">3. Compressor：压缩 KV</h2>
+<h3 id="31-模块职责">3.1 模块职责</h3>
+<p>Compressor 把 <code>kv_compress_ratio = N</code> 个连续 token 的 KV 压成一个 compressed KV：</p>
+<ul>
+<li>C2 使用 Gate 产出的 score 与 A 产出的 latent，逐维做 2-token softmax，再对 latent 加权求和；</li>
+<li>压缩后的 KV 做 RMSNorm、RoPE、量化，写入主 KV cache <code>ca_cache</code>；</li>
+<li>同时把 post-norm、pre-RoPE 的 KV 作为 <code>pre_rope_kv</code> 副产物交给 Indexer 的 KProject；</li>
+<li>C1 没有 Gate、没有 state cache，投影结果直接进入 norm/rope/cast/store。</li>
+</ul>
+<p><a href="/llm/dsv41-fused-operators/images/compressor_architecture.svg"><img src="/llm/dsv41-fused-operators/images/compressor_architecture.svg" alt="Compressor 架构图"></a></p>
+<h3 id="32-融合算子">3.2 融合算子</h3>
+<table>
+	<thead>
+			<tr>
+					<th>算子</th>
+					<th>类型</th>
+					<th>融合阶段</th>
+					<th>输入 → 输出</th>
+					<th>代码位置</th>
+			</tr>
+	</thead>
+	<tbody>
+			<tr>
+					<td><code>compress_and_update_state_prefill</code></td>
+					<td><strong>FUSED</strong></td>
+					<td>旧窗口 state + 新 token → 逐维 softmax(N=2) → 加权和 → bf16；第二段 grid 写 state tail</td>
+					<td><code>score/latent [T,512] × 2</code> → <code>kv_compressed [T/N,512]</code></td>
+					<td><code>tilelang_ops/compress.py:20</code>、<code>cuda/compress.py:31</code></td>
+			</tr>
+			<tr>
+					<td><code>compress_and_update_state_decode</code></td>
+					<td><strong>FUSED</strong></td>
+					<td>写当前 token 到 state ring → 块尾行 softmax + 加权和；非块尾行输出 0</td>
+					<td><code>score/latent [B,512] × 2</code> → <code>kv_compressed [B,512]</code></td>
+					<td><code>tilelang_ops/compress.py:74</code>、<code>cuda/compress.py:187</code></td>
+			</tr>
+			<tr>
+					<td><code>fused_norm_rope_hadamard_cast_store_kvcache</code></td>
+					<td><strong>FUSED</strong></td>
+					<td>RMSNorm → RoPE（compressed positions）→ cast → store；<code>out_stage=norm</code> 产出 pre-RoPE 副产物</td>
+					<td><code>kv_compressed [T/N 或 B,512]</code> → <code>ca_cache</code> + <code>pre_rope_kv [T/N 或 B,512]</code></td>
+					<td><code>compress.py:131-167</code>、<code>fused_transform.py:189</code></td>
+			</tr>
+	</tbody>
+</table>
+<h3 id="33-c2-压缩-kernel-的细节">3.3 C2 压缩 kernel 的细节</h3>
+<p>数学形式（逐 channel <code>j</code>）：</p>
+<div class="highlight"><pre tabindex="0" style="color:#272822;background-color:#fafafa;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-text" data-lang="text"><span style="display:flex;"><span>c_t[j] = Σ_{i=0}^{1} softmax_i(score_{t-i}[j]) · latent_{t-i}[j]
+</span></span></code></pre></div><p>prefill kernel（<code>cuda/compress.py:31-185</code>）：</p>
+<ol>
+<li>第一段 grid：对每个 compressed block，读取旧窗口（来自 <code>state_cache</code>）和新 token 的 score/latent，做逐维 softmax + 加权和，输出 bf16；</li>
+<li>第二段 grid：把每个序列尾部 <code>state_cache_size</code> 个 token 的 score/latent 写回 state ring；</li>
+<li>两段之间用 <code>T.pdl_sync()</code> 同步；</li>
+<li>CP 场景通过 <code>HAS_INDEX</code> 和 <code>mirror_cp_reverse_index</code> 读取重排后的 score/latent。</li>
+</ol>
+<p>decode kernel（<code>cuda/compress.py:187-292</code>）：</p>
+<ol>
+<li>第一段 grid：把当前 token 的 score/latent 写入 state ring；</li>
+<li>第二段 grid：只对 <code>(context_len - 1) % N == N - 1</code> 的块尾行做 softmax + 加权和；</li>
+<li>非块尾行输出 0，<code>slot_mapping_store_ca = -1</code>，不会污染 KV cache。</li>
+</ol>
+<h3 id="34-主-kv-融合写">3.4 主 KV 融合写</h3>
+<p><code>forward_store_kv_cache</code>（<code>compress.py:131-167</code>）用同一个 fused transform 完成：</p>
+<ul>
+<li>RMSNorm（compressor 的 <code>norm</code>）；</li>
+<li>RoPE，位置来自 <code>positions_c</code>（压缩坐标，<code>block_idx * N</code>）；</li>
+<li>cast：由 cache layout 决定
+<ul>
+<li><code>use_fp4_sparse_kv</code>：FP4 E2M1，16 values / E4M3 scale，288 B/token；</li>
+<li>否则：MXFP8 E4M3，32 values / UE8M0 scale，528 B/token；</li>
+</ul>
+</li>
+<li>store 到 <code>ca_cache</code>，slot 来自 <code>slot_mapping_store_ca</code>；</li>
+<li><code>out_stage=&quot;norm&quot;</code> 时额外输出 post-norm、pre-RoPE 的 <code>pre_rope_kv</code>，供 Indexer 的 KProject 使用。</li>
+</ul>
+<p>Hadamard 同样未启用。</p>
+<h3 id="35-合并投影">3.5 合并投影</h3>
+<p><code>current_hidden_proj</code> 把三个权重拼成一次 bf16 GEMM（<code>attn.py:328-373</code>）：</p>
+<div class="highlight"><pre tabindex="0" style="color:#272822;background-color:#fafafa;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-text" data-lang="text"><span style="display:flex;"><span>[Gate ∥ A ∥ index weights_proj] · hidden
+</span></span><span style="display:flex;"><span>  → projected_kv [T/B, 2·512] fp32（C2）
+</span></span><span style="display:flex;"><span>  → split: score [T/B,512] | latent [T/B,512] | index_weights [T/B,N_i]
+</span></span></code></pre></div><ul>
+<li>C2：<code>use_fp32_output=True</code>，Gate/A 不参与 FP8 量化；</li>
+<li>C1：没有 Gate，只有 A，输出 bf16；</li>
+<li><code>index_weights</code> 会转成 bf16 交给 Indexer。</li>
+</ul>
+<h3 id="36-cp-与共享">3.6 CP 与共享</h3>
+<ul>
+<li>CP：<code>projected_kv</code> 的 <code>all_gather</code> 先 launch，与 Q 投影重叠；prefill 压缩前用 <code>mirror_cp_reverse_index</code> 做 <code>gather</code> 重排（<code>compress.py:91-92</code>）。</li>
+<li>下游：prefill 的 <code>load_paged_kv_cache</code> 把压缩段 gather 成连续 bf16（<code>attn.py:832-842</code>）；decode 直接按 paged slot 读 <code>ca_cache</code>。</li>
+<li>跨层共享：<code>SharedLayerTopology</code> 把 KV / index-K / index-topk 三段共享解耦；kv source 只写一次 <code>ca_cache</code> / <code>pre_rope_kv</code>，consumer 只读。</li>
+<li>C1 边界：<code>forward_pre_norm</code> 直接返回 bf16 投影，跳过两个 compress kernel，仍走 STAGE 2 的 norm+rope+cast+store。</li>
+</ul>
+<h3 id="37-格式与-shape">3.7 格式与 shape</h3>
+<ul>
+<li><code>state_cache</code>：<code>[slots, S, 2, 512]</code> fp32，score / latent 双通道。</li>
+<li><code>ca_cache</code>：逻辑 <code>[blocks, C, 512]</code>，token-interleaved <code>[data | scale]</code>；每 token 288 B（FP4）或 528 B（MXFP8）。</li>
+<li><code>pre_rope_kv</code>：prefill <code>[T/N,512]</code> bf16；decode <code>[B,512]</code> bf16（非块尾行为 0）。</li>
+</ul>
+<hr>
+<h2 id="4-indexer稀疏索引器">4. Indexer：稀疏索引器</h2>
+<h3 id="41-模块职责">4.1 模块职责</h3>
+<p>Indexer 为每个 query 选 top-k 个 compressed KV：</p>
+<ol>
+<li>Q 做 RoPE + FP4 量化；</li>
+<li>K 由主 compressor 的 <code>pre_rope_kv</code> 经 KProject 投影，再做 RMSNorm + RoPE + FP4 量化，写入 <code>ica_cache</code>；</li>
+<li>计算 <code>relu(q·k)</code> 的 head 加权 logits <code>p_sum</code>；</li>
+<li>在 <code>p_sum</code> 上做候选块限制（可选）和 token top-k；</li>
+<li>decode 时把逻辑 token 索引经 <code>block_tables</code> 转成物理 slot。</li>
+</ol>
+<p><a href="/llm/dsv41-fused-operators/images/indexer_architecture.svg"><img src="/llm/dsv41-fused-operators/images/indexer_architecture.svg" alt="Indexer 架构图"></a></p>
+<h3 id="42-融合算子">4.2 融合算子</h3>
+<table>
+	<thead>
+			<tr>
+					<th>算子</th>
+					<th>类型</th>
+					<th>融合阶段</th>
+					<th>输入 → 输出</th>
+					<th>代码位置</th>
+			</tr>
+	</thead>
+	<tbody>
+			<tr>
+					<td>Q: <code>fused_norm_rope_hadamard_cast_store_kvcache</code></td>
+					<td><strong>FUSED</strong></td>
+					<td>只做 RoPE（<code>use_q_norm=False</code>）→ FP4 E2M1 per-32 cast</td>
+					<td><code>index_q_b [T/B,N_i·128]</code> → <code>q_fp4 [T/B,N_i,128]</code> + <code>q_sf [T/B,N_i,4]</code></td>
+					<td><code>index_attn.py:164-179</code></td>
+			</tr>
+			<tr>
+					<td>K: <code>KProject</code> + <code>fused_norm_rope_hadamard_cast_store_kvcache</code></td>
+					<td><strong>GEMM + FUSED</strong></td>
+					<td>Linear 512→128 → RMSNorm → RoPE(64) → FP4 → store</td>
+					<td><code>pre_rope_kv [T/N 或 B,512]</code> → <code>ica_cache</code></td>
+					<td><code>index_attn.py:133-162</code>、<code>compress.py:32-53</code></td>
+			</tr>
+			<tr>
+					<td><code>fp8_fp4_mqa_logits</code> / <code>..._sparse</code> / <code>..._paged...</code></td>
+					<td><strong>VENDOR FUSED</strong></td>
+					<td>FP8/FP4 MQA GEMM + ReLU + head 加权求和</td>
+					<td><code>q_fp4</code> + <code>ica_cache</code> → <code>p_sum [T/B,L_c]</code></td>
+					<td><code>index_attn.py:284-325</code>、<code>421-454</code></td>
+			</tr>
+	</tbody>
+</table>
+<blockquote>
+<p>K 路径的 KProject Linear 和 fused transform 是两次 launch；不要把它理解成“线性层也在这个 fused kernel 里”。K 的 cache 写入只在 index-K source 层发生，consumer 复用 <code>ica_cache</code>。</p>
+</blockquote>
+<h3 id="43-q-与-k-的不对称">4.3 Q 与 K 的不对称</h3>
+<ul>
+<li><strong>Q</strong>：<code>MQAIndexer.use_q_norm = False</code>，所以 Q 的 fused transform 只做 RoPE + FP4，不做 RMSNorm；</li>
+<li><strong>K</strong>：<code>KProject</code> 先做 Linear 512→128，随后 fused transform 做 RMSNorm + RoPE + FP4 + store；</li>
+<li><code>q_sf</code> 的 4 个 scale 来自 128 / 32；FP4 张量按逻辑 128 维标注，物理上按 E2M1 packed。</li>
+</ul>
+<h3 id="44-deepgemm-logits-融合">4.4 DeepGEMM logits 融合</h3>
+<p>四个变体：</p>
+<table>
+	<thead>
+			<tr>
+					<th>路径</th>
+					<th>dense</th>
+					<th>candidate</th>
+			</tr>
+	</thead>
+	<tbody>
+			<tr>
+					<td>prefill</td>
+					<td><code>fp8_fp4_mqa_logits</code></td>
+					<td><code>fp8_fp4_sparse_mqa_logits</code></td>
+			</tr>
+			<tr>
+					<td>decode</td>
+					<td><code>fp8_fp4_paged_mqa_logits</code></td>
+					<td><code>fp8_fp4_paged_sparse_mqa_logits</code></td>
+			</tr>
+	</tbody>
+</table>
+<p>计算语义：</p>
+<div class="highlight"><pre tabindex="0" style="color:#272822;background-color:#fafafa;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;"><code class="language-text" data-lang="text"><span style="display:flex;"><span>p_sum[t,s] = Σ_h w[t,h] · ReLU(q[t,h] · k[s])
+</span></span></code></pre></div><p>DeepGEMM kernel 内完成 matmul、ReLU、head 加权求和，直接输出 <code>p_sum</code>。本模型 Q/K 都是 FP4 E2M1；API 名保留 <code>fp8_fp4_*</code>，SM100 输出 bf16，SM90 输出 fp32。</p>
+<p>配套的 metadata 由 DeepGEMM 生成：</p>
+<ul>
+<li><code>get_sparse_mqa_logits_metadata</code></li>
+<li><code>get_paged_mqa_logits_metadata</code></li>
+<li><code>get_paged_sparse_mqa_logits_metadata</code></li>
+</ul>
+<p>它们不是计算 kernel，但决定了 logits 的稀疏调度。</p>
+<h3 id="45-候选块与-top-k-索引链">4.5 候选块与 top-k 索引链</h3>
+<table>
+	<thead>
+			<tr>
+					<th>算子</th>
+					<th>类型</th>
+					<th>作用</th>
+					<th>代码位置</th>
+			</tr>
+	</thead>
+	<tbody>
+			<tr>
+					<td><code>candidate_block_max</code></td>
+					<td>TILELANG</td>
+					<td>块内 max、valid blocks，最后一个有效块置 <code>+inf</code></td>
+					<td><code>candidate_blocks.py:12</code></td>
+			</tr>
+			<tr>
+					<td><code>deep_select.topk</code></td>
+					<td>VENDOR</td>
+					<td>block 级 / token 级 topk，sorted int32，越界填 <code>-1</code></td>
+					<td><code>index_attn.py:216/361/494</code></td>
+			</tr>
+			<tr>
+					<td><code>get_candidate_compact_lens</code></td>
+					<td>TILELANG</td>
+					<td>候选块覆盖的有效 token 数</td>
+					<td><code>candidate_blocks.py:77</code></td>
+			</tr>
+			<tr>
+					<td><code>restore_candidate_indices_inplace</code></td>
+					<td>TILELANG</td>
+					<td>compact 索引恢复成 sequence-local / 全局索引</td>
+					<td><code>candidate_blocks.py:114</code></td>
+			</tr>
+			<tr>
+					<td><code>convert_kv_index</code></td>
+					<td>TILELANG</td>
+					<td>decode 时逻辑 token 索引 → 物理 paged slot</td>
+					<td><code>flash_mla_utils.py:10</code></td>
+			</tr>
+			<tr>
+					<td><code>load_paged_kv_cache</code></td>
+					<td>TILELANG</td>
+					<td>prefill 时按 FP4 layout 读取 index-K（value + sf）</td>
+					<td><code>index_attn.py:181-202</code></td>
+			</tr>
+	</tbody>
+</table>
+<p>候选块路径是<strong>可选的共享层优化</strong>：candidate source 层先选 block，后续 consumer 只在这些 block 内算 sparse logits。</p>
+<h3 id="46-共享层行为">4.6 共享层行为</h3>
+<ul>
+<li><strong>index-K source</strong>：跑 KProject + fused transform + store <code>ica_cache</code>；</li>
+<li><strong>index-K consumer</strong>：不跑 KProject/store；prefill 直接复用 source 的 <code>loaded_prefill_index_kv</code>；</li>
+<li><strong>index-topk source</strong>：写 <code>cross_layer_runtime.topk_indices</code>；</li>
+<li><strong>index-topk consumer</strong>：复用 source 的 topk，不再跑自己的 logits/topk。</li>
+</ul>
+<h3 id="47-格式与-shape">4.7 格式与 shape</h3>
+<ul>
+<li><code>ica_cache</code>：逻辑 <code>[blocks, C, 128]</code>，每 token 64 B FP4 data + 4 B UE8M0 scale = <strong>68 B/token</strong>。</li>
+<li><code>q_fp4</code>：<code>[T/B, N_i, 128]</code>（逻辑），<code>q_sf</code>：<code>[T/B, N_i, 4]</code>。</li>
+<li><code>p_sum</code>：prefill <code>[T, L_c]</code>，decode <code>[B, L_c]</code>。</li>
+<li><code>topk_index</code>：prefill <code>[T, K]</code> / decode <code>[B, K]</code> int32；prefill 是 gathered-kv 全局索引，decode 是物理 slot。</li>
+</ul>
+<hr>
+<h2 id="5-横向对比">5. 横向对比</h2>
+<table>
+	<thead>
+			<tr>
+					<th>维度</th>
+					<th>SWA</th>
+					<th>Compressor</th>
+					<th>Indexer</th>
+			</tr>
+	</thead>
+	<tbody>
+			<tr>
+					<td>主要融合 kernel</td>
+					<td>KV 写 + 注意力</td>
+					<td>C2 压缩 + 主 KV 写</td>
+					<td>Q/K 量化 + logits</td>
+			</tr>
+			<tr>
+					<td>合并 GEMM</td>
+					<td><code>q_a_kv_swa_proj</code>、<code>q_b_proj</code></td>
+					<td><code>current_hidden_proj</code></td>
+					<td>复用上面两个</td>
+			</tr>
+			<tr>
+					<td>核心 cache</td>
+					<td><code>swa_cache</code></td>
+					<td><code>ca_cache</code> + <code>state_cache</code></td>
+					<td><code>ica_cache</code></td>
+			</tr>
+			<tr>
+					<td>token 维度</td>
+					<td><code>T</code>（prefill）/ <code>B</code>（decode）</td>
+					<td><code>T/N</code>（prefill）/ <code>B</code>（decode）</td>
+					<td><code>T/B</code>（Q）、<code>T/N 或 B</code>（K）</td>
+			</tr>
+			<tr>
+					<td>prefill 特殊处理</td>
+					<td>先 load 历史、后 store；两次量化</td>
+					<td>两段 grid + PDL；state tail 写回</td>
+					<td>加载 FP4 index-K；候选块可选</td>
+			</tr>
+			<tr>
+					<td>decode 特殊处理</td>
+					<td>SWA/CA 双缓存一次注意力</td>
+					<td>块尾行才计算，非块尾置 0</td>
+					<td>paged logits + 物理 slot 转换</td>
+			</tr>
+			<tr>
+					<td>与另一块的耦合</td>
+					<td>用 <code>kv_index_cat</code> / dual-cache 与压缩 KV 合流</td>
+					<td>产出 <code>pre_rope_kv</code> 给 Indexer</td>
+					<td>产出 <code>topk_index</code> 给 SWA/核心注意力</td>
+			</tr>
+	</tbody>
+</table>
+<h3 id="51-容易误判的点">5.1 容易误判的点</h3>
+<ol>
+<li><strong>Hadamard 未启用</strong>：三条路径都传 <code>hadamard_args=None</code>，不要因为算子名就认为它在做 Hadamard 变换。</li>
+<li><strong>SWA prefill 两次量化</strong>：fused transform 先 <code>cast_back</code> 成 bf16，<code>store_kv_cache</code> 再量化；这是“先 load 后 store”的顺序约束导致的。</li>
+<li><strong>Q 的 norm+RoPE 不一定单独执行</strong>：GPU + 64/128 heads 时折叠进 FlashMLA；否则才走独立 fused transform。</li>
+<li><strong>SWA/CA 只有两个合流点</strong>：prefill 的 <code>kv_index_cat</code> 和 decode 的 dual-cache。除此之外两条 KV 路径是分开的。</li>
+<li><strong>dense 层没有 indexer</strong>：<code>kv_ca_index</code> 由 <code>get_kv_ca_index_prefill/decode</code> 展开，不是 topk。</li>
+<li><strong>C1 走独立分支</strong>：C1 跳过 Gate、state_cache 和两个 compress kernel，但仍走主 KV 的 norm+rope+cast+store。</li>
+<li><strong>KProject 不在 fused kernel 内</strong>：K 路径是 GEMM + fused transform 两次 launch。</li>
+</ol>
+<hr>
+<h2 id="6-附录">6. 附录</h2>
+<h3 id="61-全量算子速查">6.1 全量算子速查</h3>
+<p><strong>SWA</strong></p>
+<ul>
+<li>FUSED：<code>fused_norm_rope_hadamard_cast_store_kvcache</code>（KV_SWA）</li>
+<li>FUSED：<code>fused_norm_rope_attn_rope_cast.prefill/decode</code></li>
+<li>MERGED GEMM：<code>q_a_kv_swa_proj</code>、<code>q_b_proj</code></li>
+<li>TILELANG：<code>expand_swa_index</code>、<code>kv_index_cat</code>、<code>get_kv_swa_index_decode</code>、<code>load_paged_kv_cache</code>、<code>store_kv_cache</code></li>
+<li>可选：<code>get_kv_ca_index_prefill/decode</code>（dense 层）</li>
+<li>CP：<code>all_gather</code> / <code>gather</code></li>
+</ul>
+<p><strong>Compressor</strong></p>
+<ul>
+<li>FUSED：<code>compress_and_update_state_prefill</code>、<code>compress_and_update_state_decode</code></li>
+<li>FUSED：<code>fused_norm_rope_hadamard_cast_store_kvcache</code>（主 KV）</li>
+<li>MERGED GEMM：<code>current_hidden_proj</code></li>
+<li>TILELANG：<code>gather</code>（CP 重排）</li>
+<li>CP：<code>all_gather</code></li>
+</ul>
+<p><strong>Indexer</strong></p>
+<ul>
+<li>FUSED：Q <code>fused_norm_rope_hadamard_cast_store_kvcache</code></li>
+<li>GEMM + FUSED：K <code>KProject</code> + <code>fused_norm_rope_hadamard_cast_store_kvcache</code></li>
+<li>VENDOR FUSED：DeepGEMM <code>mqa_logits</code> 四变体</li>
+<li>TILELANG：<code>candidate_block_max</code>、<code>get_candidate_compact_lens</code>、<code>restore_candidate_indices_inplace</code>、<code>convert_kv_index</code>、<code>load_paged_kv_cache</code></li>
+<li>VENDOR：<code>deep_select.topk</code></li>
+</ul>
+<h3 id="62-源码索引">6.2 源码索引</h3>
+<p>以下路径相对 DeepInfer checkout 根目录。</p>
+<table>
+	<thead>
+			<tr>
+					<th>文件</th>
+					<th>内容</th>
+			</tr>
+	</thead>
+	<tbody>
+			<tr>
+					<td><code>deepinfer/model_executor/models/v4_modules/attn.py</code></td>
+					<td>SWA 投影、KV 写、prefill/decode 注意力、CP</td>
+			</tr>
+			<tr>
+					<td><code>deepinfer/model_executor/models/v4_modules/compress.py</code></td>
+					<td>Compressor 的 norm/compress/store、KProject</td>
+			</tr>
+			<tr>
+					<td><code>deepinfer/model_executor/models/v4_modules/index_attn.py</code></td>
+					<td>Indexer Q/K 量化、logits、topk、共享</td>
+			</tr>
+			<tr>
+					<td><code>deepinfer/model_executor/models/v4_modules/mla_attn.py</code></td>
+					<td>MQAIndexer、compressor 参数容器</td>
+			</tr>
+			<tr>
+					<td><code>deepinfer/model_executor/input_metadata/input_metadata.py</code></td>
+					<td>SWA index 展开、dense ca index、KV metadata</td>
+			</tr>
+			<tr>
+					<td><code>deepinfer/model_executor/layers/attention_backend.py</code></td>
+					<td>FlashMLA prefill/decode 封装</td>
+			</tr>
+			<tr>
+					<td><code>deepinfer/model_executor/layers/tilelang_ops/fused_transform.py</code></td>
+					<td>norm+rope+cast+store 融合 kernel</td>
+			</tr>
+			<tr>
+					<td><code>deepinfer/model_executor/layers/tilelang_ops/compress.py</code></td>
+					<td>compress P/D 的 Python 入口</td>
+			</tr>
+			<tr>
+					<td><code>deepinfer/model_executor/layers/tilelang_ops/cuda/compress.py</code></td>
+					<td>compress P/D 的 TileLang 实现</td>
+			</tr>
+			<tr>
+					<td><code>deepinfer/model_executor/layers/tilelang_ops/swa_index.py</code></td>
+					<td><code>expand_swa_index</code></td>
+			</tr>
+			<tr>
+					<td><code>deepinfer/model_executor/layers/tilelang_ops/kv_index_cat.py</code></td>
+					<td>SWA index + compressed index 拼接</td>
+			</tr>
+			<tr>
+					<td><code>deepinfer/model_executor/layers/tilelang_ops/get_kv_index.py</code></td>
+					<td>decode ring slot、dense ca index</td>
+			</tr>
+			<tr>
+					<td><code>deepinfer/model_executor/layers/tilelang_ops/load_paged_kv_cache.py</code></td>
+					<td>paged gather</td>
+			</tr>
+			<tr>
+					<td><code>deepinfer/model_executor/layers/tilelang_ops/store_kv_cache.py</code></td>
+					<td>paged scatter + 量化</td>
+			</tr>
+			<tr>
+					<td><code>deepinfer/model_executor/layers/tilelang_ops/candidate_blocks.py</code></td>
+					<td>候选块 max / compact / restore</td>
+			</tr>
+			<tr>
+					<td><code>deepinfer/model_executor/layers/tilelang_ops/flash_mla_utils.py</code></td>
+					<td><code>convert_kv_index</code></td>
+			</tr>
+			<tr>
+					<td><code>deepinfer/model_executor/layers/tilelang_ops/cache_common.py</code></td>
+					<td>KV cache 格式与字节数</td>
+			</tr>
+	</tbody>
+</table>
+<h3 id="63-图与源文件">6.3 图与源文件</h3>
+<ul>
+<li>可编辑 drawio：<a href="/llm/dsv41-fused-operators/swa_compressor_indexer_architecture.drawio">swa_compressor_indexer_architecture.drawio</a></li>
+<li>SVG：<a href="/llm/dsv41-fused-operators/images/swa_architecture.svg">SWA</a>、<a href="/llm/dsv41-fused-operators/images/compressor_architecture.svg">Compressor</a>、<a href="/llm/dsv41-fused-operators/images/indexer_architecture.svg">Indexer</a></li>
+</ul>
+<hr>
+<p><em>说明：shape 与字节数按 V4.1 的 512 维 KV layout 计算；<code>use_fp4_sparse_kv</code> 不同时，主 KV 单 token 字节数在 288 B / 528 B 之间切换。</em></p>
+
+                    
+                    <HR width="100%" id="EOF">
+		    <p style="color:#777;">最后修改于 2026-10-29</p>
+                    
+                </div>
+            </div>
+            
+            
+            <nav class="post-pagination">
+
+                
+                <a class="newer-posts" href="/life/reading_2026/">
+			下回<br>读书 2026
+                </a>
+                
+                
+                
+                <a class="older-posts" href="/llm/qwen35-v020-mtp-apc/">
+			上回<br>Qwen3.5：GDN / GQA、MTP 与 Aligned APC
+                </a>
+                
+            </nav>
+            <div class="post-comment-wrapper">
+                
+
+
+
+
+
+
+
+
+
+
+
+
+            </div>
+        </div>
+    </div>
+
+
+                    </div>
+            </div><div id="sideContainer" class="side-container">
+    
+    <a class="a-block nav-head false" href="https://zhixuan-zxli.github.io/">
+    
+        <div class="nav-title">
+            Zhixuan&#39;s Blog
+        </div>
+        
+    </a>
+
+    <div class="nav-link-list">
+        
+        
+            
+            
+            
+                
+            
+            
+            
+            <a class="a-block nav-link-item active" href="/llm">
+                大模型
+            </a>
+            
+        
+            
+            
+            
+            
+            
+            <a class="a-block nav-link-item false" href="/life">
+                生活随记
+            </a>
+            
+        
+    </div>
+
+    
+
+    <div class="nav-footer">
+        
+Hugo Theme <a href="https://github.com/amazingrise/hugo-theme-diary">Diary</a> by <a href="https://risehere.net/">Rise</a>
+<br>
+移植自 <a href="https://mak1t0.cc/" target="_blank" rel="noreferrer noopener">Makito</a>'s <a href="https://github.com/SumiMakito/hexo-theme-journal/" target="_blank" rel="noreferrer noopener">Journal.</a> <br>
+<br>
+
+&copy;
+	
+	2026 Zhixuan&#39;s Blog
+	
+
+    </div>
+    
+</div><div id="extraContainer" class="extra-container">
+    <div class="toc-wrapper">
+        
+
+        
+    </div>
+    <div class="pagination">
+        <a id="globalBackToTop" class="pagination-action animated-visibility" href="#top"
+            :class="{ invisible: scrollY == 0 }">
+            <i class="material-icons pagination-action-icon">
+                keyboard_arrow_up
+            </i>
+        </a>
+        
+        <a type="button" class="pagination-action" id="darkModeToggleButton">
+            <span class="material-icons pagination-action-icon" id="darkModeToggleIcon">
+                dark_mode
+            </span>
+        </a>
+        
+        
+    </div>
+</div>
+
+<div id="single-column-footer">
+Hugo Theme <a href="https://github.com/amazingrise/hugo-theme-diary">Diary</a> by <a href="https://risehere.net/">Rise</a>
+<br>
+移植自 <a href="https://mak1t0.cc/" target="_blank" rel="noreferrer noopener">Makito</a>'s <a href="https://github.com/SumiMakito/hexo-theme-journal/" target="_blank" rel="noreferrer noopener">Journal.</a> <br>
+<br>
+
+&copy;
+	
+	2026 Zhixuan&#39;s Blog
+	
+</div>
+            </div>
+    
+    <script src="/js/journal.js"></script></body>
+</html>

@@ -10,9 +10,16 @@
 		
 		
 		
-			<lastBuildDate>Fri, 18 Sep 2026 00:00:00 +0000</lastBuildDate>
+			<lastBuildDate>Thu, 29 Oct 2026 00:00:00 +0000</lastBuildDate>
 		
 			<atom:link href="https://zhixuan-zxli.github.io/tags/vllm/index.xml" rel="self" type="application/rss+xml" />
+			<item>
+				<title>Qwen3.5：GDN / GQA、MTP 与 Aligned APC</title>
+				<link>https://zhixuan-zxli.github.io/llm/qwen35-v020-mtp-apc/</link>
+				<pubDate>Thu, 29 Oct 2026 00:00:00 +0000</pubDate>
+				<guid>https://zhixuan-zxli.github.io/llm/qwen35-v020-mtp-apc/</guid>
+				<description>&lt;p&gt;&lt;a href=&#34;https://zhixuan-zxli.github.io/llm/qwen35-v020-mtp-apc/images/01-overview.svg&#34;&gt;&lt;img src=&#34;https://zhixuan-zxli.github.io/llm/qwen35-v020-mtp-apc/images/01-overview.svg&#34; alt=&#34;Qwen3.5-9B 架构总览&#34;&gt;&lt;/a&gt;&lt;/p&gt;&#xA;&lt;p&gt;&lt;a href=&#34;https://zhixuan-zxli.github.io/llm/qwen35-v020-mtp-apc/images/02-shapes.svg&#34;&gt;&lt;img src=&#34;https://zhixuan-zxli.github.io/llm/qwen35-v020-mtp-apc/images/02-shapes.svg&#34; alt=&#34;Tensor shape 与符号&#34;&gt;&lt;/a&gt;&lt;/p&gt;&#xA;&lt;p&gt;&lt;a href=&#34;https://zhixuan-zxli.github.io/llm/qwen35-v020-mtp-apc/images/03-gdn-prefill.svg&#34;&gt;&lt;img src=&#34;https://zhixuan-zxli.github.io/llm/qwen35-v020-mtp-apc/images/03-gdn-prefill.svg&#34; alt=&#34;GDN Prefill&#34;&gt;&lt;/a&gt;&lt;/p&gt;&#xA;&lt;p&gt;&lt;a href=&#34;https://zhixuan-zxli.github.io/llm/qwen35-v020-mtp-apc/images/04-gdn-decode-verify.svg&#34;&gt;&lt;img src=&#34;https://zhixuan-zxli.github.io/llm/qwen35-v020-mtp-apc/images/04-gdn-decode-verify.svg&#34; alt=&#34;GDN Decode 与 MTP 验证&#34;&gt;&lt;/a&gt;&lt;/p&gt;&#xA;&lt;p&gt;&lt;a href=&#34;https://zhixuan-zxli.github.io/llm/qwen35-v020-mtp-apc/images/05-gqa-prefill.svg&#34;&gt;&lt;img src=&#34;https://zhixuan-zxli.github.io/llm/qwen35-v020-mtp-apc/images/05-gqa-prefill.svg&#34; alt=&#34;GQA Prefill&#34;&gt;&lt;/a&gt;&lt;/p&gt;&#xA;&lt;p&gt;&lt;a href=&#34;https://zhixuan-zxli.github.io/llm/qwen35-v020-mtp-apc/images/06-gqa-decode-verify.svg&#34;&gt;&lt;img src=&#34;https://zhixuan-zxli.github.io/llm/qwen35-v020-mtp-apc/images/06-gqa-decode-verify.svg&#34; alt=&#34;GQA Decode 与 MTP 验证&#34;&gt;&lt;/a&gt;&lt;/p&gt;&#xA;&lt;p&gt;&lt;a href=&#34;https://zhixuan-zxli.github.io/llm/qwen35-v020-mtp-apc/images/07-mtp.svg&#34;&gt;&lt;img src=&#34;https://zhixuan-zxli.github.io/llm/qwen35-v020-mtp-apc/images/07-mtp.svg&#34; alt=&#34;MTP Predictor 与调用循环&#34;&gt;&lt;/a&gt;&lt;/p&gt;&#xA;&lt;p&gt;&lt;a href=&#34;https://zhixuan-zxli.github.io/llm/qwen35-v020-mtp-apc/images/08-aligned-apc.svg&#34;&gt;&lt;img src=&#34;https://zhixuan-zxli.github.io/llm/qwen35-v020-mtp-apc/images/08-aligned-apc.svg&#34; alt=&#34;Aligned APC 状态流&#34;&gt;&lt;/a&gt;&lt;/p&gt;</description>
+			</item>
 			<item>
 				<title>DeepSeek V4.1 KV Cache Layout</title>
 				<link>https://zhixuan-zxli.github.io/llm/dsv41_kv/</link>

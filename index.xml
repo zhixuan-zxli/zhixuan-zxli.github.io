@@ -6,7 +6,7 @@
     <description>Recent content in 至轩的博客 on Zhixuan&#39;s Blog</description>
     <generator>Hugo -- gohugo.io</generator>
     <language>zh</language>
-    <lastBuildDate>Wed, 28 Oct 2026 00:00:00 +0000</lastBuildDate>
+    <lastBuildDate>Thu, 29 Oct 2026 00:00:00 +0000</lastBuildDate>
     
         <atom:link href="https://zhixuan-zxli.github.io/index.xml" rel="self" type="application/rss+xml" />
     
@@ -77,6 +77,793 @@
 &lt;li&gt;&lt;em&gt;撒哈拉的故事&lt;/em&gt;，三毛&lt;/li&gt;
 &lt;/ul&gt;
 - https://zhixuan-zxli.github.io/life/reading_2026/ - </description>
+        </item>
+    
+    
+    
+        <item>
+        <title>DeepSeek V4.1-Flash：SWA / Compressor / Indexer 融合算子</title>
+        <link>https://zhixuan-zxli.github.io/llm/dsv41-fused-operators/</link>
+        <pubDate>Thu, 29 Oct 2026 00:00:00 +0000</pubDate>
+        
+        <guid>https://zhixuan-zxli.github.io/llm/dsv41-fused-operators/</guid>
+        <description>Zhixuan&#39;s Blog https://zhixuan-zxli.github.io/llm/dsv41-fused-operators/ -&lt;blockquote&gt;
+&lt;p&gt;代码位置按当前 checkout 标注（DeepInfer @ &lt;code&gt;2c37138&lt;/code&gt;）；shape 使用 &lt;code&gt;T&lt;/code&gt; / &lt;code&gt;B&lt;/code&gt; 记号。&lt;/p&gt;
+&lt;/blockquote&gt;
+&lt;p&gt;本文按 &lt;strong&gt;SWA、Compressor、Indexer&lt;/strong&gt; 三条链路分类，说明模型脚本中实际使用的融合算子、合并 GEMM、TileLang 索引/搬运 kernel，以及它们在 prefill / decode 下的数据流和 tensor shape。&lt;/p&gt;
+&lt;p&gt;文中三张架构图较宽，点击图片可查看原尺寸。&lt;/p&gt;
+&lt;hr&gt;
+&lt;h2 id=&#34;0-结论速览&#34;&gt;0. 结论速览&lt;/h2&gt;
+&lt;p&gt;这三块一共用到 &lt;strong&gt;4 个融合 kernel 家族&lt;/strong&gt;：&lt;/p&gt;
+&lt;table&gt;
+	&lt;thead&gt;
+			&lt;tr&gt;
+					&lt;th&gt;融合 kernel 家族&lt;/th&gt;
+					&lt;th&gt;融合内容&lt;/th&gt;
+					&lt;th&gt;使用位置&lt;/th&gt;
+			&lt;/tr&gt;
+	&lt;/thead&gt;
+	&lt;tbody&gt;
+			&lt;tr&gt;
+					&lt;td&gt;&lt;code&gt;fused_norm_rope_hadamard_cast_store_kvcache&lt;/code&gt;&lt;/td&gt;
+					&lt;td&gt;RMSNorm + RoPE + cast + store；可选 &lt;code&gt;cast_back&lt;/code&gt;，也可输出 pre-RoPE 副产物&lt;/td&gt;
+					&lt;td&gt;SWA KV、Compressor 主 KV、Indexer Q/K&lt;/td&gt;
+			&lt;/tr&gt;
+			&lt;tr&gt;
+					&lt;td&gt;&lt;code&gt;fused_norm_rope_attn_rope_cast&lt;/code&gt;&lt;/td&gt;
+					&lt;td&gt;Q RMSNorm + RoPE + sparse MLA + 输出反 RoPE + FP8 cast&lt;/td&gt;
+					&lt;td&gt;SWA prefill / decode&lt;/td&gt;
+			&lt;/tr&gt;
+			&lt;tr&gt;
+					&lt;td&gt;&lt;code&gt;compress_and_update_state_{prefill,decode}&lt;/code&gt;&lt;/td&gt;
+					&lt;td&gt;state 读写 + 逐维 softmax + 加权和 + bf16&lt;/td&gt;
+					&lt;td&gt;Compressor C2&lt;/td&gt;
+			&lt;/tr&gt;
+			&lt;tr&gt;
+					&lt;td&gt;DeepGEMM &lt;code&gt;mqa_logits&lt;/code&gt; 系列&lt;/td&gt;
+					&lt;td&gt;GEMM + ReLU + head 加权归约&lt;/td&gt;
+					&lt;td&gt;Indexer logits&lt;/td&gt;
+			&lt;/tr&gt;
+	&lt;/tbody&gt;
+&lt;/table&gt;
+&lt;p&gt;这里的 4 个是底层 kernel 家族；同一个 &lt;code&gt;fused_norm_rope_hadamard_cast_store_kvcache&lt;/code&gt; 会在 SWA / Compressor / Indexer 重复出现，因此按子系统拆开会看到 6 个使用类别。&lt;/p&gt;
+&lt;p&gt;另有 &lt;strong&gt;3 处合并 GEMM&lt;/strong&gt;（host 侧拼权重，仍是一次普通 GEMM）：&lt;/p&gt;
+&lt;table&gt;
+	&lt;thead&gt;
+			&lt;tr&gt;
+					&lt;th&gt;合并 GEMM&lt;/th&gt;
+					&lt;th&gt;权重拼接&lt;/th&gt;
+					&lt;th&gt;使用位置&lt;/th&gt;
+			&lt;/tr&gt;
+	&lt;/thead&gt;
+	&lt;tbody&gt;
+			&lt;tr&gt;
+					&lt;td&gt;&lt;code&gt;q_a_kv_swa_proj&lt;/code&gt;&lt;/td&gt;
+					&lt;td&gt;&lt;code&gt;[Wq.A ∥ Wkv.A]&lt;/code&gt;&lt;/td&gt;
+					&lt;td&gt;SWA 共用前端&lt;/td&gt;
+			&lt;/tr&gt;
+			&lt;tr&gt;
+					&lt;td&gt;&lt;code&gt;q_b_proj&lt;/code&gt;&lt;/td&gt;
+					&lt;td&gt;&lt;code&gt;[Wq.B ∥ index q_B]&lt;/code&gt;&lt;/td&gt;
+					&lt;td&gt;SWA + Indexer 共用&lt;/td&gt;
+			&lt;/tr&gt;
+			&lt;tr&gt;
+					&lt;td&gt;&lt;code&gt;current_hidden_proj&lt;/code&gt;&lt;/td&gt;
+					&lt;td&gt;&lt;code&gt;[Gate ∥ A ∥ index weights_proj]&lt;/code&gt;&lt;/td&gt;
+					&lt;td&gt;Compressor 共用前端&lt;/td&gt;
+			&lt;/tr&gt;
+	&lt;/tbody&gt;
+&lt;/table&gt;
+&lt;p&gt;以及一组 TileLang 索引/搬运 kernel：&lt;code&gt;expand_swa_index&lt;/code&gt;、&lt;code&gt;kv_index_cat&lt;/code&gt;、&lt;code&gt;get_kv_swa_index_decode&lt;/code&gt;、&lt;code&gt;load_paged_kv_cache&lt;/code&gt;、&lt;code&gt;store_kv_cache&lt;/code&gt;、&lt;code&gt;candidate_block_max&lt;/code&gt;、&lt;code&gt;get_candidate_compact_lens&lt;/code&gt;、&lt;code&gt;restore_candidate_indices_inplace&lt;/code&gt;、&lt;code&gt;convert_kv_index&lt;/code&gt;。&lt;/p&gt;
+&lt;blockquote&gt;
+&lt;p&gt;说明：&lt;code&gt;fused_norm_rope_hadamard_cast_store_kvcache&lt;/code&gt; 名字里带 Hadamard，但 SWA / Compressor / Indexer 三条路径的调用点都是 &lt;code&gt;hadamard_args=None&lt;/code&gt;；&lt;code&gt;HadamardArgs&lt;/code&gt; 只在测试里出现。&lt;/p&gt;
+&lt;/blockquote&gt;
+&lt;hr&gt;
+&lt;h2 id=&#34;1-口径与-shape-记号&#34;&gt;1. 口径与 shape 记号&lt;/h2&gt;
+&lt;h3 id=&#34;11-分类口径&#34;&gt;1.1 分类口径&lt;/h3&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;FUSED&lt;/strong&gt;：一个 kernel 内完成 ≥ 2 个逻辑阶段，例如 &lt;code&gt;norm + rope + cast + store&lt;/code&gt;、&lt;code&gt;state 更新 + softmax + 加权和&lt;/code&gt;。&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;MERGED GEMM&lt;/strong&gt;：host 侧把多个权重 concat 成一个权重，仍然只 launch 一次普通 GEMM；它不是 kernel 内融合，但确实减少了 launch 和中间张量。&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;TILELANG&lt;/strong&gt;：专用索引/搬运 kernel，可能同时做量化/反量化，但不属于多阶段计算融合。&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;VENDOR&lt;/strong&gt;：FlashMLA、DeepGEMM、DeepSelect 等外部 kernel。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h3 id=&#34;12-shape-记号&#34;&gt;1.2 shape 记号&lt;/h3&gt;
+&lt;table&gt;
+	&lt;thead&gt;
+			&lt;tr&gt;
+					&lt;th&gt;符号&lt;/th&gt;
+					&lt;th&gt;含义&lt;/th&gt;
+			&lt;/tr&gt;
+	&lt;/thead&gt;
+	&lt;tbody&gt;
+			&lt;tr&gt;
+					&lt;td&gt;&lt;code&gt;T&lt;/code&gt;&lt;/td&gt;
+					&lt;td&gt;prefill 的 query token 数&lt;/td&gt;
+			&lt;/tr&gt;
+			&lt;tr&gt;
+					&lt;td&gt;&lt;code&gt;B&lt;/code&gt;&lt;/td&gt;
+					&lt;td&gt;decode 的 batch token 数&lt;/td&gt;
+			&lt;/tr&gt;
+			&lt;tr&gt;
+					&lt;td&gt;&lt;code&gt;T/B&lt;/code&gt;&lt;/td&gt;
+					&lt;td&gt;两条路径共用，prefill 用 T、decode 用 B&lt;/td&gt;
+			&lt;/tr&gt;
+			&lt;tr&gt;
+					&lt;td&gt;&lt;code&gt;H&lt;/code&gt;&lt;/td&gt;
+					&lt;td&gt;hidden size&lt;/td&gt;
+			&lt;/tr&gt;
+			&lt;tr&gt;
+					&lt;td&gt;&lt;code&gt;Rq&lt;/code&gt;&lt;/td&gt;
+					&lt;td&gt;q_lora_rank&lt;/td&gt;
+			&lt;/tr&gt;
+			&lt;tr&gt;
+					&lt;td&gt;&lt;code&gt;N_h&lt;/code&gt;&lt;/td&gt;
+					&lt;td&gt;主注意力 head 数&lt;/td&gt;
+			&lt;/tr&gt;
+			&lt;tr&gt;
+					&lt;td&gt;&lt;code&gt;N_i&lt;/code&gt;&lt;/td&gt;
+					&lt;td&gt;indexer head 数&lt;/td&gt;
+			&lt;/tr&gt;
+			&lt;tr&gt;
+					&lt;td&gt;&lt;code&gt;D&lt;/code&gt;&lt;/td&gt;
+					&lt;td&gt;主注意力 head_dim，V4.1 layout 为 512（448 latent + 64 RoPE）&lt;/td&gt;
+			&lt;/tr&gt;
+			&lt;tr&gt;
+					&lt;td&gt;&lt;code&gt;D_i&lt;/code&gt;&lt;/td&gt;
+					&lt;td&gt;indexer head_dim，128&lt;/td&gt;
+			&lt;/tr&gt;
+			&lt;tr&gt;
+					&lt;td&gt;&lt;code&gt;W&lt;/code&gt;&lt;/td&gt;
+					&lt;td&gt;SWA window_size&lt;/td&gt;
+			&lt;/tr&gt;
+			&lt;tr&gt;
+					&lt;td&gt;&lt;code&gt;W_s&lt;/code&gt;&lt;/td&gt;
+					&lt;td&gt;SWA cache block size（window + backtracking）&lt;/td&gt;
+			&lt;/tr&gt;
+			&lt;tr&gt;
+					&lt;td&gt;&lt;code&gt;K&lt;/code&gt;&lt;/td&gt;
+					&lt;td&gt;topk_tokens&lt;/td&gt;
+			&lt;/tr&gt;
+			&lt;tr&gt;
+					&lt;td&gt;&lt;code&gt;C&lt;/code&gt;&lt;/td&gt;
+					&lt;td&gt;compressed KV cache 的逻辑长度&lt;/td&gt;
+			&lt;/tr&gt;
+			&lt;tr&gt;
+					&lt;td&gt;&lt;code&gt;L_c&lt;/code&gt;&lt;/td&gt;
+					&lt;td&gt;当前 query 可见的 compressed KV 长度（klen）&lt;/td&gt;
+			&lt;/tr&gt;
+			&lt;tr&gt;
+					&lt;td&gt;&lt;code&gt;K_v&lt;/code&gt;&lt;/td&gt;
+					&lt;td&gt;prefill 时 gather 出来的 KV 总长度&lt;/td&gt;
+			&lt;/tr&gt;
+			&lt;tr&gt;
+					&lt;td&gt;&lt;code&gt;K_b&lt;/code&gt;&lt;/td&gt;
+					&lt;td&gt;candidate block 数&lt;/td&gt;
+			&lt;/tr&gt;
+			&lt;tr&gt;
+					&lt;td&gt;&lt;code&gt;N&lt;/code&gt;&lt;/td&gt;
+					&lt;td&gt;kv_compress_ratio，本模型为 1 或 2&lt;/td&gt;
+			&lt;/tr&gt;
+			&lt;tr&gt;
+					&lt;td&gt;&lt;code&gt;S&lt;/code&gt;&lt;/td&gt;
+					&lt;td&gt;compressor state ring 大小&lt;/td&gt;
+			&lt;/tr&gt;
+	&lt;/tbody&gt;
+&lt;/table&gt;
+&lt;hr&gt;
+&lt;h2 id=&#34;2-swa滑动窗口注意力&#34;&gt;2. SWA：滑动窗口注意力&lt;/h2&gt;
+&lt;h3 id=&#34;21-模块职责&#34;&gt;2.1 模块职责&lt;/h3&gt;
+&lt;p&gt;SWA 分支负责：&lt;/p&gt;
+&lt;ol&gt;
+&lt;li&gt;从 hidden states 一次投影出 &lt;code&gt;q_a&lt;/code&gt; 和 &lt;code&gt;kv_swa&lt;/code&gt;；&lt;/li&gt;
+&lt;li&gt;把 &lt;code&gt;kv_swa&lt;/code&gt; 做 norm + RoPE + FP8 量化，写入 &lt;code&gt;swa_cache&lt;/code&gt;；&lt;/li&gt;
+&lt;li&gt;prefill 时把历史 SWA KV、当前 KV、压缩 KV 拼成连续 buffer，并把 SWA 索引与压缩 topk 索引拼成一条 &lt;code&gt;kv_index&lt;/code&gt;；&lt;/li&gt;
+&lt;li&gt;decode 时把 &lt;code&gt;swa_cache&lt;/code&gt; 的 ring slot 和 &lt;code&gt;ca_cache&lt;/code&gt; 的 paged slot 作为两组 indices，传给同一个 FlashMLA。&lt;/li&gt;
+&lt;/ol&gt;
+&lt;p&gt;&lt;a href=&#34;https://zhixuan-zxli.github.io/llm/dsv41-fused-operators/images/swa_architecture.svg&#34;&gt;&lt;img src=&#34;https://zhixuan-zxli.github.io/llm/dsv41-fused-operators/images/swa_architecture.svg&#34; alt=&#34;SWA 架构图&#34;&gt;&lt;/a&gt;&lt;/p&gt;
+&lt;h3 id=&#34;22-融合算子&#34;&gt;2.2 融合算子&lt;/h3&gt;
+&lt;table&gt;
+	&lt;thead&gt;
+			&lt;tr&gt;
+					&lt;th&gt;算子&lt;/th&gt;
+					&lt;th&gt;类型&lt;/th&gt;
+					&lt;th&gt;融合阶段&lt;/th&gt;
+					&lt;th&gt;输入 → 输出&lt;/th&gt;
+					&lt;th&gt;代码位置&lt;/th&gt;
+			&lt;/tr&gt;
+	&lt;/thead&gt;
+	&lt;tbody&gt;
+			&lt;tr&gt;
+					&lt;td&gt;&lt;code&gt;fused_norm_rope_hadamard_cast_store_kvcache&lt;/code&gt;&lt;/td&gt;
+					&lt;td&gt;&lt;strong&gt;FUSED&lt;/strong&gt;&lt;/td&gt;
+					&lt;td&gt;RMSNorm → RoPE（尾 64）→ FP8 E4M3 per-32 cast → store&lt;/td&gt;
+					&lt;td&gt;&lt;code&gt;kv_swa [T/B,512]&lt;/code&gt; → &lt;code&gt;swa_cache&lt;/code&gt;；prefill 走 cast_back 出 bf16&lt;/td&gt;
+					&lt;td&gt;&lt;code&gt;attn.py:402-451&lt;/code&gt;、&lt;code&gt;fused_transform.py:189&lt;/code&gt;&lt;/td&gt;
+			&lt;/tr&gt;
+			&lt;tr&gt;
+					&lt;td&gt;&lt;code&gt;fused_norm_rope_attn_rope_cast.prefill&lt;/code&gt;&lt;/td&gt;
+					&lt;td&gt;&lt;strong&gt;FUSED&lt;/strong&gt;&lt;/td&gt;
+					&lt;td&gt;Q RMSNorm + RoPE → sparse MLA + sink → 输出反 RoPE → FP8 cast&lt;/td&gt;
+					&lt;td&gt;&lt;code&gt;q_raw [T,N_h·512]&lt;/code&gt; + &lt;code&gt;kv [K_v,512]&lt;/code&gt; → &lt;code&gt;context [T,N_h,512]&lt;/code&gt;&lt;/td&gt;
+					&lt;td&gt;&lt;code&gt;attn.py:589-626&lt;/code&gt;、&lt;code&gt;attention_backend.py:29&lt;/code&gt;&lt;/td&gt;
+			&lt;/tr&gt;
+			&lt;tr&gt;
+					&lt;td&gt;&lt;code&gt;fused_norm_rope_attn_rope_cast.decode&lt;/code&gt;&lt;/td&gt;
+					&lt;td&gt;&lt;strong&gt;FUSED&lt;/strong&gt;&lt;/td&gt;
+					&lt;td&gt;Q RMSNorm + RoPE → SWA/CA 双缓存 sparse MLA + sink → 输出反 RoPE → FP8 cast&lt;/td&gt;
+					&lt;td&gt;&lt;code&gt;q_raw [B,N_h·512]&lt;/code&gt; + &lt;code&gt;swa_cache&lt;/code&gt; + &lt;code&gt;ca_cache&lt;/code&gt; → &lt;code&gt;context [B,N_h,512]&lt;/code&gt;&lt;/td&gt;
+					&lt;td&gt;&lt;code&gt;attn.py:628-670&lt;/code&gt;、&lt;code&gt;attention_backend.py:74&lt;/code&gt;&lt;/td&gt;
+			&lt;/tr&gt;
+	&lt;/tbody&gt;
+&lt;/table&gt;
+&lt;h3 id=&#34;23-kv_swa-融合写&#34;&gt;2.3 KV_SWA 融合写&lt;/h3&gt;
+&lt;p&gt;&lt;code&gt;_prepare_swa_kv&lt;/code&gt;（&lt;code&gt;attn.py:402-451&lt;/code&gt;）把四件事合成一次 kernel：&lt;/p&gt;
+&lt;ol&gt;
+&lt;li&gt;&lt;code&gt;RMSNorm(kv_swa_norm)&lt;/code&gt;；&lt;/li&gt;
+&lt;li&gt;RoPE，作用在最后 64 维，offset = &lt;code&gt;512 - 64 = 448&lt;/code&gt;；&lt;/li&gt;
+&lt;li&gt;FP8 E4M3 per-32 量化，scale 为 UE8M0；&lt;/li&gt;
+&lt;li&gt;store 到 &lt;code&gt;swa_cache&lt;/code&gt;。&lt;/li&gt;
+&lt;/ol&gt;
+&lt;p&gt;prefill 和 decode 的差异：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;prefill&lt;/strong&gt;：&lt;code&gt;CastArgs(..., cast_back=True)&lt;/code&gt;，输出 bf16；如果 CP &amp;gt; 1，再对 &lt;code&gt;kv_swa&lt;/code&gt; 做 &lt;code&gt;all_gather&lt;/code&gt;。由于 ring slot 可能与历史读区间重叠，当前 KV 的 &lt;code&gt;store_kv_cache&lt;/code&gt; 必须等 &lt;code&gt;load_paged_kv_cache&lt;/code&gt; 读完历史后再执行。
+&lt;ul&gt;
+&lt;li&gt;这意味着 prefill 会做一次“量化 round-trip → bf16”，store 时再量化一次；代码里这是有意的顺序约束。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;decode&lt;/strong&gt;：&lt;code&gt;KVCacheOutArgs(swa_cache, slot_mapping_store_swa)&lt;/code&gt;，直接写量化后的 cache，不返回 bf16。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;Hadamard 在本模型没有启用。&lt;/p&gt;
+&lt;h3 id=&#34;24-q-路径与-flashmla-的融合边界&#34;&gt;2.4 Q 路径与 FlashMLA 的融合边界&lt;/h3&gt;
+&lt;p&gt;主 Q 的 norm+RoPE &lt;strong&gt;默认不在投影后单独做&lt;/strong&gt;，而是折叠进注意力 kernel：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;当 &lt;code&gt;use_fused_norm_rope_attn_rope_cast&lt;/code&gt; 为真时，&lt;code&gt;q_b_proj&lt;/code&gt; 的输出 &lt;code&gt;q_raw&lt;/code&gt; 保持“未 norm、未 RoPE”的状态，直接送进 &lt;code&gt;prefill_attn_varlen_sparse&lt;/code&gt; / &lt;code&gt;decode_mla_mqa_sparse&lt;/code&gt;；&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;fused_norm_rope_attn_rope_cast&lt;/code&gt; 在 kernel 内完成 Q RMSNorm、RoPE、sparse MLA、attention sink、输出反 RoPE，以及给 WV einsum 用的 per-32 FP8 cast；&lt;/li&gt;
+&lt;li&gt;这个路径要求 &lt;strong&gt;GPU&lt;/strong&gt; 且 &lt;strong&gt;num_heads ∈ {64, 128}&lt;/strong&gt;；否则退回“同一个 fused transform 单独做 norm+RoPE → 普通 FlashMLA”，数值等价。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;Q 的单算子 fallback 在 &lt;code&gt;_q_b_norm_rope&lt;/code&gt;（&lt;code&gt;attn.py:158-172&lt;/code&gt;）：
+&lt;code&gt;fused_norm_rope_hadamard_cast_store_kvcache&lt;/code&gt;，只做 norm + RoPE，不做 cast/store。&lt;/p&gt;
+&lt;h3 id=&#34;25-两个合并-gemm&#34;&gt;2.5 两个合并 GEMM&lt;/h3&gt;
+&lt;table&gt;
+	&lt;thead&gt;
+			&lt;tr&gt;
+					&lt;th&gt;GEMM&lt;/th&gt;
+					&lt;th&gt;拼接&lt;/th&gt;
+					&lt;th&gt;输出&lt;/th&gt;
+					&lt;th&gt;说明&lt;/th&gt;
+			&lt;/tr&gt;
+	&lt;/thead&gt;
+	&lt;tbody&gt;
+			&lt;tr&gt;
+					&lt;td&gt;&lt;code&gt;q_a_kv_swa_proj&lt;/code&gt;&lt;/td&gt;
+					&lt;td&gt;&lt;code&gt;[Wq.A ∥ Wkv.A]&lt;/code&gt;&lt;/td&gt;
+					&lt;td&gt;&lt;code&gt;q_a [T/B,Rq]&lt;/code&gt;、&lt;code&gt;kv_swa [T/B,512]&lt;/code&gt;&lt;/td&gt;
+					&lt;td&gt;一次 GEMM 出两路；YOCO shared-hidden 场景改走独立 &lt;code&gt;kv_swa_proj&lt;/code&gt;&lt;/td&gt;
+			&lt;/tr&gt;
+			&lt;tr&gt;
+					&lt;td&gt;&lt;code&gt;q_b_proj&lt;/code&gt;&lt;/td&gt;
+					&lt;td&gt;&lt;code&gt;[Wq.B ∥ index q_B]&lt;/code&gt;&lt;/td&gt;
+					&lt;td&gt;&lt;code&gt;q_raw [T/B,N_h·512]&lt;/code&gt;、&lt;code&gt;index_q_b [T/B,N_i·128]&lt;/code&gt;&lt;/td&gt;
+					&lt;td&gt;主 Q 与 indexer Q 共用一次 GEMM；split 后分别使用&lt;/td&gt;
+			&lt;/tr&gt;
+	&lt;/tbody&gt;
+&lt;/table&gt;
+&lt;h3 id=&#34;26-tilelang-索引与搬运&#34;&gt;2.6 TileLang 索引与搬运&lt;/h3&gt;
+&lt;table&gt;
+	&lt;thead&gt;
+			&lt;tr&gt;
+					&lt;th&gt;算子&lt;/th&gt;
+					&lt;th&gt;作用&lt;/th&gt;
+					&lt;th&gt;代码位置&lt;/th&gt;
+			&lt;/tr&gt;
+	&lt;/thead&gt;
+	&lt;tbody&gt;
+			&lt;tr&gt;
+					&lt;td&gt;&lt;code&gt;expand_swa_index&lt;/code&gt;&lt;/td&gt;
+					&lt;td&gt;把 &lt;code&gt;[T,4]&lt;/code&gt; pivots 展开成稠密 &lt;code&gt;[T,W]&lt;/code&gt; SWA index，&lt;code&gt;-1&lt;/code&gt; 表示 masked&lt;/td&gt;
+					&lt;td&gt;&lt;code&gt;swa_index.py:8&lt;/code&gt;&lt;/td&gt;
+			&lt;/tr&gt;
+			&lt;tr&gt;
+					&lt;td&gt;&lt;code&gt;kv_index_cat&lt;/code&gt;&lt;/td&gt;
+					&lt;td&gt;把 SWA index 与压缩 topk index 拼成 &lt;code&gt;[T,W+K]&lt;/code&gt;，压缩部分加 offset，&lt;code&gt;-1&lt;/code&gt; 保留&lt;/td&gt;
+					&lt;td&gt;&lt;code&gt;kv_index_cat.py:10&lt;/code&gt;&lt;/td&gt;
+			&lt;/tr&gt;
+			&lt;tr&gt;
+					&lt;td&gt;&lt;code&gt;get_kv_swa_index_decode&lt;/code&gt;&lt;/td&gt;
+					&lt;td&gt;把 &lt;code&gt;[B,2]&lt;/code&gt; 的 offset/len 展开成 ring-buffer slot &lt;code&gt;[B,W]&lt;/code&gt;&lt;/td&gt;
+					&lt;td&gt;&lt;code&gt;get_kv_index.py:97&lt;/code&gt;&lt;/td&gt;
+			&lt;/tr&gt;
+			&lt;tr&gt;
+					&lt;td&gt;&lt;code&gt;load_paged_kv_cache&lt;/code&gt;&lt;/td&gt;
+					&lt;td&gt;prefill 按 &lt;code&gt;load_segments_swa&lt;/code&gt; 从 ring cache gather 历史，反量化到 bf16&lt;/td&gt;
+					&lt;td&gt;&lt;code&gt;load_paged_kv_cache.py:28&lt;/code&gt;&lt;/td&gt;
+			&lt;/tr&gt;
+			&lt;tr&gt;
+					&lt;td&gt;&lt;code&gt;store_kv_cache&lt;/code&gt;&lt;/td&gt;
+					&lt;td&gt;prefill 在当前 KV 写入 ring cache；按 cache layout 量化；&lt;code&gt;slot=-1&lt;/code&gt; 跳过&lt;/td&gt;
+					&lt;td&gt;&lt;code&gt;store_kv_cache.py:33&lt;/code&gt;&lt;/td&gt;
+			&lt;/tr&gt;
+	&lt;/tbody&gt;
+&lt;/table&gt;
+&lt;p&gt;dense 层（无 indexer）没有 topk：压缩侧的 &lt;code&gt;kv_ca_index&lt;/code&gt; 由 &lt;code&gt;get_kv_ca_index_prefill/decode&lt;/code&gt; 从 offset/len 展开（&lt;code&gt;input_metadata.py:357-383&lt;/code&gt;），之后仍走同样的 &lt;code&gt;kv_index_cat&lt;/code&gt;。&lt;/p&gt;
+&lt;h3 id=&#34;27-prefill--decode-数据流&#34;&gt;2.7 prefill / decode 数据流&lt;/h3&gt;
+&lt;p&gt;&lt;strong&gt;Prefill&lt;/strong&gt;&lt;/p&gt;
+&lt;div class=&#34;highlight&#34;&gt;&lt;pre tabindex=&#34;0&#34; style=&#34;color:#272822;background-color:#fafafa;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;&#34;&gt;&lt;code class=&#34;language-text&#34; data-lang=&#34;text&#34;&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;hidden [T,H]
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;  ├─ q_a_kv_swa_proj ──► q_a [T,Rq] ──► q_b_proj ──► q_raw [T,N_h·512]
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;  │                                                   index_q_b [T,N_i·128]
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;  └─ kv_swa [T,512] ──► fused norm+rope+cast（cast_back）
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;                         ├─► CP all_gather（可选）
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;                         └─► store_kv_cache
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;swa_cache（历史）──► load_paged_kv_cache ──► kv [K_v,512]
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;kv_swa（当前）────────────────────────────┘
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;expand_swa_index ──► kv_index_cat ──► kv_index [T,W+K]
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;q_raw + kv + kv_index ──► fused sparse MLA ──► context [T,N_h,512]
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;&lt;strong&gt;Decode&lt;/strong&gt;&lt;/p&gt;
+&lt;div class=&#34;highlight&#34;&gt;&lt;pre tabindex=&#34;0&#34; style=&#34;color:#272822;background-color:#fafafa;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;&#34;&gt;&lt;code class=&#34;language-text&#34; data-lang=&#34;text&#34;&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;swa_cache + ca_cache
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;get_kv_swa_index_decode ──► swa_idx [B,W]
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;kv_ca_index（Indexer） ──► ca_idx [B,K]
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;q_raw [B,N_h·512] + 两组 indices
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;  └─► fused decode MLA（双缓存 + sink）──► context [B,N_h,512]
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;h3 id=&#34;28-格式与-shape&#34;&gt;2.8 格式与 shape&lt;/h3&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;code&gt;swa_cache&lt;/code&gt;：MXFP8，逻辑 shape &lt;code&gt;[blocks, W_s, 512]&lt;/code&gt;，每 token 512 个 E4M3 值 + 16 个 UE8M0 scale = &lt;strong&gt;528 B/token&lt;/strong&gt;。&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;context&lt;/code&gt;：&lt;code&gt;[T,N_h,512]&lt;/code&gt; / &lt;code&gt;[B,N_h,512]&lt;/code&gt;，融合输出为 &lt;code&gt;(fp8, sf)&lt;/code&gt;。&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;kv_index&lt;/code&gt;：prefill &lt;code&gt;[T,W+K]&lt;/code&gt; int32；decode 为 &lt;code&gt;[B,W]&lt;/code&gt; + &lt;code&gt;[B,K]&lt;/code&gt; 两组索引。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;hr&gt;
+&lt;h2 id=&#34;3-compressor压缩-kv&#34;&gt;3. Compressor：压缩 KV&lt;/h2&gt;
+&lt;h3 id=&#34;31-模块职责&#34;&gt;3.1 模块职责&lt;/h3&gt;
+&lt;p&gt;Compressor 把 &lt;code&gt;kv_compress_ratio = N&lt;/code&gt; 个连续 token 的 KV 压成一个 compressed KV：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;C2 使用 Gate 产出的 score 与 A 产出的 latent，逐维做 2-token softmax，再对 latent 加权求和；&lt;/li&gt;
+&lt;li&gt;压缩后的 KV 做 RMSNorm、RoPE、量化，写入主 KV cache &lt;code&gt;ca_cache&lt;/code&gt;；&lt;/li&gt;
+&lt;li&gt;同时把 post-norm、pre-RoPE 的 KV 作为 &lt;code&gt;pre_rope_kv&lt;/code&gt; 副产物交给 Indexer 的 KProject；&lt;/li&gt;
+&lt;li&gt;C1 没有 Gate、没有 state cache，投影结果直接进入 norm/rope/cast/store。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;&lt;a href=&#34;https://zhixuan-zxli.github.io/llm/dsv41-fused-operators/images/compressor_architecture.svg&#34;&gt;&lt;img src=&#34;https://zhixuan-zxli.github.io/llm/dsv41-fused-operators/images/compressor_architecture.svg&#34; alt=&#34;Compressor 架构图&#34;&gt;&lt;/a&gt;&lt;/p&gt;
+&lt;h3 id=&#34;32-融合算子&#34;&gt;3.2 融合算子&lt;/h3&gt;
+&lt;table&gt;
+	&lt;thead&gt;
+			&lt;tr&gt;
+					&lt;th&gt;算子&lt;/th&gt;
+					&lt;th&gt;类型&lt;/th&gt;
+					&lt;th&gt;融合阶段&lt;/th&gt;
+					&lt;th&gt;输入 → 输出&lt;/th&gt;
+					&lt;th&gt;代码位置&lt;/th&gt;
+			&lt;/tr&gt;
+	&lt;/thead&gt;
+	&lt;tbody&gt;
+			&lt;tr&gt;
+					&lt;td&gt;&lt;code&gt;compress_and_update_state_prefill&lt;/code&gt;&lt;/td&gt;
+					&lt;td&gt;&lt;strong&gt;FUSED&lt;/strong&gt;&lt;/td&gt;
+					&lt;td&gt;旧窗口 state + 新 token → 逐维 softmax(N=2) → 加权和 → bf16；第二段 grid 写 state tail&lt;/td&gt;
+					&lt;td&gt;&lt;code&gt;score/latent [T,512] × 2&lt;/code&gt; → &lt;code&gt;kv_compressed [T/N,512]&lt;/code&gt;&lt;/td&gt;
+					&lt;td&gt;&lt;code&gt;tilelang_ops/compress.py:20&lt;/code&gt;、&lt;code&gt;cuda/compress.py:31&lt;/code&gt;&lt;/td&gt;
+			&lt;/tr&gt;
+			&lt;tr&gt;
+					&lt;td&gt;&lt;code&gt;compress_and_update_state_decode&lt;/code&gt;&lt;/td&gt;
+					&lt;td&gt;&lt;strong&gt;FUSED&lt;/strong&gt;&lt;/td&gt;
+					&lt;td&gt;写当前 token 到 state ring → 块尾行 softmax + 加权和；非块尾行输出 0&lt;/td&gt;
+					&lt;td&gt;&lt;code&gt;score/latent [B,512] × 2&lt;/code&gt; → &lt;code&gt;kv_compressed [B,512]&lt;/code&gt;&lt;/td&gt;
+					&lt;td&gt;&lt;code&gt;tilelang_ops/compress.py:74&lt;/code&gt;、&lt;code&gt;cuda/compress.py:187&lt;/code&gt;&lt;/td&gt;
+			&lt;/tr&gt;
+			&lt;tr&gt;
+					&lt;td&gt;&lt;code&gt;fused_norm_rope_hadamard_cast_store_kvcache&lt;/code&gt;&lt;/td&gt;
+					&lt;td&gt;&lt;strong&gt;FUSED&lt;/strong&gt;&lt;/td&gt;
+					&lt;td&gt;RMSNorm → RoPE（compressed positions）→ cast → store；&lt;code&gt;out_stage=norm&lt;/code&gt; 产出 pre-RoPE 副产物&lt;/td&gt;
+					&lt;td&gt;&lt;code&gt;kv_compressed [T/N 或 B,512]&lt;/code&gt; → &lt;code&gt;ca_cache&lt;/code&gt; + &lt;code&gt;pre_rope_kv [T/N 或 B,512]&lt;/code&gt;&lt;/td&gt;
+					&lt;td&gt;&lt;code&gt;compress.py:131-167&lt;/code&gt;、&lt;code&gt;fused_transform.py:189&lt;/code&gt;&lt;/td&gt;
+			&lt;/tr&gt;
+	&lt;/tbody&gt;
+&lt;/table&gt;
+&lt;h3 id=&#34;33-c2-压缩-kernel-的细节&#34;&gt;3.3 C2 压缩 kernel 的细节&lt;/h3&gt;
+&lt;p&gt;数学形式（逐 channel &lt;code&gt;j&lt;/code&gt;）：&lt;/p&gt;
+&lt;div class=&#34;highlight&#34;&gt;&lt;pre tabindex=&#34;0&#34; style=&#34;color:#272822;background-color:#fafafa;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;&#34;&gt;&lt;code class=&#34;language-text&#34; data-lang=&#34;text&#34;&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;c_t[j] = Σ_{i=0}^{1} softmax_i(score_{t-i}[j]) · latent_{t-i}[j]
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;prefill kernel（&lt;code&gt;cuda/compress.py:31-185&lt;/code&gt;）：&lt;/p&gt;
+&lt;ol&gt;
+&lt;li&gt;第一段 grid：对每个 compressed block，读取旧窗口（来自 &lt;code&gt;state_cache&lt;/code&gt;）和新 token 的 score/latent，做逐维 softmax + 加权和，输出 bf16；&lt;/li&gt;
+&lt;li&gt;第二段 grid：把每个序列尾部 &lt;code&gt;state_cache_size&lt;/code&gt; 个 token 的 score/latent 写回 state ring；&lt;/li&gt;
+&lt;li&gt;两段之间用 &lt;code&gt;T.pdl_sync()&lt;/code&gt; 同步；&lt;/li&gt;
+&lt;li&gt;CP 场景通过 &lt;code&gt;HAS_INDEX&lt;/code&gt; 和 &lt;code&gt;mirror_cp_reverse_index&lt;/code&gt; 读取重排后的 score/latent。&lt;/li&gt;
+&lt;/ol&gt;
+&lt;p&gt;decode kernel（&lt;code&gt;cuda/compress.py:187-292&lt;/code&gt;）：&lt;/p&gt;
+&lt;ol&gt;
+&lt;li&gt;第一段 grid：把当前 token 的 score/latent 写入 state ring；&lt;/li&gt;
+&lt;li&gt;第二段 grid：只对 &lt;code&gt;(context_len - 1) % N == N - 1&lt;/code&gt; 的块尾行做 softmax + 加权和；&lt;/li&gt;
+&lt;li&gt;非块尾行输出 0，&lt;code&gt;slot_mapping_store_ca = -1&lt;/code&gt;，不会污染 KV cache。&lt;/li&gt;
+&lt;/ol&gt;
+&lt;h3 id=&#34;34-主-kv-融合写&#34;&gt;3.4 主 KV 融合写&lt;/h3&gt;
+&lt;p&gt;&lt;code&gt;forward_store_kv_cache&lt;/code&gt;（&lt;code&gt;compress.py:131-167&lt;/code&gt;）用同一个 fused transform 完成：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;RMSNorm（compressor 的 &lt;code&gt;norm&lt;/code&gt;）；&lt;/li&gt;
+&lt;li&gt;RoPE，位置来自 &lt;code&gt;positions_c&lt;/code&gt;（压缩坐标，&lt;code&gt;block_idx * N&lt;/code&gt;）；&lt;/li&gt;
+&lt;li&gt;cast：由 cache layout 决定
+&lt;ul&gt;
+&lt;li&gt;&lt;code&gt;use_fp4_sparse_kv&lt;/code&gt;：FP4 E2M1，16 values / E4M3 scale，288 B/token；&lt;/li&gt;
+&lt;li&gt;否则：MXFP8 E4M3，32 values / UE8M0 scale，528 B/token；&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;li&gt;store 到 &lt;code&gt;ca_cache&lt;/code&gt;，slot 来自 &lt;code&gt;slot_mapping_store_ca&lt;/code&gt;；&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;out_stage=&amp;quot;norm&amp;quot;&lt;/code&gt; 时额外输出 post-norm、pre-RoPE 的 &lt;code&gt;pre_rope_kv&lt;/code&gt;，供 Indexer 的 KProject 使用。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;Hadamard 同样未启用。&lt;/p&gt;
+&lt;h3 id=&#34;35-合并投影&#34;&gt;3.5 合并投影&lt;/h3&gt;
+&lt;p&gt;&lt;code&gt;current_hidden_proj&lt;/code&gt; 把三个权重拼成一次 bf16 GEMM（&lt;code&gt;attn.py:328-373&lt;/code&gt;）：&lt;/p&gt;
+&lt;div class=&#34;highlight&#34;&gt;&lt;pre tabindex=&#34;0&#34; style=&#34;color:#272822;background-color:#fafafa;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;&#34;&gt;&lt;code class=&#34;language-text&#34; data-lang=&#34;text&#34;&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;[Gate ∥ A ∥ index weights_proj] · hidden
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;  → projected_kv [T/B, 2·512] fp32（C2）
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;  → split: score [T/B,512] | latent [T/B,512] | index_weights [T/B,N_i]
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;ul&gt;
+&lt;li&gt;C2：&lt;code&gt;use_fp32_output=True&lt;/code&gt;，Gate/A 不参与 FP8 量化；&lt;/li&gt;
+&lt;li&gt;C1：没有 Gate，只有 A，输出 bf16；&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;index_weights&lt;/code&gt; 会转成 bf16 交给 Indexer。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h3 id=&#34;36-cp-与共享&#34;&gt;3.6 CP 与共享&lt;/h3&gt;
+&lt;ul&gt;
+&lt;li&gt;CP：&lt;code&gt;projected_kv&lt;/code&gt; 的 &lt;code&gt;all_gather&lt;/code&gt; 先 launch，与 Q 投影重叠；prefill 压缩前用 &lt;code&gt;mirror_cp_reverse_index&lt;/code&gt; 做 &lt;code&gt;gather&lt;/code&gt; 重排（&lt;code&gt;compress.py:91-92&lt;/code&gt;）。&lt;/li&gt;
+&lt;li&gt;下游：prefill 的 &lt;code&gt;load_paged_kv_cache&lt;/code&gt; 把压缩段 gather 成连续 bf16（&lt;code&gt;attn.py:832-842&lt;/code&gt;）；decode 直接按 paged slot 读 &lt;code&gt;ca_cache&lt;/code&gt;。&lt;/li&gt;
+&lt;li&gt;跨层共享：&lt;code&gt;SharedLayerTopology&lt;/code&gt; 把 KV / index-K / index-topk 三段共享解耦；kv source 只写一次 &lt;code&gt;ca_cache&lt;/code&gt; / &lt;code&gt;pre_rope_kv&lt;/code&gt;，consumer 只读。&lt;/li&gt;
+&lt;li&gt;C1 边界：&lt;code&gt;forward_pre_norm&lt;/code&gt; 直接返回 bf16 投影，跳过两个 compress kernel，仍走 STAGE 2 的 norm+rope+cast+store。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h3 id=&#34;37-格式与-shape&#34;&gt;3.7 格式与 shape&lt;/h3&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;code&gt;state_cache&lt;/code&gt;：&lt;code&gt;[slots, S, 2, 512]&lt;/code&gt; fp32，score / latent 双通道。&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;ca_cache&lt;/code&gt;：逻辑 &lt;code&gt;[blocks, C, 512]&lt;/code&gt;，token-interleaved &lt;code&gt;[data | scale]&lt;/code&gt;；每 token 288 B（FP4）或 528 B（MXFP8）。&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;pre_rope_kv&lt;/code&gt;：prefill &lt;code&gt;[T/N,512]&lt;/code&gt; bf16；decode &lt;code&gt;[B,512]&lt;/code&gt; bf16（非块尾行为 0）。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;hr&gt;
+&lt;h2 id=&#34;4-indexer稀疏索引器&#34;&gt;4. Indexer：稀疏索引器&lt;/h2&gt;
+&lt;h3 id=&#34;41-模块职责&#34;&gt;4.1 模块职责&lt;/h3&gt;
+&lt;p&gt;Indexer 为每个 query 选 top-k 个 compressed KV：&lt;/p&gt;
+&lt;ol&gt;
+&lt;li&gt;Q 做 RoPE + FP4 量化；&lt;/li&gt;
+&lt;li&gt;K 由主 compressor 的 &lt;code&gt;pre_rope_kv&lt;/code&gt; 经 KProject 投影，再做 RMSNorm + RoPE + FP4 量化，写入 &lt;code&gt;ica_cache&lt;/code&gt;；&lt;/li&gt;
+&lt;li&gt;计算 &lt;code&gt;relu(q·k)&lt;/code&gt; 的 head 加权 logits &lt;code&gt;p_sum&lt;/code&gt;；&lt;/li&gt;
+&lt;li&gt;在 &lt;code&gt;p_sum&lt;/code&gt; 上做候选块限制（可选）和 token top-k；&lt;/li&gt;
+&lt;li&gt;decode 时把逻辑 token 索引经 &lt;code&gt;block_tables&lt;/code&gt; 转成物理 slot。&lt;/li&gt;
+&lt;/ol&gt;
+&lt;p&gt;&lt;a href=&#34;https://zhixuan-zxli.github.io/llm/dsv41-fused-operators/images/indexer_architecture.svg&#34;&gt;&lt;img src=&#34;https://zhixuan-zxli.github.io/llm/dsv41-fused-operators/images/indexer_architecture.svg&#34; alt=&#34;Indexer 架构图&#34;&gt;&lt;/a&gt;&lt;/p&gt;
+&lt;h3 id=&#34;42-融合算子&#34;&gt;4.2 融合算子&lt;/h3&gt;
+&lt;table&gt;
+	&lt;thead&gt;
+			&lt;tr&gt;
+					&lt;th&gt;算子&lt;/th&gt;
+					&lt;th&gt;类型&lt;/th&gt;
+					&lt;th&gt;融合阶段&lt;/th&gt;
+					&lt;th&gt;输入 → 输出&lt;/th&gt;
+					&lt;th&gt;代码位置&lt;/th&gt;
+			&lt;/tr&gt;
+	&lt;/thead&gt;
+	&lt;tbody&gt;
+			&lt;tr&gt;
+					&lt;td&gt;Q: &lt;code&gt;fused_norm_rope_hadamard_cast_store_kvcache&lt;/code&gt;&lt;/td&gt;
+					&lt;td&gt;&lt;strong&gt;FUSED&lt;/strong&gt;&lt;/td&gt;
+					&lt;td&gt;只做 RoPE（&lt;code&gt;use_q_norm=False&lt;/code&gt;）→ FP4 E2M1 per-32 cast&lt;/td&gt;
+					&lt;td&gt;&lt;code&gt;index_q_b [T/B,N_i·128]&lt;/code&gt; → &lt;code&gt;q_fp4 [T/B,N_i,128]&lt;/code&gt; + &lt;code&gt;q_sf [T/B,N_i,4]&lt;/code&gt;&lt;/td&gt;
+					&lt;td&gt;&lt;code&gt;index_attn.py:164-179&lt;/code&gt;&lt;/td&gt;
+			&lt;/tr&gt;
+			&lt;tr&gt;
+					&lt;td&gt;K: &lt;code&gt;KProject&lt;/code&gt; + &lt;code&gt;fused_norm_rope_hadamard_cast_store_kvcache&lt;/code&gt;&lt;/td&gt;
+					&lt;td&gt;&lt;strong&gt;GEMM + FUSED&lt;/strong&gt;&lt;/td&gt;
+					&lt;td&gt;Linear 512→128 → RMSNorm → RoPE(64) → FP4 → store&lt;/td&gt;
+					&lt;td&gt;&lt;code&gt;pre_rope_kv [T/N 或 B,512]&lt;/code&gt; → &lt;code&gt;ica_cache&lt;/code&gt;&lt;/td&gt;
+					&lt;td&gt;&lt;code&gt;index_attn.py:133-162&lt;/code&gt;、&lt;code&gt;compress.py:32-53&lt;/code&gt;&lt;/td&gt;
+			&lt;/tr&gt;
+			&lt;tr&gt;
+					&lt;td&gt;&lt;code&gt;fp8_fp4_mqa_logits&lt;/code&gt; / &lt;code&gt;..._sparse&lt;/code&gt; / &lt;code&gt;..._paged...&lt;/code&gt;&lt;/td&gt;
+					&lt;td&gt;&lt;strong&gt;VENDOR FUSED&lt;/strong&gt;&lt;/td&gt;
+					&lt;td&gt;FP8/FP4 MQA GEMM + ReLU + head 加权求和&lt;/td&gt;
+					&lt;td&gt;&lt;code&gt;q_fp4&lt;/code&gt; + &lt;code&gt;ica_cache&lt;/code&gt; → &lt;code&gt;p_sum [T/B,L_c]&lt;/code&gt;&lt;/td&gt;
+					&lt;td&gt;&lt;code&gt;index_attn.py:284-325&lt;/code&gt;、&lt;code&gt;421-454&lt;/code&gt;&lt;/td&gt;
+			&lt;/tr&gt;
+	&lt;/tbody&gt;
+&lt;/table&gt;
+&lt;blockquote&gt;
+&lt;p&gt;K 路径的 KProject Linear 和 fused transform 是两次 launch；不要把它理解成“线性层也在这个 fused kernel 里”。K 的 cache 写入只在 index-K source 层发生，consumer 复用 &lt;code&gt;ica_cache&lt;/code&gt;。&lt;/p&gt;
+&lt;/blockquote&gt;
+&lt;h3 id=&#34;43-q-与-k-的不对称&#34;&gt;4.3 Q 与 K 的不对称&lt;/h3&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;Q&lt;/strong&gt;：&lt;code&gt;MQAIndexer.use_q_norm = False&lt;/code&gt;，所以 Q 的 fused transform 只做 RoPE + FP4，不做 RMSNorm；&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;K&lt;/strong&gt;：&lt;code&gt;KProject&lt;/code&gt; 先做 Linear 512→128，随后 fused transform 做 RMSNorm + RoPE + FP4 + store；&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;q_sf&lt;/code&gt; 的 4 个 scale 来自 128 / 32；FP4 张量按逻辑 128 维标注，物理上按 E2M1 packed。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h3 id=&#34;44-deepgemm-logits-融合&#34;&gt;4.4 DeepGEMM logits 融合&lt;/h3&gt;
+&lt;p&gt;四个变体：&lt;/p&gt;
+&lt;table&gt;
+	&lt;thead&gt;
+			&lt;tr&gt;
+					&lt;th&gt;路径&lt;/th&gt;
+					&lt;th&gt;dense&lt;/th&gt;
+					&lt;th&gt;candidate&lt;/th&gt;
+			&lt;/tr&gt;
+	&lt;/thead&gt;
+	&lt;tbody&gt;
+			&lt;tr&gt;
+					&lt;td&gt;prefill&lt;/td&gt;
+					&lt;td&gt;&lt;code&gt;fp8_fp4_mqa_logits&lt;/code&gt;&lt;/td&gt;
+					&lt;td&gt;&lt;code&gt;fp8_fp4_sparse_mqa_logits&lt;/code&gt;&lt;/td&gt;
+			&lt;/tr&gt;
+			&lt;tr&gt;
+					&lt;td&gt;decode&lt;/td&gt;
+					&lt;td&gt;&lt;code&gt;fp8_fp4_paged_mqa_logits&lt;/code&gt;&lt;/td&gt;
+					&lt;td&gt;&lt;code&gt;fp8_fp4_paged_sparse_mqa_logits&lt;/code&gt;&lt;/td&gt;
+			&lt;/tr&gt;
+	&lt;/tbody&gt;
+&lt;/table&gt;
+&lt;p&gt;计算语义：&lt;/p&gt;
+&lt;div class=&#34;highlight&#34;&gt;&lt;pre tabindex=&#34;0&#34; style=&#34;color:#272822;background-color:#fafafa;-moz-tab-size:4;-o-tab-size:4;tab-size:4;-webkit-text-size-adjust:none;&#34;&gt;&lt;code class=&#34;language-text&#34; data-lang=&#34;text&#34;&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;p_sum[t,s] = Σ_h w[t,h] · ReLU(q[t,h] · k[s])
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;DeepGEMM kernel 内完成 matmul、ReLU、head 加权求和，直接输出 &lt;code&gt;p_sum&lt;/code&gt;。本模型 Q/K 都是 FP4 E2M1；API 名保留 &lt;code&gt;fp8_fp4_*&lt;/code&gt;，SM100 输出 bf16，SM90 输出 fp32。&lt;/p&gt;
+&lt;p&gt;配套的 metadata 由 DeepGEMM 生成：&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;code&gt;get_sparse_mqa_logits_metadata&lt;/code&gt;&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;get_paged_mqa_logits_metadata&lt;/code&gt;&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;get_paged_sparse_mqa_logits_metadata&lt;/code&gt;&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;它们不是计算 kernel，但决定了 logits 的稀疏调度。&lt;/p&gt;
+&lt;h3 id=&#34;45-候选块与-top-k-索引链&#34;&gt;4.5 候选块与 top-k 索引链&lt;/h3&gt;
+&lt;table&gt;
+	&lt;thead&gt;
+			&lt;tr&gt;
+					&lt;th&gt;算子&lt;/th&gt;
+					&lt;th&gt;类型&lt;/th&gt;
+					&lt;th&gt;作用&lt;/th&gt;
+					&lt;th&gt;代码位置&lt;/th&gt;
+			&lt;/tr&gt;
+	&lt;/thead&gt;
+	&lt;tbody&gt;
+			&lt;tr&gt;
+					&lt;td&gt;&lt;code&gt;candidate_block_max&lt;/code&gt;&lt;/td&gt;
+					&lt;td&gt;TILELANG&lt;/td&gt;
+					&lt;td&gt;块内 max、valid blocks，最后一个有效块置 &lt;code&gt;+inf&lt;/code&gt;&lt;/td&gt;
+					&lt;td&gt;&lt;code&gt;candidate_blocks.py:12&lt;/code&gt;&lt;/td&gt;
+			&lt;/tr&gt;
+			&lt;tr&gt;
+					&lt;td&gt;&lt;code&gt;deep_select.topk&lt;/code&gt;&lt;/td&gt;
+					&lt;td&gt;VENDOR&lt;/td&gt;
+					&lt;td&gt;block 级 / token 级 topk，sorted int32，越界填 &lt;code&gt;-1&lt;/code&gt;&lt;/td&gt;
+					&lt;td&gt;&lt;code&gt;index_attn.py:216/361/494&lt;/code&gt;&lt;/td&gt;
+			&lt;/tr&gt;
+			&lt;tr&gt;
+					&lt;td&gt;&lt;code&gt;get_candidate_compact_lens&lt;/code&gt;&lt;/td&gt;
+					&lt;td&gt;TILELANG&lt;/td&gt;
+					&lt;td&gt;候选块覆盖的有效 token 数&lt;/td&gt;
+					&lt;td&gt;&lt;code&gt;candidate_blocks.py:77&lt;/code&gt;&lt;/td&gt;
+			&lt;/tr&gt;
+			&lt;tr&gt;
+					&lt;td&gt;&lt;code&gt;restore_candidate_indices_inplace&lt;/code&gt;&lt;/td&gt;
+					&lt;td&gt;TILELANG&lt;/td&gt;
+					&lt;td&gt;compact 索引恢复成 sequence-local / 全局索引&lt;/td&gt;
+					&lt;td&gt;&lt;code&gt;candidate_blocks.py:114&lt;/code&gt;&lt;/td&gt;
+			&lt;/tr&gt;
+			&lt;tr&gt;
+					&lt;td&gt;&lt;code&gt;convert_kv_index&lt;/code&gt;&lt;/td&gt;
+					&lt;td&gt;TILELANG&lt;/td&gt;
+					&lt;td&gt;decode 时逻辑 token 索引 → 物理 paged slot&lt;/td&gt;
+					&lt;td&gt;&lt;code&gt;flash_mla_utils.py:10&lt;/code&gt;&lt;/td&gt;
+			&lt;/tr&gt;
+			&lt;tr&gt;
+					&lt;td&gt;&lt;code&gt;load_paged_kv_cache&lt;/code&gt;&lt;/td&gt;
+					&lt;td&gt;TILELANG&lt;/td&gt;
+					&lt;td&gt;prefill 时按 FP4 layout 读取 index-K（value + sf）&lt;/td&gt;
+					&lt;td&gt;&lt;code&gt;index_attn.py:181-202&lt;/code&gt;&lt;/td&gt;
+			&lt;/tr&gt;
+	&lt;/tbody&gt;
+&lt;/table&gt;
+&lt;p&gt;候选块路径是&lt;strong&gt;可选的共享层优化&lt;/strong&gt;：candidate source 层先选 block，后续 consumer 只在这些 block 内算 sparse logits。&lt;/p&gt;
+&lt;h3 id=&#34;46-共享层行为&#34;&gt;4.6 共享层行为&lt;/h3&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;strong&gt;index-K source&lt;/strong&gt;：跑 KProject + fused transform + store &lt;code&gt;ica_cache&lt;/code&gt;；&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;index-K consumer&lt;/strong&gt;：不跑 KProject/store；prefill 直接复用 source 的 &lt;code&gt;loaded_prefill_index_kv&lt;/code&gt;；&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;index-topk source&lt;/strong&gt;：写 &lt;code&gt;cross_layer_runtime.topk_indices&lt;/code&gt;；&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;index-topk consumer&lt;/strong&gt;：复用 source 的 topk，不再跑自己的 logits/topk。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h3 id=&#34;47-格式与-shape&#34;&gt;4.7 格式与 shape&lt;/h3&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;code&gt;ica_cache&lt;/code&gt;：逻辑 &lt;code&gt;[blocks, C, 128]&lt;/code&gt;，每 token 64 B FP4 data + 4 B UE8M0 scale = &lt;strong&gt;68 B/token&lt;/strong&gt;。&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;q_fp4&lt;/code&gt;：&lt;code&gt;[T/B, N_i, 128]&lt;/code&gt;（逻辑），&lt;code&gt;q_sf&lt;/code&gt;：&lt;code&gt;[T/B, N_i, 4]&lt;/code&gt;。&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;p_sum&lt;/code&gt;：prefill &lt;code&gt;[T, L_c]&lt;/code&gt;，decode &lt;code&gt;[B, L_c]&lt;/code&gt;。&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;topk_index&lt;/code&gt;：prefill &lt;code&gt;[T, K]&lt;/code&gt; / decode &lt;code&gt;[B, K]&lt;/code&gt; int32；prefill 是 gathered-kv 全局索引，decode 是物理 slot。&lt;/li&gt;
+&lt;/ul&gt;
+&lt;hr&gt;
+&lt;h2 id=&#34;5-横向对比&#34;&gt;5. 横向对比&lt;/h2&gt;
+&lt;table&gt;
+	&lt;thead&gt;
+			&lt;tr&gt;
+					&lt;th&gt;维度&lt;/th&gt;
+					&lt;th&gt;SWA&lt;/th&gt;
+					&lt;th&gt;Compressor&lt;/th&gt;
+					&lt;th&gt;Indexer&lt;/th&gt;
+			&lt;/tr&gt;
+	&lt;/thead&gt;
+	&lt;tbody&gt;
+			&lt;tr&gt;
+					&lt;td&gt;主要融合 kernel&lt;/td&gt;
+					&lt;td&gt;KV 写 + 注意力&lt;/td&gt;
+					&lt;td&gt;C2 压缩 + 主 KV 写&lt;/td&gt;
+					&lt;td&gt;Q/K 量化 + logits&lt;/td&gt;
+			&lt;/tr&gt;
+			&lt;tr&gt;
+					&lt;td&gt;合并 GEMM&lt;/td&gt;
+					&lt;td&gt;&lt;code&gt;q_a_kv_swa_proj&lt;/code&gt;、&lt;code&gt;q_b_proj&lt;/code&gt;&lt;/td&gt;
+					&lt;td&gt;&lt;code&gt;current_hidden_proj&lt;/code&gt;&lt;/td&gt;
+					&lt;td&gt;复用上面两个&lt;/td&gt;
+			&lt;/tr&gt;
+			&lt;tr&gt;
+					&lt;td&gt;核心 cache&lt;/td&gt;
+					&lt;td&gt;&lt;code&gt;swa_cache&lt;/code&gt;&lt;/td&gt;
+					&lt;td&gt;&lt;code&gt;ca_cache&lt;/code&gt; + &lt;code&gt;state_cache&lt;/code&gt;&lt;/td&gt;
+					&lt;td&gt;&lt;code&gt;ica_cache&lt;/code&gt;&lt;/td&gt;
+			&lt;/tr&gt;
+			&lt;tr&gt;
+					&lt;td&gt;token 维度&lt;/td&gt;
+					&lt;td&gt;&lt;code&gt;T&lt;/code&gt;（prefill）/ &lt;code&gt;B&lt;/code&gt;（decode）&lt;/td&gt;
+					&lt;td&gt;&lt;code&gt;T/N&lt;/code&gt;（prefill）/ &lt;code&gt;B&lt;/code&gt;（decode）&lt;/td&gt;
+					&lt;td&gt;&lt;code&gt;T/B&lt;/code&gt;（Q）、&lt;code&gt;T/N 或 B&lt;/code&gt;（K）&lt;/td&gt;
+			&lt;/tr&gt;
+			&lt;tr&gt;
+					&lt;td&gt;prefill 特殊处理&lt;/td&gt;
+					&lt;td&gt;先 load 历史、后 store；两次量化&lt;/td&gt;
+					&lt;td&gt;两段 grid + PDL；state tail 写回&lt;/td&gt;
+					&lt;td&gt;加载 FP4 index-K；候选块可选&lt;/td&gt;
+			&lt;/tr&gt;
+			&lt;tr&gt;
+					&lt;td&gt;decode 特殊处理&lt;/td&gt;
+					&lt;td&gt;SWA/CA 双缓存一次注意力&lt;/td&gt;
+					&lt;td&gt;块尾行才计算，非块尾置 0&lt;/td&gt;
+					&lt;td&gt;paged logits + 物理 slot 转换&lt;/td&gt;
+			&lt;/tr&gt;
+			&lt;tr&gt;
+					&lt;td&gt;与另一块的耦合&lt;/td&gt;
+					&lt;td&gt;用 &lt;code&gt;kv_index_cat&lt;/code&gt; / dual-cache 与压缩 KV 合流&lt;/td&gt;
+					&lt;td&gt;产出 &lt;code&gt;pre_rope_kv&lt;/code&gt; 给 Indexer&lt;/td&gt;
+					&lt;td&gt;产出 &lt;code&gt;topk_index&lt;/code&gt; 给 SWA/核心注意力&lt;/td&gt;
+			&lt;/tr&gt;
+	&lt;/tbody&gt;
+&lt;/table&gt;
+&lt;h3 id=&#34;51-容易误判的点&#34;&gt;5.1 容易误判的点&lt;/h3&gt;
+&lt;ol&gt;
+&lt;li&gt;&lt;strong&gt;Hadamard 未启用&lt;/strong&gt;：三条路径都传 &lt;code&gt;hadamard_args=None&lt;/code&gt;，不要因为算子名就认为它在做 Hadamard 变换。&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;SWA prefill 两次量化&lt;/strong&gt;：fused transform 先 &lt;code&gt;cast_back&lt;/code&gt; 成 bf16，&lt;code&gt;store_kv_cache&lt;/code&gt; 再量化；这是“先 load 后 store”的顺序约束导致的。&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;Q 的 norm+RoPE 不一定单独执行&lt;/strong&gt;：GPU + 64/128 heads 时折叠进 FlashMLA；否则才走独立 fused transform。&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;SWA/CA 只有两个合流点&lt;/strong&gt;：prefill 的 &lt;code&gt;kv_index_cat&lt;/code&gt; 和 decode 的 dual-cache。除此之外两条 KV 路径是分开的。&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;dense 层没有 indexer&lt;/strong&gt;：&lt;code&gt;kv_ca_index&lt;/code&gt; 由 &lt;code&gt;get_kv_ca_index_prefill/decode&lt;/code&gt; 展开，不是 topk。&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;C1 走独立分支&lt;/strong&gt;：C1 跳过 Gate、state_cache 和两个 compress kernel，但仍走主 KV 的 norm+rope+cast+store。&lt;/li&gt;
+&lt;li&gt;&lt;strong&gt;KProject 不在 fused kernel 内&lt;/strong&gt;：K 路径是 GEMM + fused transform 两次 launch。&lt;/li&gt;
+&lt;/ol&gt;
+&lt;hr&gt;
+&lt;h2 id=&#34;6-附录&#34;&gt;6. 附录&lt;/h2&gt;
+&lt;h3 id=&#34;61-全量算子速查&#34;&gt;6.1 全量算子速查&lt;/h3&gt;
+&lt;p&gt;&lt;strong&gt;SWA&lt;/strong&gt;&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;FUSED：&lt;code&gt;fused_norm_rope_hadamard_cast_store_kvcache&lt;/code&gt;（KV_SWA）&lt;/li&gt;
+&lt;li&gt;FUSED：&lt;code&gt;fused_norm_rope_attn_rope_cast.prefill/decode&lt;/code&gt;&lt;/li&gt;
+&lt;li&gt;MERGED GEMM：&lt;code&gt;q_a_kv_swa_proj&lt;/code&gt;、&lt;code&gt;q_b_proj&lt;/code&gt;&lt;/li&gt;
+&lt;li&gt;TILELANG：&lt;code&gt;expand_swa_index&lt;/code&gt;、&lt;code&gt;kv_index_cat&lt;/code&gt;、&lt;code&gt;get_kv_swa_index_decode&lt;/code&gt;、&lt;code&gt;load_paged_kv_cache&lt;/code&gt;、&lt;code&gt;store_kv_cache&lt;/code&gt;&lt;/li&gt;
+&lt;li&gt;可选：&lt;code&gt;get_kv_ca_index_prefill/decode&lt;/code&gt;（dense 层）&lt;/li&gt;
+&lt;li&gt;CP：&lt;code&gt;all_gather&lt;/code&gt; / &lt;code&gt;gather&lt;/code&gt;&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;&lt;strong&gt;Compressor&lt;/strong&gt;&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;FUSED：&lt;code&gt;compress_and_update_state_prefill&lt;/code&gt;、&lt;code&gt;compress_and_update_state_decode&lt;/code&gt;&lt;/li&gt;
+&lt;li&gt;FUSED：&lt;code&gt;fused_norm_rope_hadamard_cast_store_kvcache&lt;/code&gt;（主 KV）&lt;/li&gt;
+&lt;li&gt;MERGED GEMM：&lt;code&gt;current_hidden_proj&lt;/code&gt;&lt;/li&gt;
+&lt;li&gt;TILELANG：&lt;code&gt;gather&lt;/code&gt;（CP 重排）&lt;/li&gt;
+&lt;li&gt;CP：&lt;code&gt;all_gather&lt;/code&gt;&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;&lt;strong&gt;Indexer&lt;/strong&gt;&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;FUSED：Q &lt;code&gt;fused_norm_rope_hadamard_cast_store_kvcache&lt;/code&gt;&lt;/li&gt;
+&lt;li&gt;GEMM + FUSED：K &lt;code&gt;KProject&lt;/code&gt; + &lt;code&gt;fused_norm_rope_hadamard_cast_store_kvcache&lt;/code&gt;&lt;/li&gt;
+&lt;li&gt;VENDOR FUSED：DeepGEMM &lt;code&gt;mqa_logits&lt;/code&gt; 四变体&lt;/li&gt;
+&lt;li&gt;TILELANG：&lt;code&gt;candidate_block_max&lt;/code&gt;、&lt;code&gt;get_candidate_compact_lens&lt;/code&gt;、&lt;code&gt;restore_candidate_indices_inplace&lt;/code&gt;、&lt;code&gt;convert_kv_index&lt;/code&gt;、&lt;code&gt;load_paged_kv_cache&lt;/code&gt;&lt;/li&gt;
+&lt;li&gt;VENDOR：&lt;code&gt;deep_select.topk&lt;/code&gt;&lt;/li&gt;
+&lt;/ul&gt;
+&lt;h3 id=&#34;62-源码索引&#34;&gt;6.2 源码索引&lt;/h3&gt;
+&lt;p&gt;以下路径相对 DeepInfer checkout 根目录。&lt;/p&gt;
+&lt;table&gt;
+	&lt;thead&gt;
+			&lt;tr&gt;
+					&lt;th&gt;文件&lt;/th&gt;
+					&lt;th&gt;内容&lt;/th&gt;
+			&lt;/tr&gt;
+	&lt;/thead&gt;
+	&lt;tbody&gt;
+			&lt;tr&gt;
+					&lt;td&gt;&lt;code&gt;deepinfer/model_executor/models/v4_modules/attn.py&lt;/code&gt;&lt;/td&gt;
+					&lt;td&gt;SWA 投影、KV 写、prefill/decode 注意力、CP&lt;/td&gt;
+			&lt;/tr&gt;
+			&lt;tr&gt;
+					&lt;td&gt;&lt;code&gt;deepinfer/model_executor/models/v4_modules/compress.py&lt;/code&gt;&lt;/td&gt;
+					&lt;td&gt;Compressor 的 norm/compress/store、KProject&lt;/td&gt;
+			&lt;/tr&gt;
+			&lt;tr&gt;
+					&lt;td&gt;&lt;code&gt;deepinfer/model_executor/models/v4_modules/index_attn.py&lt;/code&gt;&lt;/td&gt;
+					&lt;td&gt;Indexer Q/K 量化、logits、topk、共享&lt;/td&gt;
+			&lt;/tr&gt;
+			&lt;tr&gt;
+					&lt;td&gt;&lt;code&gt;deepinfer/model_executor/models/v4_modules/mla_attn.py&lt;/code&gt;&lt;/td&gt;
+					&lt;td&gt;MQAIndexer、compressor 参数容器&lt;/td&gt;
+			&lt;/tr&gt;
+			&lt;tr&gt;
+					&lt;td&gt;&lt;code&gt;deepinfer/model_executor/input_metadata/input_metadata.py&lt;/code&gt;&lt;/td&gt;
+					&lt;td&gt;SWA index 展开、dense ca index、KV metadata&lt;/td&gt;
+			&lt;/tr&gt;
+			&lt;tr&gt;
+					&lt;td&gt;&lt;code&gt;deepinfer/model_executor/layers/attention_backend.py&lt;/code&gt;&lt;/td&gt;
+					&lt;td&gt;FlashMLA prefill/decode 封装&lt;/td&gt;
+			&lt;/tr&gt;
+			&lt;tr&gt;
+					&lt;td&gt;&lt;code&gt;deepinfer/model_executor/layers/tilelang_ops/fused_transform.py&lt;/code&gt;&lt;/td&gt;
+					&lt;td&gt;norm+rope+cast+store 融合 kernel&lt;/td&gt;
+			&lt;/tr&gt;
+			&lt;tr&gt;
+					&lt;td&gt;&lt;code&gt;deepinfer/model_executor/layers/tilelang_ops/compress.py&lt;/code&gt;&lt;/td&gt;
+					&lt;td&gt;compress P/D 的 Python 入口&lt;/td&gt;
+			&lt;/tr&gt;
+			&lt;tr&gt;
+					&lt;td&gt;&lt;code&gt;deepinfer/model_executor/layers/tilelang_ops/cuda/compress.py&lt;/code&gt;&lt;/td&gt;
+					&lt;td&gt;compress P/D 的 TileLang 实现&lt;/td&gt;
+			&lt;/tr&gt;
+			&lt;tr&gt;
+					&lt;td&gt;&lt;code&gt;deepinfer/model_executor/layers/tilelang_ops/swa_index.py&lt;/code&gt;&lt;/td&gt;
+					&lt;td&gt;&lt;code&gt;expand_swa_index&lt;/code&gt;&lt;/td&gt;
+			&lt;/tr&gt;
+			&lt;tr&gt;
+					&lt;td&gt;&lt;code&gt;deepinfer/model_executor/layers/tilelang_ops/kv_index_cat.py&lt;/code&gt;&lt;/td&gt;
+					&lt;td&gt;SWA index + compressed index 拼接&lt;/td&gt;
+			&lt;/tr&gt;
+			&lt;tr&gt;
+					&lt;td&gt;&lt;code&gt;deepinfer/model_executor/layers/tilelang_ops/get_kv_index.py&lt;/code&gt;&lt;/td&gt;
+					&lt;td&gt;decode ring slot、dense ca index&lt;/td&gt;
+			&lt;/tr&gt;
+			&lt;tr&gt;
+					&lt;td&gt;&lt;code&gt;deepinfer/model_executor/layers/tilelang_ops/load_paged_kv_cache.py&lt;/code&gt;&lt;/td&gt;
+					&lt;td&gt;paged gather&lt;/td&gt;
+			&lt;/tr&gt;
+			&lt;tr&gt;
+					&lt;td&gt;&lt;code&gt;deepinfer/model_executor/layers/tilelang_ops/store_kv_cache.py&lt;/code&gt;&lt;/td&gt;
+					&lt;td&gt;paged scatter + 量化&lt;/td&gt;
+			&lt;/tr&gt;
+			&lt;tr&gt;
+					&lt;td&gt;&lt;code&gt;deepinfer/model_executor/layers/tilelang_ops/candidate_blocks.py&lt;/code&gt;&lt;/td&gt;
+					&lt;td&gt;候选块 max / compact / restore&lt;/td&gt;
+			&lt;/tr&gt;
+			&lt;tr&gt;
+					&lt;td&gt;&lt;code&gt;deepinfer/model_executor/layers/tilelang_ops/flash_mla_utils.py&lt;/code&gt;&lt;/td&gt;
+					&lt;td&gt;&lt;code&gt;convert_kv_index&lt;/code&gt;&lt;/td&gt;
+			&lt;/tr&gt;
+			&lt;tr&gt;
+					&lt;td&gt;&lt;code&gt;deepinfer/model_executor/layers/tilelang_ops/cache_common.py&lt;/code&gt;&lt;/td&gt;
+					&lt;td&gt;KV cache 格式与字节数&lt;/td&gt;
+			&lt;/tr&gt;
+	&lt;/tbody&gt;
+&lt;/table&gt;
+&lt;h3 id=&#34;63-图与源文件&#34;&gt;6.3 图与源文件&lt;/h3&gt;
+&lt;ul&gt;
+&lt;li&gt;可编辑 drawio：&lt;a href=&#34;https://zhixuan-zxli.github.io/llm/dsv41-fused-operators/swa_compressor_indexer_architecture.drawio&#34;&gt;swa_compressor_indexer_architecture.drawio&lt;/a&gt;&lt;/li&gt;
+&lt;li&gt;SVG：&lt;a href=&#34;https://zhixuan-zxli.github.io/llm/dsv41-fused-operators/images/swa_architecture.svg&#34;&gt;SWA&lt;/a&gt;、&lt;a href=&#34;https://zhixuan-zxli.github.io/llm/dsv41-fused-operators/images/compressor_architecture.svg&#34;&gt;Compressor&lt;/a&gt;、&lt;a href=&#34;https://zhixuan-zxli.github.io/llm/dsv41-fused-operators/images/indexer_architecture.svg&#34;&gt;Indexer&lt;/a&gt;&lt;/li&gt;
+&lt;/ul&gt;
+&lt;hr&gt;
+&lt;p&gt;&lt;em&gt;说明：shape 与字节数按 V4.1 的 512 维 KV layout 计算；&lt;code&gt;use_fp4_sparse_kv&lt;/code&gt; 不同时，主 KV 单 token 字节数在 288 B / 528 B 之间切换。&lt;/em&gt;&lt;/p&gt;
+- https://zhixuan-zxli.github.io/llm/dsv41-fused-operators/ - </description>
+        </item>
+    
+    
+    
+        <item>
+        <title>Qwen3.5：GDN / GQA、MTP 与 Aligned APC</title>
+        <link>https://zhixuan-zxli.github.io/llm/qwen35-v020-mtp-apc/</link>
+        <pubDate>Thu, 29 Oct 2026 00:00:00 +0000</pubDate>
+        
+        <guid>https://zhixuan-zxli.github.io/llm/qwen35-v020-mtp-apc/</guid>
+        <description>Zhixuan&#39;s Blog https://zhixuan-zxli.github.io/llm/qwen35-v020-mtp-apc/ -&lt;p&gt;&lt;a href=&#34;https://zhixuan-zxli.github.io/llm/qwen35-v020-mtp-apc/images/01-overview.svg&#34;&gt;&lt;img src=&#34;https://zhixuan-zxli.github.io/llm/qwen35-v020-mtp-apc/images/01-overview.svg&#34; alt=&#34;Qwen3.5-9B 架构总览&#34;&gt;&lt;/a&gt;&lt;/p&gt;
+&lt;p&gt;&lt;a href=&#34;https://zhixuan-zxli.github.io/llm/qwen35-v020-mtp-apc/images/02-shapes.svg&#34;&gt;&lt;img src=&#34;https://zhixuan-zxli.github.io/llm/qwen35-v020-mtp-apc/images/02-shapes.svg&#34; alt=&#34;Tensor shape 与符号&#34;&gt;&lt;/a&gt;&lt;/p&gt;
+&lt;p&gt;&lt;a href=&#34;https://zhixuan-zxli.github.io/llm/qwen35-v020-mtp-apc/images/03-gdn-prefill.svg&#34;&gt;&lt;img src=&#34;https://zhixuan-zxli.github.io/llm/qwen35-v020-mtp-apc/images/03-gdn-prefill.svg&#34; alt=&#34;GDN Prefill&#34;&gt;&lt;/a&gt;&lt;/p&gt;
+&lt;p&gt;&lt;a href=&#34;https://zhixuan-zxli.github.io/llm/qwen35-v020-mtp-apc/images/04-gdn-decode-verify.svg&#34;&gt;&lt;img src=&#34;https://zhixuan-zxli.github.io/llm/qwen35-v020-mtp-apc/images/04-gdn-decode-verify.svg&#34; alt=&#34;GDN Decode 与 MTP 验证&#34;&gt;&lt;/a&gt;&lt;/p&gt;
+&lt;p&gt;&lt;a href=&#34;https://zhixuan-zxli.github.io/llm/qwen35-v020-mtp-apc/images/05-gqa-prefill.svg&#34;&gt;&lt;img src=&#34;https://zhixuan-zxli.github.io/llm/qwen35-v020-mtp-apc/images/05-gqa-prefill.svg&#34; alt=&#34;GQA Prefill&#34;&gt;&lt;/a&gt;&lt;/p&gt;
+&lt;p&gt;&lt;a href=&#34;https://zhixuan-zxli.github.io/llm/qwen35-v020-mtp-apc/images/06-gqa-decode-verify.svg&#34;&gt;&lt;img src=&#34;https://zhixuan-zxli.github.io/llm/qwen35-v020-mtp-apc/images/06-gqa-decode-verify.svg&#34; alt=&#34;GQA Decode 与 MTP 验证&#34;&gt;&lt;/a&gt;&lt;/p&gt;
+&lt;p&gt;&lt;a href=&#34;https://zhixuan-zxli.github.io/llm/qwen35-v020-mtp-apc/images/07-mtp.svg&#34;&gt;&lt;img src=&#34;https://zhixuan-zxli.github.io/llm/qwen35-v020-mtp-apc/images/07-mtp.svg&#34; alt=&#34;MTP Predictor 与调用循环&#34;&gt;&lt;/a&gt;&lt;/p&gt;
+&lt;p&gt;&lt;a href=&#34;https://zhixuan-zxli.github.io/llm/qwen35-v020-mtp-apc/images/08-aligned-apc.svg&#34;&gt;&lt;img src=&#34;https://zhixuan-zxli.github.io/llm/qwen35-v020-mtp-apc/images/08-aligned-apc.svg&#34; alt=&#34;Aligned APC 状态流&#34;&gt;&lt;/a&gt;&lt;/p&gt;
+- https://zhixuan-zxli.github.io/llm/qwen35-v020-mtp-apc/ - </description>
         </item>
     
     
@@ -4298,666 +5085,6 @@ $$&lt;p&gt;&lt;strong&gt;Shapes&lt;/strong&gt;:&lt;/p&gt;
 &lt;/ol&gt;
 &lt;p&gt;This avoids ever materializing or communicating full $[K, V]$ states per chunk across ranks — only one $[K, V+K]$ summary per rank is gathered, giving CP overhead that&amp;rsquo;s independent of sequence length.&lt;/p&gt;
 - https://zhixuan-zxli.github.io/llm/kda_chunk_fwd_kernels/ - </description>
-        </item>
-    
-    
-    
-        <item>
-        <title>Chunked Prefill and Prefix Caching</title>
-        <link>https://zhixuan-zxli.github.io/llm/chunked_prefill_apc/</link>
-        <pubDate>Sun, 09 Aug 2026 00:00:00 +0000</pubDate>
-        
-        <guid>https://zhixuan-zxli.github.io/llm/chunked_prefill_apc/</guid>
-        <description>Zhixuan&#39;s Blog https://zhixuan-zxli.github.io/llm/chunked_prefill_apc/ -&lt;p&gt;&lt;a href=&#34;https://zhixuan-zxli.github.io/slides/chunked_prefill_apc.html&#34;&gt;Click to view the presentation slides&lt;/a&gt;&lt;/p&gt;
-- https://zhixuan-zxli.github.io/llm/chunked_prefill_apc/ - </description>
-        </item>
-    
-    
-    
-        <item>
-        <title>Mooncake Connector - Architecture</title>
-        <link>https://zhixuan-zxli.github.io/llm/mooncake_connector/</link>
-        <pubDate>Sun, 09 Aug 2026 00:00:00 +0000</pubDate>
-        
-        <guid>https://zhixuan-zxli.github.io/llm/mooncake_connector/</guid>
-        <description>Zhixuan&#39;s Blog https://zhixuan-zxli.github.io/llm/mooncake_connector/ -&lt;h1 id=&#34;mooncake-kv-connectors-in-vllm&#34;&gt;Mooncake KV Connectors in vLLM&lt;/h1&gt;
-&lt;p&gt;vLLM ships two different &lt;code&gt;KVConnectorBase_V1&lt;/code&gt; implementations for Mooncake, with fundamentally different transfer architectures:&lt;/p&gt;
-&lt;ul&gt;
-&lt;li&gt;&lt;strong&gt;&lt;code&gt;MooncakeConnector&lt;/code&gt;&lt;/strong&gt; — direct P2P transfer via RDMA one-sided writes.&lt;/li&gt;
-&lt;li&gt;&lt;strong&gt;&lt;code&gt;MooncakeStoreConnector&lt;/code&gt;&lt;/strong&gt; — shared distributed KV pool keyed by content hash.&lt;/li&gt;
-&lt;/ul&gt;
-&lt;p&gt;Source files:&lt;/p&gt;
-&lt;ul&gt;
-&lt;li&gt;&lt;code&gt;vllm/distributed/kv_transfer/kv_connector/v1/mooncake/mooncake_connector.py&lt;/code&gt;&lt;/li&gt;
-&lt;li&gt;&lt;code&gt;vllm/distributed/kv_transfer/kv_connector/v1/mooncake/store/connector.py&lt;/code&gt;&lt;/li&gt;
-&lt;/ul&gt;
-&lt;hr&gt;
-&lt;h2 id=&#34;1-mooncakeconnector--direct-p2p-transfer&#34;&gt;1. MooncakeConnector — Direct P2P transfer&lt;/h2&gt;
-&lt;p&gt;This is a &lt;strong&gt;P-push&lt;/strong&gt; connector: the producer (prefiller) writes KV blocks directly into the consumer&amp;rsquo;s (decoder&amp;rsquo;s) memory via RDMA. It&amp;rsquo;s built on top of Mooncake&amp;rsquo;s &lt;code&gt;TransferEngine&lt;/code&gt;, which does one-sided RDMA writes.&lt;/p&gt;
-&lt;h3 id=&#34;architecture&#34;&gt;Architecture&lt;/h3&gt;
-&lt;ul&gt;
-&lt;li&gt;Split into &lt;code&gt;MooncakeConnectorScheduler&lt;/code&gt; (control-plane) and &lt;code&gt;MooncakeConnectorWorker&lt;/code&gt; (data-plane), matching the standard vLLM connector role split.&lt;/li&gt;
-&lt;li&gt;Both P and D workers can coexist in one process (&lt;code&gt;kv_both&lt;/code&gt;) — the code branches on &lt;code&gt;is_kv_producer&lt;/code&gt; / &lt;code&gt;is_kv_consumer&lt;/code&gt;.&lt;/li&gt;
-&lt;/ul&gt;
-&lt;h3 id=&#34;discovery-bootstrap-server&#34;&gt;Discovery: bootstrap server&lt;/h3&gt;
-&lt;ul&gt;
-&lt;li&gt;Global-rank-0 P-worker launches an HTTP &lt;code&gt;MooncakeBootstrapServer&lt;/code&gt;.&lt;/li&gt;
-&lt;li&gt;Every P-worker registers &lt;code&gt;(engine_id, dp_rank, tp_rank, pp_rank, zmq_addr)&lt;/code&gt; with it.&lt;/li&gt;
-&lt;li&gt;D-workers hit the bootstrap &lt;code&gt;/query&lt;/code&gt; endpoint on first contact with a new engine_id (&lt;code&gt;_connect_to_prefiller_bootstrap&lt;/code&gt;), caching the topology in &lt;code&gt;_remote_agents&lt;/code&gt;.&lt;/li&gt;
-&lt;/ul&gt;
-&lt;h3 id=&#34;metadata-channel-zmq&#34;&gt;Metadata channel: ZMQ&lt;/h3&gt;
-&lt;ul&gt;
-&lt;li&gt;P-worker binds a ZMQ ROUTER socket to a random port; that port is what gets registered with bootstrap.&lt;/li&gt;
-&lt;li&gt;D-worker uses a DEALER socket to send a &lt;code&gt;MooncakeXferMetadata&lt;/code&gt; blob per pull request. That blob contains the D&amp;rsquo;s KV base addresses, block lengths, per-layer registrations, plus per-request &lt;code&gt;(transfer_id, [[block_ids]])&lt;/code&gt;.&lt;/li&gt;
-&lt;li&gt;P responds with &lt;code&gt;MooncakeXferResponse&lt;/code&gt;, streamed as &lt;code&gt;CONTINUE&lt;/code&gt; messages while transfers finish incrementally and &lt;code&gt;FINISH&lt;/code&gt; at the end.&lt;/li&gt;
-&lt;/ul&gt;
-&lt;h3 id=&#34;kv-registration&#34;&gt;KV registration&lt;/h3&gt;
-&lt;p&gt;&lt;code&gt;register_kv_caches&lt;/code&gt; iterates each layer&amp;rsquo;s KV tensor. Depending on the attention spec:&lt;/p&gt;
-&lt;ul&gt;
-&lt;li&gt;&lt;strong&gt;MLA / SlidingWindowMLA&lt;/strong&gt; → treat whole layer as one region (&lt;code&gt;page_size_bytes&lt;/code&gt;).&lt;/li&gt;
-&lt;li&gt;&lt;strong&gt;Mamba/GDN&lt;/strong&gt; → register only the &lt;code&gt;conv&lt;/code&gt; tensor.&lt;/li&gt;
-&lt;li&gt;&lt;strong&gt;Standard attention&lt;/strong&gt; with &lt;code&gt;virtually_split_kv_in_blocks&lt;/code&gt; layout → treat K and V halves as separate transfer regions (&lt;code&gt;kv_block_len = block_len // 2&lt;/code&gt;). &lt;code&gt;_expand_transfer_regions&lt;/code&gt; emits two &lt;code&gt;TransferRegion&lt;/code&gt; entries per layer, one at &lt;code&gt;base_addr&lt;/code&gt; and one at &lt;code&gt;base_addr + kv_block_len&lt;/code&gt;.&lt;/li&gt;
-&lt;/ul&gt;
-&lt;p&gt;All unique &lt;code&gt;storage_addr&lt;/code&gt; regions are batch-registered with Mooncake&amp;rsquo;s RDMA layer via &lt;code&gt;engine.batch_register_memory&lt;/code&gt; — this is what pins the memory for one-sided RDMA writes.&lt;/p&gt;
-&lt;h3 id=&#34;the-actual-transfer&#34;&gt;The actual transfer&lt;/h3&gt;
-&lt;p&gt;&lt;code&gt;_build_transfer_params&lt;/code&gt; is where block-level RDMA descriptors are computed:&lt;/p&gt;
-&lt;ol&gt;
-&lt;li&gt;&lt;strong&gt;Group-aware block matching.&lt;/strong&gt; Hybrid models can have multiple KV groups (e.g. full-attention pages + GDN inner-state slots). Block IDs from group &lt;code&gt;i&lt;/code&gt; on P must only be paired with group &lt;code&gt;i&lt;/code&gt; on D — the code carefully preserves per-group identity. For Mamba groups, &lt;code&gt;NULL_BLOCK_ID&lt;/code&gt; placeholders are filtered out.&lt;/li&gt;
-&lt;li&gt;&lt;strong&gt;Region alignment across PP shards.&lt;/strong&gt; &lt;code&gt;_align_transfer_regions&lt;/code&gt; matches registered regions by &lt;code&gt;(layer_name, occurrence_order)&lt;/code&gt; rather than positionally, because P and D may have different PP layouts and thus own different layer subsets.&lt;/li&gt;
-&lt;li&gt;&lt;strong&gt;Heterogeneous TP planning.&lt;/strong&gt; &lt;code&gt;_compute_sender_transfer_plan&lt;/code&gt; figures out, for a given (local_tp_rank, remote_tp_rank) pair:
-&lt;ul&gt;
-&lt;li&gt;Whether this rank sends at all (for replicated caches like MLA, only rank 0 within a TP group needs to send).&lt;/li&gt;
-&lt;li&gt;Source/dest byte offsets inside a KV block (when local TP &amp;gt; remote TP, one local rank writes into a slice of the remote block; when local TP &amp;lt; remote TP, one local rank gathers from multiple remote regions).&lt;/li&gt;
-&lt;li&gt;&lt;code&gt;tp_ratio&lt;/code&gt; handles both directions with sign convention.&lt;/li&gt;
-&lt;/ul&gt;
-&lt;/li&gt;
-&lt;li&gt;&lt;strong&gt;Coalescing.&lt;/strong&gt; &lt;code&gt;group_concurrent_contiguous&lt;/code&gt; uses &lt;code&gt;np.diff&lt;/code&gt; to find runs of contiguous block IDs on both sides. When a run is contiguous AND the per-block copy covers the full block (&lt;code&gt;_can_coalesce_block_transfers&lt;/code&gt;), the whole run becomes one large descriptor instead of N small ones. Big win for RDMA throughput.&lt;/li&gt;
-&lt;li&gt;&lt;strong&gt;Logical → kernel expansion&lt;/strong&gt; (&lt;code&gt;_logical_to_kernel_block_ids&lt;/code&gt;). When speculative decoding forces the effective kernel block size smaller than the logical one, each logical block ID expands to &lt;code&gt;_physical_blocks_per_logical_kv_block&lt;/code&gt; consecutive kernel IDs. Mamba groups skip this expansion.&lt;/li&gt;
-&lt;li&gt;&lt;strong&gt;The dispatch:&lt;/strong&gt; &lt;code&gt;engine.batch_transfer_sync_write(remote_session, src_ptrs, dst_ptrs, lengths)&lt;/code&gt;. This is the RDMA one-sided WRITE into the D&amp;rsquo;s registered memory, no D-side CPU involvement.&lt;/li&gt;
-&lt;/ol&gt;
-&lt;h3 id=&#34;async-orchestration&#34;&gt;Async orchestration&lt;/h3&gt;
-&lt;ul&gt;
-&lt;li&gt;Two background threads each running their own &lt;code&gt;asyncio&lt;/code&gt; event loop (&lt;code&gt;_async_loop&lt;/code&gt;): sender loop on P, receiver loop on D.&lt;/li&gt;
-&lt;li&gt;On P, &lt;code&gt;_mooncake_sender_listener&lt;/code&gt; accepts ZMQ requests and dispatches to &lt;code&gt;_sender_worker&lt;/code&gt; coroutines (&lt;code&gt;num_sender_tasks = 2 × num_workers&lt;/code&gt;) which pull from a queue.&lt;/li&gt;
-&lt;li&gt;The actual &lt;code&gt;batch_transfer_sync_write&lt;/code&gt; call is offloaded to a &lt;code&gt;ThreadPoolExecutor&lt;/code&gt; via &lt;code&gt;run_in_executor&lt;/code&gt; since it&amp;rsquo;s a blocking C call. Each executor thread is bound to the correct CUDA device via &lt;code&gt;_bind_sender_thread_device&lt;/code&gt; — CUDA context is thread-local, so this is essential for NVLink transfers on TP &amp;gt; 0.&lt;/li&gt;
-&lt;/ul&gt;
-&lt;h3 id=&#34;special-cases&#34;&gt;Special cases&lt;/h3&gt;
-&lt;ul&gt;
-&lt;li&gt;&lt;strong&gt;Mamba/GDN&lt;/strong&gt; on the P side truncates the last prompt token (&lt;code&gt;_truncate_mamba_request_for_prefill&lt;/code&gt;) so P computes &lt;code&gt;h(N-1)&lt;/code&gt;, then D recomputes the final token to derive &lt;code&gt;h(N)&lt;/code&gt;. This avoids sending a state that would need immediate refresh.&lt;/li&gt;
-&lt;li&gt;&lt;strong&gt;Sliding-window HMA&lt;/strong&gt; clips block IDs to the last &lt;code&gt;blocks_per_sw&lt;/code&gt; blocks so old windows aren&amp;rsquo;t wastefully transferred.&lt;/li&gt;
-&lt;li&gt;&lt;strong&gt;Timeout handling&lt;/strong&gt; — &lt;code&gt;SendBlockMeta.expire_time&lt;/code&gt; plus &lt;code&gt;fetch_finished_sending_reqs&lt;/code&gt; reap stranded P-side blocks if D never asks for them.&lt;/li&gt;
-&lt;li&gt;&lt;strong&gt;P/D asymmetry in stats&lt;/strong&gt; — only P sees successful transfer latency/bytes; D only records recv failures because it never touches the successful path.&lt;/li&gt;
-&lt;/ul&gt;
-&lt;h3 id=&#34;kv-cache-layout&#34;&gt;KV cache layout&lt;/h3&gt;
-&lt;p&gt;&lt;code&gt;get_required_kvcache_layout&lt;/code&gt; returns &lt;code&gt;&amp;quot;HND&amp;quot;&lt;/code&gt; for non-MLA models, so layout is forced to &lt;code&gt;[num_heads, num_blocks, block_size, head_dim]&lt;/code&gt; and heterogeneous TP transfers are contiguous on the head dimension.&lt;/p&gt;
-&lt;hr&gt;
-&lt;h2 id=&#34;2-call-stacks--send-and-receive&#34;&gt;2. Call stacks — Send and receive&lt;/h2&gt;
-&lt;h3 id=&#34;one-time-worker-setup&#34;&gt;One-time worker setup&lt;/h3&gt;
-&lt;pre tabindex=&#34;0&#34;&gt;&lt;code&gt;P-worker __init__                          D-worker __init__
-├── threading.Thread(_async_loop,          ├── threading.Thread(_async_loop,
-│      sender_loop).start()                │      receiver_loop).start()
-└── register_kv_caches(...)                └── register_kv_caches(...)
-    ├── engine.batch_register_memory()         └── engine.batch_register_memory()
-    │      # pin memory for RDMA
-    └── run_coroutine_threadsafe(
-           _mooncake_sender_listener, sender_loop)
-        ├── sock = ROUTER.bind_to_random_port
-        ├── register_worker_with_bootstrap()    ── HTTP ─▶ MooncakeBootstrapServer
-        └── spawn N × _sender_worker(sock)
-&lt;/code&gt;&lt;/pre&gt;&lt;h3 id=&#34;prefiller-p--sending-kv&#34;&gt;Prefiller (P) — sending KV&lt;/h3&gt;
-&lt;pre tabindex=&#34;0&#34;&gt;&lt;code&gt;─── Scheduler process (SCHEDULER role) ──────────────────────────────────
-Engine step
-└── connector.update_state_after_alloc(req)
-       │   if params[&amp;#34;do_remote_decode&amp;#34;]:
-       └── self._reqs_need_send[req_id] = (req, [])
-
-Engine step (end)
-├── connector.build_connector_meta(sched_out)
-│      └── meta.add_new_req(load_remote_cache=False)  ─┐
-│                                                      │
-└── connector.request_finished(req, block_ids)         │
-       │   # request completed on P                    │
-       └── self._reqs_need_send[req_id] = (req, block_ids) ─┘
-                                                       │
-                        MooncakeConnectorMetadata      │
-                                                       ▼
-─── Worker process (WORKER role) ───────────────────────────────────────
-connector.start_load_kv(fwd_ctx)
-└── run_coroutine_threadsafe(record_send_reqs, sender_loop)
-       └── record_send_reqs(metadata)
-              ├── send_meta = SendBlockMeta(...)  ── store in self.reqs_need_send
-              └── send_meta.ready.set()          ── unblocks send_kv_to_decode
-
-┌────────────── sender_loop thread (asyncio) ────────────────────────┐
-│                                                                    │
-│  _mooncake_sender_listener()                                       │
-│  └── while True:                                                   │
-│      identity, meta_bytes = sock.recv_multipart()  ◀── ZMQ from D  │
-│      sender_worker_queue.put(...)                                  │
-│                                                                    │
-│  _sender_worker(sock)  × num_sender_tasks                          │
-│  └── send_kv_to_decode(identity, sock, meta)                       │
-│      ├── local_regions  = _get_transfer_regions(local KV)          │
-│      ├── remote_regions = _get_transfer_regions(D&amp;#39;s KV from meta)  │
-│      ├── _align_transfer_regions()   # match by (layer, occurrence)│
-│      ├── _validate_asymmetric_region_lengths()                     │
-│      │                                                             │
-│      ├── for d_req_id in meta.req_blocks:                          │
-│      │      pending_reqs[d_req_id] = self.reqs_need_send[xid]      │
-│      │                                                             │
-│      └── while wait_tasks:                                         │
-│           done = await asyncio.wait(ready events, timeout)         │
-│           ├── _build_transfer_params(ready_reqs, ...)              │
-│           │   ├── filter NULL_BLOCK_ID (Mamba)                     │
-│           │   ├── _logical_to_kernel_block_ids()                   │
-│           │   ├── group_concurrent_contiguous()  # coalesce runs   │
-│           │   ├── _get_sender_transfer_plan()    # het-TP offsets  │
-│           │   └── build (src_ptrs, dst_ptrs, lengths)              │
-│           │                                                        │
-│           ├── run_in_executor(_sender_executor, _send_blocks)      │
-│           │   └── ─── ThreadPoolExecutor thread ────────────────┐  │
-│           │       │  _send_blocks(remote_session, ptrs, lens)   │  │
-│           │       │  └── engine.batch_transfer_sync_write(...)  │  │
-│           │       │       # RDMA one-sided WRITEs into D memory │  │
-│           │       └─────────────────────────────────────────────┘  │
-│           │                                                        │
-│           ├── mark reqs sent, add to finished_sending_reqs         │
-│           └── sock.send_multipart(MooncakeXferResponse)  ──▶ D     │
-│                                                                    │
-└────────────────────────────────────────────────────────────────────┘
-
-─── back on Worker main thread ─────────────────────────────────────────
-connector.get_finished()
-└── run_coroutine_threadsafe(fetch_finished_sending_reqs)
-       └── returns finished_sending_reqs  ──▶ scheduler frees blocks
-&lt;/code&gt;&lt;/pre&gt;&lt;h3 id=&#34;decoder-d--receiving-kv&#34;&gt;Decoder (D) — receiving KV&lt;/h3&gt;
-&lt;pre tabindex=&#34;0&#34;&gt;&lt;code&gt;─── Scheduler process ─────────────────────────────────────────────────
-Engine step
-├── connector.get_num_new_matched_tokens(req)
-│      # do_remote_prefill → return (num_prompt_tokens, True)
-│
-└── connector.update_state_after_alloc(req, blocks, n_ext)
-       └── self._reqs_need_recv[req_id] = (req, local_block_ids)
-
-Engine step (end)
-└── connector.build_connector_meta(sched_out)
-       └── meta.reqs_to_recv[remote_engine_id][req_id] = PullReqMeta(
-              transfer_id, local_block_ids, remote_bootstrap_addr)
-
-                        MooncakeConnectorMetadata
-                                 │
-─── Worker process ──────────────▼─────────────────────────────────────
-connector.start_load_kv(fwd_ctx)
-└── run_coroutine_threadsafe(_start_load_kv, receiver_loop)
-
-┌────────────── receiver_loop thread (asyncio) ──────────────────────┐
-│                                                                    │
-│  _start_load_kv(reqs_to_recv)                                      │
-│  └── for remote_engine_id, pull_metas:                             │
-│      ├── (first time) handle_new_engine_id()                       │
-│      │   └── _connect_to_prefiller_bootstrap()   ── HTTP GET ──┐   │
-│      │       └── populate self._remote_agents                  │   │
-│      │                                                      Bootstrap
-│      └── receive_kv(remote_engine_id, pull_metas)                  │
-│          ├── remote_tp_ranks = transfer_topo.handshake_target_ranks│
-│          ├── select worker_addrs (per remote TP × PP rank)         │
-│          └── for worker_addr:                                      │
-│              create_task(receive_kv_from_single_worker)            │
-│                                                                    │
-│  receive_kv_from_single_worker(worker_addr, pull_metas)            │
-│  ├── metadata = MooncakeXferMetadata(                              │
-│  │       hostname, port, tp_size, tp_rank,                         │
-│  │       req_blocks={req_id: (xid, local_block_ids)},              │
-│  │       kv_caches_base_addr, block_lens, kv_block_lens,           │
-│  │       registered_layer_names/indices/group_indices)             │
-│  │                                                                 │
-│  ├── sock = DEALER connect(worker_addr)     ── ZMQ ──▶ P sender    │
-│  ├── await sock.send(encoded_meta)                                 │
-│  │                                                                 │
-│  └── while True:                                                   │
-│      ret_msg = await sock.recv()  ◀─── MooncakeXferResponse ─── P  │
-│      response = decode(ret_msg)                                    │
-│      ├── if ERROR: xfer_stats.record_failed_recv(); return         │
-│      ├── process_pulling_result(response, pull_metas)              │
-│      │   └── for req_id in response.ok_reqs:                       │
-│      │       pull_meta.pull_tasks_count -= 1                       │
-│      │       if 0: finished_recving_reqs.add(req_id)               │
-│      └── if FINISH: break                                          │
-│                                                                    │
-│  (RDMA WRITE from P has already landed in the registered           │
-│   local KV memory before FINISH — nothing to copy on this side)    │
-│                                                                    │
-└────────────────────────────────────────────────────────────────────┘
-
-─── Worker main thread ────────────────────────────────────────────────
-connector.get_finished()
-└── run_coroutine_threadsafe(fetch_finished_recving_reqs)
-       └── returns finished_recving_reqs  ──▶ scheduler unblocks decode
-&lt;/code&gt;&lt;/pre&gt;&lt;h3 id=&#34;end-to-end-timeline&#34;&gt;End-to-end timeline&lt;/h3&gt;
-&lt;pre tabindex=&#34;0&#34;&gt;&lt;code&gt;   D scheduler        D worker (recv loop)     P worker (send loop)     P scheduler
-       │                     │                          │                   │
- update_state_after_alloc    │                          │                   │
-       │                     │                          │           update_state_after_alloc
- build_connector_meta ──▶ start_load_kv                 │                   │
-                             │                          │           build_connector_meta
-                             │                       start_load_kv ◀────────┘
-                             │                       (record_send_reqs
-                             │                        creates SendBlockMeta)
-                             │                          │
-                       _start_load_kv                   │
-                             │                          │
-                       handle_new_engine_id             │
-                             │─── HTTP /query ────▶ bootstrap
-                             │◀───   addrs   ──────────┘
-                             │                          │
-                     receive_kv_from_single_worker      │
-                             │──── ZMQ meta ───────▶ _mooncake_sender_listener
-                             │                          │
-                             │                    _sender_worker
-                             │                    → send_kv_to_decode
-                             │                    → _build_transfer_params
-                             │                    → _send_blocks
-                             │                     ═══ RDMA WRITE ═══▶ D KV memory
-                             │◀── ZMQ FINISH ──────────┘
-                       process_pulling_result           │
-                             │                          │           request_finished (P)
- get_finished                │                          │           (delays free until sent)
-  → finished_recving_reqs    │                    finished_sending_reqs
-       ◀─────────────────────┘                          └───────────▶ get_finished → free
-&lt;/code&gt;&lt;/pre&gt;&lt;hr&gt;
-&lt;h2 id=&#34;3-mooncakestoreconnector--shared-distributed-kv-pool&#34;&gt;3. MooncakeStoreConnector — Shared distributed KV pool&lt;/h2&gt;
-&lt;p&gt;Fundamentally different model: instead of P pushing to D, both instances &lt;strong&gt;independently read from and write to a &lt;code&gt;MooncakeDistributedStore&lt;/code&gt;&lt;/strong&gt; — a shared KV cache pool indexed by content hash.&lt;/p&gt;
-&lt;h3 id=&#34;why-the-two-connectors-are-not-interchangeable&#34;&gt;Why the two connectors are not interchangeable&lt;/h3&gt;
-&lt;ul&gt;
-&lt;li&gt;P2P connector: dedicated P and D roles, one-shot transfer per request, no cross-request reuse across instances.&lt;/li&gt;
-&lt;li&gt;Store connector: any instance can be both producer and consumer. Blocks are keyed by hash, so if two requests share a prefix (even across instances), the second one reads from the store instead of recomputing. This is prefix caching at the fleet level.&lt;/li&gt;
-&lt;/ul&gt;
-&lt;h3 id=&#34;structure&#34;&gt;Structure&lt;/h3&gt;
-&lt;ul&gt;
-&lt;li&gt;Delegates to &lt;code&gt;MooncakeStoreScheduler&lt;/code&gt; and &lt;code&gt;MooncakeStoreWorker&lt;/code&gt;. The connector file is mostly a thin dispatcher.&lt;/li&gt;
-&lt;li&gt;No layerwise saving/loading (&lt;code&gt;save_kv_layer&lt;/code&gt; / &lt;code&gt;wait_for_layer_load&lt;/code&gt; are no-ops). Puts and gets are batched and issued from &lt;code&gt;get_finished&lt;/code&gt; for compute overlap.&lt;/li&gt;
-&lt;/ul&gt;
-&lt;h3 id=&#34;prefix-cache-reset&#34;&gt;Prefix-cache reset&lt;/h3&gt;
-&lt;p&gt;&lt;code&gt;reset_cache&lt;/code&gt; drains the send queue then calls &lt;code&gt;remove_all&lt;/code&gt; on the Mooncake master. Caller must pause generation first so nothing races in during drain. Only meaningful on the scheduler role.&lt;/p&gt;
-&lt;h3 id=&#34;kv-events-mooncakestorekvevents&#34;&gt;KV events (&lt;code&gt;MooncakeStoreKVEvents&lt;/code&gt;)&lt;/h3&gt;
-&lt;p&gt;Because this is a shared store, other instances care when blocks are added/evicted. The connector emits &lt;code&gt;KVCacheEvent&lt;/code&gt;s that a &lt;code&gt;KVEventAggregator&lt;/code&gt; collects from all workers, dedups to &amp;ldquo;common events&amp;rdquo; (present on all workers), and publishes. That&amp;rsquo;s what powers external prefix-index consumers.&lt;/p&gt;
-&lt;h3 id=&#34;cross-layer-blocks&#34;&gt;Cross-layer blocks&lt;/h3&gt;
-&lt;p&gt;Opt-in via &lt;code&gt;enable_cross_layers_blocks&lt;/code&gt;. Store handles get one large registered tensor across layers instead of per-layer registrations. Only supported for models without hybrid attention.&lt;/p&gt;
-&lt;h3 id=&#34;config-validation&#34;&gt;Config validation&lt;/h3&gt;
-&lt;p&gt;Explicitly rejects:&lt;/p&gt;
-&lt;ul&gt;
-&lt;li&gt;&lt;code&gt;CrossAttentionSpec&lt;/code&gt; (encoder-decoder cross-attn).&lt;/li&gt;
-&lt;li&gt;Mamba layers that aren&amp;rsquo;t in &amp;ldquo;align mode&amp;rdquo; (&lt;code&gt;spec.block_size != cache_config.block_size&lt;/code&gt;) — needed because the store keys on logical blocks.&lt;/li&gt;
-&lt;li&gt;Hybrid attention combined with prefill/decode context parallelism &amp;gt; 1.&lt;/li&gt;
-&lt;/ul&gt;
-&lt;h3 id=&#34;load-error-reporting&#34;&gt;Load-error reporting&lt;/h3&gt;
-&lt;p&gt;Exposes &lt;code&gt;get_block_ids_with_load_errors&lt;/code&gt; so the scheduler can invalidate a bad prefix hit and fall through to local recompute. The P2P connector has no equivalent because a failed transfer aborts the whole request.&lt;/p&gt;
-&lt;h3 id=&#34;one-time-worker-setup-1&#34;&gt;One-time worker setup&lt;/h3&gt;
-&lt;pre tabindex=&#34;0&#34;&gt;&lt;code&gt;Worker __init__ (every rank)                  Worker __init__ (rank 0 only)
-├── MooncakeDistributedStore.setup(           └── LookupKeyServer(...) thread
-│      hostname, metadata_server,                 ├── ZMQ REP bound to an IPC path
-│      global_segment_size, local_buffer_size,    │      unique per (host, dp_rank)
-│      protocol, device_name, master_addr)        └── loop:
-│      # embedded mode: this rank contributes          ├── LOOKUP_MSG → worker.lookup()
-│      # a segment to the shared pool;                   │      └── reply hit_count (u32 BE)
-│      # standalone-store: 0 — an external               └── RESET_MSG → drain send queue,
-│      # mooncake_client owns pool + SSD tier               store.remove_all(force=True),
-│                                                            reply RESP_OK / RESP_ERR
-└── register_kv_caches(kv_caches)
-    ├── for each unique tensor storage ptr:
-    │      store.register_buffer(base_addr, nbytes)
-    │         # pins local KV memory so the store can RDMA-read it
-    ├── stride-based layout detection per tensor:
-    │      blocks-first (FlashInfer / MLA) → one segment
-    │      K/V-first (FlashAttn) → split into K and V segments
-    ├── per group: ChunkedTokenDatabase.set_kv_caches_base_addr /
-    │      set_block_len   # token range → (addrs, sizes) mapping
-    ├── (kv_producer | kv_both)
-    │      KVCacheStoreSendingThread.start()
-    └── N × KVCacheStoreRecvingThread.start()
-           # N = VLLM_MOONCAKE_LOAD_RECV_THREADS (default 1)
-&lt;/code&gt;&lt;/pre&gt;&lt;h3 id=&#34;saving-kv-to-the-store-any-producer-instance&#34;&gt;Saving KV to the store (any producer instance)&lt;/h3&gt;
-&lt;pre tabindex=&#34;0&#34;&gt;&lt;code&gt;─── Scheduler process ──────────────────────────────────────────────────
-Engine step
-└── connector.update_state_after_alloc(req, blocks, n_ext)
-       └── _unfinished_requests[req_id] = (request, block_ids)
-
-Engine step (end)
-├── connector.build_connector_meta(sched_out)
-│      └── MooncakeStoreScheduler.build_connector_meta:
-│          ├── finished / preempted → purge trackers &amp;amp; load specs
-│          ├── scheduled new requests → RequestTracker + ReqMeta
-│          │     (token_ids, allocated_block_ids, block_hashes,
-│          │      is_last_chunk; skip_save for kv_consumer)
-│          ├── decode / chunked → tracker.update(new_block_ids),
-│          │     ReqMeta(can_save=True) until prefill_end
-│          ├── resumed-from-preemption → fresh tracker over
-│          │     all_token_ids (prompt + already generated)
-│          └── partial-tail offloads attached to save metas
-│                                                          │
-└── connector.request_finished(req, block_ids)              │
-       └── tracker.num_saved_tokens &amp;gt; 0                    │
-           → return (delay_free_blocks=True, None)         │
-             # GPU blocks stay pinned until the store       │
-             # has actually consumed them                   │
-                                                     MooncakeStoreConnectorMetadata
-                                                           │
-─── Worker process ─────────────────────────▼───────────────────────────
-connector.get_finished(finished_req_ids)
-└── MooncakeStoreWorker.get_finished(...)   # called after compute launched
-    ├── issue loads (see below)             # so I/O overlaps compute
-    ├── for request in meta.requests where can_save:
-    │      request.current_event = torch.cuda.Event()   # recorded once,
-    │      kv_send_thread.add_stored_request(req_id)    # per-step, shared
-    │      kv_send_thread.add_request(request)          # queue.Queue
-    │
-    └── _get_and_clear_finished_sending(...)
-           ├── preempted → delete from stored_requests
-           └── req finished AND in-flight counter == 0 → done_sending
-               # scheduler frees the blocks it delayed
-
-┌────────────── KVCacheStoreSendingThread ────────────────────────────┐
-│                                                                      │
-│  _handle_request(req_meta)                                           │
-│  ├── token_len = token_len_chunk // lcm_block_size * lcm_block_size  │
-│  ├── partial_tail_offloads? → _maybe_offload_partial_tail()          │
-│  │     # sub-block tail keyed by boundary sub-hash; fences the       │
-│  │     # CoW copy event before the put                               │
-│  ├── save_start = _saved_offset[req_id]   # resume where we left     │
-│  ├── store_masks = coord.store_mask(token_len, save_start, ...)      │
-│  │     # reachable_block_mask mirror: SWA windows, retention, ...    │
-│  ├── for g_idx, db in token_dbs:                                     │
-│  │      put_step = group_tp_replication_factors[g_idx]               │
-│  │      put_step_rank = (tp_rank + g_idx) % put_step                 │
-│  │      # MLA / GQA replicas stripe puts across byte-identical ranks │
-│  │      for start, end, hash in db.process_tokens(                   │
-│  │              token_len, block_hashes, mask_num=save_start,        │
-│  │              chunk_mask=store_masks[g_idx], put_step=...):        │
-│  │          keys.append(db.key_for(hash))                            │
-│  │          # key = model@tp:r@pcp@dcp@pp:r@group:g@chunk_hash       │
-│  ├── exists = store.batch_is_exist(keys)  # dedup vs the shared pool │
-│  │      → keep only missing keys                                     │
-│  ├── addrs, sizes = db.prepare_values(chunks, block_ids[g_idx])      │
-│  │      # scatter-gather (addr, size) per K/V segment                │
-│  ├── current_event.synchronize()   # fence compute: KV is final      │
-│  ├── res = store.batch_put_from_multi_buffers(                       │
-│  │          keys, addrs, sizes, replicate_config)                    │
-│  │      # Mooncake RDMA-pulls from our registered buffers;           │
-│  │      # offload mode may stage into the SSD tier                   │
-│  ├── failures with code MOONCAKE_NO_AVAILABLE_HANDLE (-200)          │
-│  │      → CPU/disk-offload pressure → skip future batches for this   │
-│  │        request until one succeeds (_saved_offset tracks resume)   │
-│  ├── emit BlockStored KV events (parent_block_hash chain per group)  │
-│  └── finally: dec_stored_request(req_id); task_done()                │
-│                                                                      │
-└──────────────────────────────────────────────────────────────────────┘
-&lt;/code&gt;&lt;/pre&gt;&lt;h3 id=&#34;looking-up-and-loading-kv-any-consumer-instance&#34;&gt;Looking up and loading KV (any consumer instance)&lt;/h3&gt;
-&lt;pre tabindex=&#34;0&#34;&gt;&lt;code&gt;─── Scheduler process ──────────────────────────────────────────────────
-Engine step
-└── connector.get_num_new_matched_tokens(req, num_computed_tokens)
-    └── MooncakeStoreScheduler:
-        ├── align = hash_block_size if partial_hash_hits else block_size
-        │     # requests shorter than one aligned unit → (0, False)
-        ├── num_external_hit_tokens = client.lookup(
-        │       req_id, num_tokens, block_hashes, non_block=lookup_async)
-        │   └── LookupKeyClient (scheduler process)
-        │       ├── ThreadPoolExecutor.submit(_lookup)     # async lookup
-        │       └── ZMQ REQ ──ipc──▶ LookupKeyServer (worker rank 0)
-        │           └── worker.lookup(num_tokens, block_hashes)
-        │               ├── candidate keys: every (group, chunk hash)
-        │               │     expanded across all rank namespaces
-        │               │     (TP shards × PCP × PP; replicated groups
-        │               │      share one namespace)
-        │               ├── store.batch_is_exist(candidate_keys)
-        │               │     # master metadata query — no data movement
-        │               ├── ExternalCachedBlockPool(exists_set)
-        │               └── coord.find_longest_cache_hit(...)
-        │                     # mirrors HybridKVCacheCoordinator:
-        │                     # per-group hit convergence, eagle
-        │                     # last-block drop
-        │                     └── full hit → re-derive at
-        │                         num_tokens - 1   # last token is
-        │                         # recomputed locally for sampling
-        │       └── hit count back over ZMQ (u32 BE)
-        ├── (async lookup still in flight) → (None, False)
-        │     # scheduler retries this request on a later step
-        └── need_to_allocate = hit - computed &amp;gt; 0
-            → load_specs[req_id] = LoadSpec(vllm_cached_tokens,
-                kvpool_cached_tokens, can_load=False)
-            → return (need_to_allocate, load_async)
-
-Engine step
-└── connector.update_state_after_alloc(req, blocks, n_ext)
-       ├── _unfinished_requests[req_id] = (request, local_block_ids)
-       └── load_spec.can_load = True
-
-Engine step (end)
-└── connector.build_connector_meta(sched_out)
-       └── ReqMeta.from_request_tracker(tracker, load_spec=load_spec,
-              block_hashes=..., block_ids=allocated local blocks)
-              # a ReqMeta never carries both a save and a load —
-              # bytes being looked up right now are not re-saved
-
-                                                     MooncakeStoreConnectorMetadata
-                                                           │
-─── Worker process ─────────────────────────▼───────────────────────────
-connector.get_finished(finished_req_ids)
-└── MooncakeStoreWorker.get_finished(...)
-    ├── for request in meta.requests:
-    │      if load_spec and load_spec.can_load:
-    │          load_spec.token_len = kvpool_cached_tokens
-    │          recv_request_queue.put(request)
-    │
-    └── done_recving = ∪ recv_thread.get_and_clear_finished_requests()
-
-┌────────────── KVCacheStoreRecvingThread ─────────────────────────────┐
-│                                                                      │
-│  _handle_request(req_meta)                                           │
-│  ├── token_len = load_spec.token_len    # kvpool_cached_tokens       │
-│  ├── mask_num = vllm_cached_tokens // block_size * block_size        │
-│  │     # the locally computed prefix is not re-fetched               │
-│  ├── load_mask = coord.load_mask(block_hashes, token_len)            │
-│  │     # skip chunks the local spec wouldn&amp;#39;t populate (e.g. SWA      │
-│  │     # pre-window), even if the producer stored them               │
-│  ├── for g_idx, db in token_dbs:                                     │
-│  │      for start, end, hash in db.process_tokens(                   │
-│  │              token_len, block_hashes, mask_num):                  │
-│  │          if masked out: continue                                  │
-│  │          keys.append(db.key_for(hash))                            │
-│  │      g_addrs, g_sizes, g_block_ids = db.prepare_values(           │
-│  │          chunks, block_ids[g_idx])                                │
-│  │          # destinations are our own registered KV buffers         │
-│  ├── rotate key/addr/size lists by tp_rank   # spread master load    │
-│  ├── (disk offload) split into sub-batches bounded by the owner&amp;#39;s    │
-│  │     staging-buffer budget                                         │
-│  └── for batch:                                                      │
-│      res = store.batch_get_into_multi_buffers(keys, addrs, sizes)    │
-│            # Mooncake fetches from the owner (memory replica or      │
-│            # SSD tier) and writes directly into our registered       │
-│            # KV buffers — no local copy on this side                 │
-│      failures → _add_load_error_block_ids(block_ids)                 │
-│  └── set_finished_request(req_id); task_done()                       │
-│                                                                      │
-└──────────────────────────────────────────────────────────────────────┘
-
-─── failure path ───────────────────────────────────────────────────────
-Worker main thread
-connector.get_block_ids_with_load_errors()
-└── ∪ recv_thread.get_and_clear_block_ids_with_load_errors()
-       └── scheduler invalidates the bad prefix hit and falls back to
-           local recompute — no whole-request abort (unlike P2P)
-&lt;/code&gt;&lt;/pre&gt;&lt;h3 id=&#34;end-to-end-timeline-1&#34;&gt;End-to-end timeline&lt;/h3&gt;
-&lt;pre tabindex=&#34;0&#34;&gt;&lt;code&gt;Consumer sched    Consumer worker   Mooncake store    Producer worker  Producer sched
-       │                 │                 │                 │                │
-       get_num_new_matched_tokens
-       ├─ ZMQ lookup ────▶
-                         ├─ batch_is_exist ▶
-                         ◀───────── exists ┤
-       ◀────── hit count ┤
-       update_state_after_alloc
-                                                                              update_state_after_alloc
-       ├─ build_meta ────▶
-                                                                              build_meta
-                         recv_queue.put ──▶ recv thread
-                         ├─ batch_get ─────▶
-                  owner serves (mem / SSD) ┤
-       ◀─── done_recving ┤
-       (decode unblocked)
-                                                             ◀── get_finished ┤
-                                      batch_is_exist (dedup) ┤
-                                                             sync CUDA event
-                                                                              request_finished
-                                           ◀────── batch_put ┤
-                                                             done_sending
-                                                             ├─ free blocks ──▶
-&lt;/code&gt;&lt;/pre&gt;&lt;p&gt;Notes on the abbreviated labels:&lt;/p&gt;
-&lt;ul&gt;
-&lt;li&gt;&lt;code&gt;build_meta&lt;/code&gt; = &lt;code&gt;build_connector_meta&lt;/code&gt;. The consumer&amp;rsquo;s meta carries the
-&lt;code&gt;LoadSpec&lt;/code&gt; and the freshly allocated local block IDs; the producer&amp;rsquo;s
-carries &lt;code&gt;can_save=True&lt;/code&gt; and the block hashes to key on.&lt;/li&gt;
-&lt;li&gt;&lt;code&gt;batch_get&lt;/code&gt; = &lt;code&gt;batch_get_into_multi_buffers&lt;/code&gt; — the owner writes directly
-into the consumer&amp;rsquo;s registered KV buffers, no local copy on the consumer
-side.&lt;/li&gt;
-&lt;li&gt;&lt;code&gt;batch_put&lt;/code&gt; = &lt;code&gt;batch_put_from_multi_buffers&lt;/code&gt; — the store RDMA-pulls from
-the producer&amp;rsquo;s registered buffers after the send thread fences the
-compute CUDA event (offload mode may stage into the SSD tier).&lt;/li&gt;
-&lt;li&gt;The producer scheduler&amp;rsquo;s &lt;code&gt;request_finished&lt;/code&gt; returns
-&lt;code&gt;delay_free_blocks=True&lt;/code&gt;; the actual free happens only once the worker
-reports &lt;code&gt;done_sending&lt;/code&gt; (in-flight put counter at zero).&lt;/li&gt;
-&lt;li&gt;Load-failure path (not drawn): &lt;code&gt;get_block_ids_with_load_errors&lt;/code&gt; → the
-consumer scheduler invalidates the bad hit and recomputes locally.&lt;/li&gt;
-&lt;/ul&gt;
-&lt;p&gt;Key differences vs the P2P flow:&lt;/p&gt;
-&lt;ul&gt;
-&lt;li&gt;The store itself is the rendezvous (Mooncake master for metadata, owner
-segments for data) — no cross-instance ZMQ or bootstrap HTTP. The only
-ZMQ is intra-instance: the scheduler&amp;rsquo;s &lt;code&gt;LookupKeyClient&lt;/code&gt; ↔ rank-0
-worker&amp;rsquo;s &lt;code&gt;LookupKeyServer&lt;/code&gt; over an IPC socket, used for hash lookups
-and &lt;code&gt;reset&lt;/code&gt;.&lt;/li&gt;
-&lt;li&gt;No &lt;code&gt;_sender_listener&lt;/code&gt; / &lt;code&gt;_sender_worker&lt;/code&gt; machinery. Both put and get are
-issued from inside &lt;code&gt;get_finished&lt;/code&gt; (&lt;code&gt;start_load_kv&lt;/code&gt; is a no-op) so they
-naturally overlap with compute, and the actual I/O runs on dedicated
-&lt;code&gt;KVCacheStoreSendingThread&lt;/code&gt; / &lt;code&gt;KVCacheStoreRecvingThread&lt;/code&gt; daemon
-threads fed by &lt;code&gt;queue.Queue&lt;/code&gt;s.&lt;/li&gt;
-&lt;li&gt;The store API is scatter-gather rather than block descriptors:
-&lt;code&gt;batch_put_from_multi_buffers(keys, addrs, sizes, replicate_config)&lt;/code&gt;
-and &lt;code&gt;batch_get_into_multi_buffers(keys, addrs, sizes)&lt;/code&gt;, with
-&lt;code&gt;batch_is_exist&lt;/code&gt; for dedup and lookup.&lt;/li&gt;
-&lt;li&gt;No P-D asymmetry: any instance does both puts and gets. Prefix reuse
-across requests and across instances is automatic because keys are
-content hashes. Producer and consumer are only weakly coupled through
-the master — a failed load invalidates the hit and recomputes, while a
-failed put is silently retried later via the &lt;code&gt;_saved_offset&lt;/code&gt; high-water
-mark.&lt;/li&gt;
-&lt;/ul&gt;
-&lt;h3 id=&#34;completion-chains-how-loads-and-saves-finish-end-to-end&#34;&gt;Completion chains: how loads and saves finish end-to-end&lt;/h3&gt;
-&lt;p&gt;The call stacks above show how I/O is issued; this section summarizes how
-its completion is signalled back to the scheduler. Both chains use the
-same channel: the worker thread records completion in a per-thread set,
-&lt;code&gt;MooncakeStoreWorker.get_finished()&lt;/code&gt; reaps it into
-&lt;code&gt;done_recving&lt;/code&gt; / &lt;code&gt;done_sending&lt;/code&gt;, the model runner attaches those sets to
-&lt;code&gt;KVConnectorOutput&lt;/code&gt; at step end
-(&lt;code&gt;vllm/v1/worker/kv_connector_model_runner_mixin.py:102&lt;/code&gt;), and the core
-scheduler consumes them in &lt;code&gt;_update_from_kv_xfer_finished&lt;/code&gt;
-(&lt;code&gt;vllm/v1/core/sched/scheduler.py:2714&lt;/code&gt;).&lt;/p&gt;
-&lt;p&gt;&lt;strong&gt;Save chain — forward pass → put → block release&lt;/strong&gt;&lt;/p&gt;
-&lt;ol&gt;
-&lt;li&gt;The model runner calls &lt;code&gt;get_finished()&lt;/code&gt; in its connector-output
-&lt;code&gt;finally&lt;/code&gt;, after the step&amp;rsquo;s compute has been launched. For every
-&lt;code&gt;can_save&lt;/code&gt; request the worker records one shared &lt;code&gt;torch.cuda.Event()&lt;/code&gt;
-on the compute stream, then &lt;code&gt;add_stored_request(req_id)&lt;/code&gt; (in-flight
-counter +1) and enqueues the &lt;code&gt;ReqMeta&lt;/code&gt; to the sending thread.&lt;/li&gt;
-&lt;li&gt;The sending thread dedups keys, prepares the scatter-gather lists,
-and calls &lt;code&gt;current_event.synchronize()&lt;/code&gt;
-(&lt;code&gt;store/worker.py:858&lt;/code&gt;) — this is the forward-pass completion
-dependency: the put cannot start until the compute stream has
-finished writing those blocks. Then &lt;code&gt;batch_put_from_multi_buffers&lt;/code&gt;
-RDMA-pulls from the registered buffers.&lt;/li&gt;
-&lt;li&gt;On completion the thread&amp;rsquo;s &lt;code&gt;finally&lt;/code&gt; decrements the counter.
-&lt;code&gt;_get_and_clear_finished_sending&lt;/code&gt; pairs a zeroed counter with a
-finished request — either finished this step (&lt;code&gt;finished_req_ids&lt;/code&gt;) or
-parked in &lt;code&gt;finished_store_req&lt;/code&gt; while puts were still in flight — and
-returns it in &lt;code&gt;done_sending&lt;/code&gt;. Preempted requests just have their
-counters dropped.&lt;/li&gt;
-&lt;li&gt;&lt;code&gt;done_sending&lt;/code&gt; rides back as &lt;code&gt;KVConnectorOutput.finished_sending&lt;/code&gt;;
-&lt;code&gt;_update_from_kv_xfer_finished&lt;/code&gt; then calls &lt;code&gt;_free_blocks(req)&lt;/code&gt;. This
-is why &lt;code&gt;MooncakeStoreScheduler.request_finished&lt;/code&gt; returned
-&lt;code&gt;delay_free_blocks=True&lt;/code&gt;: &lt;code&gt;_free_request&lt;/code&gt; skips the immediate free,
-keeping the blocks pinned until the store has actually consumed
-them.&lt;/li&gt;
-&lt;/ol&gt;
-&lt;p&gt;&lt;strong&gt;Load chain — lookup → GET → reschedulable&lt;/strong&gt;&lt;/p&gt;
-&lt;ol&gt;
-&lt;li&gt;The request enters &lt;code&gt;WAITING_FOR_REMOTE_KVS&lt;/code&gt; at admission with blocks
-allocated but KV not yet present; &lt;code&gt;update_state_after_alloc&lt;/code&gt; flips
-&lt;code&gt;can_load=True&lt;/code&gt; and &lt;code&gt;build_connector_meta&lt;/code&gt; emits the &lt;code&gt;ReqMeta&lt;/code&gt;.&lt;/li&gt;
-&lt;li&gt;The worker&amp;rsquo;s &lt;code&gt;get_finished()&lt;/code&gt; puts every &lt;code&gt;can_load&lt;/code&gt; request on the
-shared &lt;code&gt;recv_request_queue&lt;/code&gt;; any of the N
-&lt;code&gt;KVCacheStoreRecvingThread&lt;/code&gt;s picks it up, rotates the key/addr/size
-lists by &lt;code&gt;tp_rank&lt;/code&gt;, and issues &lt;code&gt;batch_get_into_multi_buffers&lt;/code&gt;
-directly into the consumer&amp;rsquo;s registered KV buffers. Failures are
-recorded as invalid block IDs; the thread then calls
-&lt;code&gt;set_finished_request(req_id)&lt;/code&gt; + &lt;code&gt;task_done()&lt;/code&gt;.&lt;/li&gt;
-&lt;li&gt;&lt;code&gt;done_recving&lt;/code&gt; (union over threads) rides back as
-&lt;code&gt;KVConnectorOutput.finished_recving&lt;/code&gt;. The scheduler adds the req_id
-to &lt;code&gt;finished_recving_kv_req_ids&lt;/code&gt;; if the request already finished
-while the load was in flight, its blocks are freed instead.&lt;/li&gt;
-&lt;li&gt;On a later step &lt;code&gt;_try_promote_blocked_waiting_request&lt;/code&gt; promotes the
-request: &lt;code&gt;_update_waiting_for_remote_kv&lt;/code&gt; caches the loaded blocks
-(backing &lt;code&gt;num_computed_tokens&lt;/code&gt; off by one on a full-prompt hit so
-the last token is recomputed for sampling), and the request returns
-to &lt;code&gt;WAITING&lt;/code&gt; (or &lt;code&gt;PREEMPTED&lt;/code&gt;), eligible for scheduling.&lt;/li&gt;
-&lt;li&gt;Failure path: &lt;code&gt;get_block_ids_with_load_errors&lt;/code&gt; surfaces the bad
-blocks as &lt;code&gt;KVConnectorOutput.invalid_block_ids&lt;/code&gt;;
-&lt;code&gt;_update_requests_with_invalid_blocks&lt;/code&gt; rewinds
-&lt;code&gt;num_computed_tokens&lt;/code&gt; to the longest valid prefix, and the request
-is still promoted — the failed range is recomputed locally.&lt;/li&gt;
-&lt;/ol&gt;
-&lt;hr&gt;
-&lt;h2 id=&#34;4-quick-comparison&#34;&gt;4. Quick comparison&lt;/h2&gt;
-&lt;table&gt;
-	&lt;thead&gt;
-			&lt;tr&gt;
-					&lt;th&gt;&lt;/th&gt;
-					&lt;th&gt;&lt;code&gt;MooncakeConnector&lt;/code&gt; (P2P)&lt;/th&gt;
-					&lt;th&gt;&lt;code&gt;MooncakeStoreConnector&lt;/code&gt;&lt;/th&gt;
-			&lt;/tr&gt;
-	&lt;/thead&gt;
-	&lt;tbody&gt;
-			&lt;tr&gt;
-					&lt;td&gt;Transfer model&lt;/td&gt;
-					&lt;td&gt;P pushes RDMA writes to D&lt;/td&gt;
-					&lt;td&gt;Both put/get against shared store&lt;/td&gt;
-			&lt;/tr&gt;
-			&lt;tr&gt;
-					&lt;td&gt;Discovery&lt;/td&gt;
-					&lt;td&gt;Bootstrap HTTP + ZMQ side-channel&lt;/td&gt;
-					&lt;td&gt;Mooncake master&lt;/td&gt;
-			&lt;/tr&gt;
-			&lt;tr&gt;
-					&lt;td&gt;Backend call&lt;/td&gt;
-					&lt;td&gt;&lt;code&gt;batch_transfer_sync_write&lt;/code&gt;&lt;/td&gt;
-					&lt;td&gt;&lt;code&gt;MooncakeDistributedStore&lt;/code&gt; put/get&lt;/td&gt;
-			&lt;/tr&gt;
-			&lt;tr&gt;
-					&lt;td&gt;Prefix cache reuse&lt;/td&gt;
-					&lt;td&gt;Per-request only&lt;/td&gt;
-					&lt;td&gt;Fleet-wide via content hash&lt;/td&gt;
-			&lt;/tr&gt;
-			&lt;tr&gt;
-					&lt;td&gt;Best for&lt;/td&gt;
-					&lt;td&gt;Single P→D pair, low latency&lt;/td&gt;
-					&lt;td&gt;Many-to-many, high prefix hit rate&lt;/td&gt;
-			&lt;/tr&gt;
-			&lt;tr&gt;
-					&lt;td&gt;Hybrid KV support&lt;/td&gt;
-					&lt;td&gt;Yes (careful group-preserving logic)&lt;/td&gt;
-					&lt;td&gt;Yes, with Mamba &lt;code&gt;align&lt;/code&gt; mode required&lt;/td&gt;
-			&lt;/tr&gt;
-	&lt;/tbody&gt;
-&lt;/table&gt;
-&lt;p&gt;Both implement &lt;code&gt;SupportsHMA&lt;/code&gt; so they interop with hybrid attention KV cache managers, and both go through the scheduler/worker split so the scheduler process only tracks metadata while worker processes own the actual device memory registrations.&lt;/p&gt;
-- https://zhixuan-zxli.github.io/llm/mooncake_connector/ - </description>
         </item>
     
     

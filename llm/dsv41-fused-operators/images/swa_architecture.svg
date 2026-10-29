@@ -1,0 +1,128 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="920" viewBox="0 0 1600 920" font-family="Hiragino Sans GB, PingFang SC, Noto Sans CJK SC, Microsoft YaHei, sans-serif">
+<title>01 SWA</title>
+<rect width="1600" height="920" fill="#ffffff"/>
+<rect x="30.0" y="130.0" width="1540.0" height="240.0" rx="12" fill="#fbfdff" stroke="#e2e8f0" stroke-dasharray="4 4"/>
+<text x="46.0" y="154.0" font-size="11" font-weight="800" fill="#64748b">STAGE 1 · 共用前端（投影 + KV 融合写）</text>
+<rect x="30.0" y="390.0" width="1540.0" height="220.0" rx="12" fill="#fbfdff" stroke="#e2e8f0" stroke-dasharray="4 4"/>
+<text x="46.0" y="414.0" font-size="11" font-weight="800" fill="#64748b">STAGE 2 · PREFILL</text>
+<rect x="30.0" y="630.0" width="1540.0" height="220.0" rx="12" fill="#fbfdff" stroke="#e2e8f0" stroke-dasharray="4 4"/>
+<text x="46.0" y="654.0" font-size="11" font-weight="800" fill="#64748b">STAGE 3 · DECODE</text>
+<path d="M 240.0 235.0 L 280.0 235.0" fill="none" stroke="#94a3b8" stroke-width="1.6" stroke-linejoin="round"/>
+<path d="M 280.0 235.0 L 271.0 230.2 L 271.0 239.8 Z" fill="#94a3b8"/>
+<path d="M 530.0 235.0 L 550.0 235.0 L 550.0 190.0 L 570.0 190.0" fill="none" stroke="#94a3b8" stroke-width="1.6" stroke-linejoin="round"/>
+<path d="M 570.0 190.0 L 561.0 185.2 L 561.0 194.8 Z" fill="#94a3b8"/>
+<path d="M 530.0 235.0 L 550.0 235.0 L 550.0 310.0 L 570.0 310.0" fill="none" stroke="#94a3b8" stroke-width="1.6" stroke-linejoin="round"/>
+<path d="M 570.0 310.0 L 561.0 305.2 L 561.0 314.8 Z" fill="#94a3b8"/>
+<path d="M 800.0 190.0 L 840.0 190.0" fill="none" stroke="#94a3b8" stroke-width="1.6" stroke-linejoin="round"/>
+<path d="M 840.0 190.0 L 831.0 185.2 L 831.0 194.8 Z" fill="#94a3b8"/>
+<path d="M 880.0 310.0 L 1103.0 310.0" fill="none" stroke="#94a3b8" stroke-width="1.6" stroke-linejoin="round"/>
+<path d="M 1103.0 310.0 L 1094.0 305.2 L 1094.0 314.8 Z" fill="#94a3b8"/>
+<path d="M 165.0 530.0 L 165.0 570.0 L 810.0 570.0 L 810.0 540.0" fill="none" stroke="#94a3b8" stroke-width="1.6" stroke-linejoin="round"/>
+<path d="M 810.0 540.0 L 805.2 549.0 L 814.8 549.0 Z" fill="#94a3b8"/>
+<path d="M 600.0 485.0 L 650.0 485.0" fill="none" stroke="#94a3b8" stroke-width="1.6" stroke-linejoin="round"/>
+<path d="M 650.0 485.0 L 641.0 480.2 L 641.0 489.8 Z" fill="#94a3b8"/>
+<path d="M 970.0 485.0 L 1020.0 485.0" fill="none" stroke="#94a3b8" stroke-width="1.6" stroke-linejoin="round"/>
+<path d="M 1020.0 485.0 L 1011.0 480.2 L 1011.0 489.8 Z" fill="#94a3b8"/>
+<path d="M 600.0 685.0 L 625.0 685.0 L 625.0 720.0 L 650.0 720.0" fill="none" stroke="#94a3b8" stroke-width="1.6" stroke-linejoin="round"/>
+<path d="M 650.0 720.0 L 641.0 715.2 L 641.0 724.8 Z" fill="#94a3b8"/>
+<path d="M 595.0 785.0 L 622.5 785.0 L 622.5 720.0 L 650.0 720.0" fill="none" stroke="#94a3b8" stroke-width="1.6" stroke-linejoin="round"/>
+<path d="M 650.0 720.0 L 641.0 715.2 L 641.0 724.8 Z" fill="#94a3b8"/>
+<path d="M 970.0 720.0 L 1030.0 720.0" fill="none" stroke="#94a3b8" stroke-width="1.6" stroke-linejoin="round"/>
+<path d="M 1030.0 720.0 L 1021.0 715.2 L 1021.0 724.8 Z" fill="#94a3b8"/>
+<path d="M 984.0 230.0 L 985.0 410.0 L 805.0 410.0 L 810.0 430.0" fill="none" stroke="#3b82f6" stroke-width="1.6" stroke-linejoin="round" stroke-dasharray="5 4"/>
+<path d="M 810.0 430.0 L 812.5 420.1 L 803.2 422.4 Z" fill="#3b82f6"/>
+<path d="M 984.0 230.0 L 985.0 650.0 L 805.0 650.0 L 810.0 665.0" fill="none" stroke="#3b82f6" stroke-width="1.6" stroke-linejoin="round" stroke-dasharray="5 4"/>
+<path d="M 810.0 665.0 L 811.7 654.9 L 802.6 658.0 Z" fill="#3b82f6"/>
+<text x="40.0" y="47.8" font-size="26.0" font-weight="700" fill="#0f172a">SWA · 滑动窗口注意力</text>
+<text x="40.0" y="103.0" font-size="9.0" font-weight="400" fill="#94a3b8">shape：T=prefill token · B=decode token · T|B=共用 · H=hidden · Rq=q_lora_rank · N_h/N_i=heads · N=compress ratio</text>
+<text x="40.0" y="115.2" font-size="9.0" font-weight="400" fill="#94a3b8">W=window · W_s=SWA block size · K=topk · C=compressed cache len · L_c=compressed KV len · K_v=gathered KV len · K_b=candidate blocks · S=state ring size</text>
+<text x="40.0" y="76.1" font-size="12.0" font-weight="400" fill="#475569">融合点：KV_SWA 的 norm+RoPE+cast+store；Q 的 norm/RoPE 折叠进 sparse MLA；decode 双缓存一次注意力。</text>
+<rect x="960.0" y="30.0" width="14.0" height="14.0" rx="3" fill="#fff7ed" stroke="#ea580c" stroke-width="1.2"/>
+<text x="979.0" y="40.2" font-size="9.5" font-weight="400" fill="#64748b">FUSED</text>
+<rect x="1084.0" y="30.0" width="14.0" height="14.0" rx="3" fill="#eff6ff" stroke="#2563eb" stroke-width="1.2"/>
+<text x="1103.0" y="40.2" font-size="9.5" font-weight="400" fill="#64748b">MERGED GEMM</text>
+<rect x="1208.0" y="30.0" width="14.0" height="14.0" rx="3" fill="#f0fdfa" stroke="#0d9488" stroke-width="1.2"/>
+<text x="1227.0" y="40.2" font-size="9.5" font-weight="400" fill="#64748b">TILELANG</text>
+<rect x="1332.0" y="30.0" width="14.0" height="14.0" rx="3" fill="#f5f3ff" stroke="#7c3aed" stroke-width="1.2"/>
+<text x="1351.0" y="40.2" font-size="9.5" font-weight="400" fill="#64748b">VENDOR</text>
+<rect x="1456.0" y="30.0" width="14.0" height="14.0" rx="3" fill="#f8fafc" stroke="#94a3b8" stroke-width="1.2"/>
+<text x="1475.0" y="40.2" font-size="9.5" font-weight="400" fill="#64748b">CACHE</text>
+<rect x="40.0" y="190.0" width="200.0" height="90.0" rx="9" fill="#ffffff" stroke="#94a3b8" stroke-width="1.2"/>
+<text x="52.0" y="210.0" font-size="12.0" font-weight="700" fill="#0f172a">hidden / shared_hidden</text>
+<text x="52.0" y="225.6" font-size="10.0" font-weight="400" fill="#475569">bf16 或 (fp8, sf)</text>
+<text x="52.0" y="238.6" font-size="10.0" font-weight="400" fill="#475569">YOCO 可选</text>
+<text x="52.0" y="251.6" font-size="9.0" font-weight="400" fill="#64748b">in [T|B, H]</text>
+<rect x="280.0" y="190.0" width="250.0" height="90.0" rx="9" fill="#eff6ff" stroke="#2563eb" stroke-width="1.2"/>
+<text x="292.0" y="210.0" font-size="12.0" font-weight="700" fill="#1e3a8a">GEMM · q_a_kv_swa_proj</text>
+<text x="292.0" y="225.6" font-size="10.0" font-weight="400" fill="#475569">[Wq.A ∥ Wkv.A]</text>
+<text x="292.0" y="238.6" font-size="10.0" font-weight="400" fill="#475569">→ q_a / kv_swa</text>
+<text x="292.0" y="251.6" font-size="9.0" font-weight="400" fill="#64748b">out q_a [T|B, Rq]</text>
+<text x="292.0" y="263.3" font-size="9.0" font-weight="400" fill="#64748b">out kv_swa [T|B, 512]</text>
+<rect x="570.0" y="150.0" width="230.0" height="80.0" rx="9" fill="#eff6ff" stroke="#2563eb" stroke-width="1.2"/>
+<text x="582.0" y="170.0" font-size="12.0" font-weight="700" fill="#1e3a8a">GEMM · q_b_proj</text>
+<text x="582.0" y="185.6" font-size="10.0" font-weight="400" fill="#475569">q_a_norm + [Wq.B ∥ index q_B]</text>
+<text x="582.0" y="198.6" font-size="9.0" font-weight="400" fill="#64748b">out q_raw [T|B, N_h·512]</text>
+<text x="582.0" y="210.3" font-size="9.0" font-weight="400" fill="#64748b">out index_q_b [T|B, N_i·128]</text>
+<rect x="840.0" y="150.0" width="200.0" height="80.0" rx="9" fill="#ffffff" stroke="#94a3b8" stroke-width="1.2"/>
+<text x="852.0" y="170.0" font-size="12.0" font-weight="700" fill="#0f172a">q_raw / index_q_b</text>
+<text x="852.0" y="185.6" font-size="10.0" font-weight="400" fill="#475569">未 norm/rope → 注意力</text>
+<text x="852.0" y="198.6" font-size="9.0" font-weight="400" fill="#64748b">q_raw [T|B, N_h·512]</text>
+<rect x="570.0" y="260.0" width="310.0" height="100.0" rx="9" fill="#fff7ed" stroke="#ea580c" stroke-width="2.0"/>
+<text x="582.0" y="280.0" font-size="12.0" font-weight="700" fill="#7c2d12">FUSED · KV_SWA 融合写</text>
+<text x="582.0" y="295.6" font-size="10.0" font-weight="400" fill="#475569">fused_norm_rope_hadamard_cast_store_kvcache</text>
+<text x="582.0" y="308.6" font-size="10.0" font-weight="400" fill="#475569">RMSNorm + RoPE(64) + FP8 + store</text>
+<text x="582.0" y="321.6" font-size="9.0" font-weight="400" fill="#64748b">in [T|B,512] → out kv_swa [T|B,512]</text>
+<rect x="1103.0" y="270.0" width="200.0" height="80.0" rx="9" fill="#f8fafc" stroke="#94a3b8" stroke-width="1.2"/>
+<text x="1115.0" y="290.0" font-size="12.0" font-weight="700" fill="#0f172a">CACHE · swa_cache</text>
+<text x="1115.0" y="305.6" font-size="10.0" font-weight="400" fill="#475569">MXFP8 · 528 B/token</text>
+<text x="1115.0" y="318.6" font-size="10.0" font-weight="400" fill="#475569">ring buffer</text>
+<text x="1115.0" y="331.6" font-size="9.0" font-weight="400" fill="#64748b">[blocks, W_s, 512]</text>
+<rect x="40.0" y="440.0" width="250.0" height="90.0" rx="9" fill="#f0fdfa" stroke="#0d9488" stroke-width="1.2"/>
+<text x="52.0" y="460.0" font-size="12.0" font-weight="700" fill="#134e4a">TILELANG · load_paged_kv_cache</text>
+<text x="52.0" y="475.6" font-size="10.0" font-weight="400" fill="#475569">swa_cache 历史 → 连续 bf16</text>
+<text x="52.0" y="488.6" font-size="9.0" font-weight="400" fill="#64748b">out kv [K_v, 512] bf16</text>
+<rect x="330.0" y="440.0" width="270.0" height="90.0" rx="9" fill="#f0fdfa" stroke="#0d9488" stroke-width="1.2"/>
+<text x="342.0" y="460.0" font-size="12.0" font-weight="700" fill="#134e4a">TILELANG · expand + cat</text>
+<text x="342.0" y="475.6" font-size="10.0" font-weight="400" fill="#475569">expand_swa_index + kv_index_cat</text>
+<text x="342.0" y="488.6" font-size="10.0" font-weight="400" fill="#475569">SWA idx ⧺ topk idx</text>
+<text x="342.0" y="501.6" font-size="9.0" font-weight="400" fill="#64748b">out kv_index [T, W+K] int32</text>
+<rect x="650.0" y="430.0" width="320.0" height="110.0" rx="9" fill="#fff7ed" stroke="#ea580c" stroke-width="2.0"/>
+<text x="662.0" y="450.0" font-size="12.0" font-weight="700" fill="#7c2d12">FUSED · prefill attention</text>
+<text x="662.0" y="465.6" font-size="10.0" font-weight="400" fill="#475569">fused_norm_rope_attn_rope_cast.prefill</text>
+<text x="662.0" y="478.6" font-size="10.0" font-weight="400" fill="#475569">Q norm/rope + sparse MLA</text>
+<text x="662.0" y="491.6" font-size="10.0" font-weight="400" fill="#475569">out rope + FP8 cast</text>
+<text x="662.0" y="504.6" font-size="9.0" font-weight="400" fill="#64748b">q [T,N_h·512] + kv → out [T,N_h,512]</text>
+<rect x="1020.0" y="440.0" width="220.0" height="90.0" rx="9" fill="#ecfdf5" stroke="#059669" stroke-width="1.2"/>
+<text x="1032.0" y="460.0" font-size="12.0" font-weight="700" fill="#064e3b">context (fp8, sf)</text>
+<text x="1032.0" y="475.6" font-size="10.0" font-weight="400" fill="#475569">→ WV / out_proj</text>
+<text x="1032.0" y="488.6" font-size="9.0" font-weight="400" fill="#64748b">[T, N_h, 512] (fp8, sf)</text>
+<rect x="330.0" y="640.0" width="270.0" height="90.0" rx="9" fill="#f0fdfa" stroke="#0d9488" stroke-width="1.2"/>
+<text x="342.0" y="660.0" font-size="12.0" font-weight="700" fill="#134e4a">TILELANG · decode ring index</text>
+<text x="342.0" y="675.6" font-size="10.0" font-weight="400" fill="#475569">get_kv_swa_index_decode</text>
+<text x="342.0" y="688.6" font-size="10.0" font-weight="400" fill="#475569">[B,2] → ring slot [B,W]</text>
+<text x="342.0" y="701.6" font-size="9.0" font-weight="400" fill="#64748b">out [B, W] int32</text>
+<rect x="335.0" y="740.0" width="260.0" height="90.0" rx="9" fill="#f8fafc" stroke="#94a3b8" stroke-width="1.2"/>
+<text x="347.0" y="760.0" font-size="12.0" font-weight="700" fill="#0f172a">CACHE · SWA + CA cache</text>
+<text x="347.0" y="775.6" font-size="10.0" font-weight="400" fill="#475569">swa_cache + ca_cache</text>
+<text x="347.0" y="788.6" font-size="10.0" font-weight="400" fill="#475569">kv_ca_index ← Indexer</text>
+<text x="347.0" y="801.6" font-size="9.0" font-weight="400" fill="#64748b">[B, W] + [B, K]</text>
+<rect x="650.0" y="665.0" width="320.0" height="110.0" rx="9" fill="#fff7ed" stroke="#ea580c" stroke-width="2.0"/>
+<text x="662.0" y="685.0" font-size="12.0" font-weight="700" fill="#7c2d12">FUSED · decode attention</text>
+<text x="662.0" y="700.6" font-size="10.0" font-weight="400" fill="#475569">fused_norm_rope_attn_rope_cast.decode</text>
+<text x="662.0" y="713.6" font-size="10.0" font-weight="400" fill="#475569">双缓存 sparse MLA + sink</text>
+<text x="662.0" y="726.6" font-size="10.0" font-weight="400" fill="#475569">out rope + FP8 cast</text>
+<text x="662.0" y="739.6" font-size="9.0" font-weight="400" fill="#64748b">q [B,N_h·512] + 双缓存 → out [B,N_h,512]</text>
+<rect x="1030.0" y="675.0" width="220.0" height="90.0" rx="9" fill="#ecfdf5" stroke="#059669" stroke-width="1.2"/>
+<text x="1042.0" y="695.0" font-size="12.0" font-weight="700" fill="#064e3b">context (fp8, sf)</text>
+<text x="1042.0" y="710.6" font-size="10.0" font-weight="400" fill="#475569">→ WV / out_proj</text>
+<text x="1042.0" y="723.6" font-size="9.0" font-weight="400" fill="#64748b">[B, N_h, 512] (fp8, sf)</text>
+<text x="40.0" y="904.1" font-size="9.0" font-weight="400" fill="#94a3b8">源码：attn.py 402-451 / 589-670 · fused_transform.py:189 · attention_backend.py:29/74 · get_kv_index.py:97</text>
+<rect x="537.2" y="201.5" width="25.5" height="15" rx="3" fill="#ffffff" opacity="0.96"/>
+<text x="550.0" y="212.0" font-size="9" text-anchor="middle" fill="#64748b">q_a</text>
+<rect x="529.2" y="261.5" width="41.5" height="15" rx="3" fill="#ffffff" opacity="0.96"/>
+<text x="550.0" y="272.0" font-size="9" text-anchor="middle" fill="#64748b">kv_swa</text>
+<rect x="974.8" y="299.0" width="33.5" height="15" rx="3" fill="#ffffff" opacity="0.96"/>
+<text x="991.5" y="309.5" font-size="9" text-anchor="middle" fill="#64748b">store</text>
+<rect x="462.0" y="559.0" width="51.0" height="15" rx="3" fill="#ffffff" opacity="0.96"/>
+<text x="487.5" y="569.5" font-size="9" text-anchor="middle" fill="#64748b">kv (bf16)</text>
+</svg>

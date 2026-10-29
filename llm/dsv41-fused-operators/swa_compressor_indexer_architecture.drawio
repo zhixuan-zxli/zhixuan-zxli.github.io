@@ -1,0 +1,402 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<mxfile host="app.diagrams.net" agent="DeepInfer" pages="3">
+  <diagram id="swa" name="01 SWA">
+    <mxGraphModel dx="1643" dy="964" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1600" pageHeight="920" math="0" shadow="0">
+      <root>
+        <mxCell id="0" value=""/>
+        <mxCell id="1" parent="0" value=""/>
+        <mxCell id="swa_lane0" parent="1" style="rounded=1;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacingLeft=16;spacingTop=8;fillColor=#fbfdff;strokeColor=#e2e8f0;dashed=1;fontSize=11;fontStyle=1;fontColor=#64748b;" value="STAGE 1 · 共用前端（投影 + KV 融合写）" vertex="1">
+          <mxGeometry height="240" width="1540" x="30" y="130" as="geometry"/>
+        </mxCell>
+        <mxCell id="swa_lane1" parent="1" style="rounded=1;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacingLeft=16;spacingTop=8;fillColor=#fbfdff;strokeColor=#e2e8f0;dashed=1;fontSize=11;fontStyle=1;fontColor=#64748b;" value="STAGE 2 · PREFILL" vertex="1">
+          <mxGeometry height="220" width="1540" x="30" y="390" as="geometry"/>
+        </mxCell>
+        <mxCell id="swa_lane2" parent="1" style="rounded=1;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacingLeft=16;spacingTop=8;fillColor=#fbfdff;strokeColor=#e2e8f0;dashed=1;fontSize=11;fontStyle=1;fontColor=#64748b;" value="STAGE 3 · DECODE" vertex="1">
+          <mxGeometry height="220" width="1540" x="30" y="630" as="geometry"/>
+        </mxCell>
+        <mxCell id="swa_title" parent="1" style="text;html=1;align=left;verticalAlign=middle;fontSize=26;fontStyle=1;fontColor=#0f172a;" value="SWA · 滑动窗口注意力" vertex="1">
+          <mxGeometry height="34" width="820" x="40" y="22" as="geometry"/>
+        </mxCell>
+        <mxCell id="swa_shape_legend" value="shape：T=prefill token · B=decode token · T|B=共用 · H=hidden · Rq=q_lora_rank · N_h/N_i=heads · N=compress ratio&lt;br&gt;W=window · W_s=SWA block size · K=topk · C=compressed cache len · L_c=compressed KV len · K_v=gathered KV len · K_b=candidate blocks · S=state ring size" style="text;html=1;align=left;verticalAlign=top;fontSize=9;fontColor=#94a3b8;whiteSpace=wrap;" vertex="1" parent="1"><mxGeometry x="40" y="94" width="1520" height="30" as="geometry"/></mxCell><mxCell id="swa_sub" parent="1" style="text;html=1;align=left;verticalAlign=middle;fontSize=12;fontColor=#475569;" value="融合点：KV_SWA 的 norm+RoPE+cast+store；Q 的 norm/RoPE 折叠进 sparse MLA；decode 双缓存一次注意力。" vertex="1">
+          <mxGeometry height="24" width="900" x="40" y="60" as="geometry"/>
+        </mxCell>
+        <mxCell id="swa_lg0" parent="1" style="rounded=1;fillColor=#fff7ed;strokeColor=#ea580c;" value="" vertex="1">
+          <mxGeometry height="14" width="14" x="960" y="30" as="geometry"/>
+        </mxCell>
+        <mxCell id="swa_lgt0" parent="1" style="text;html=1;align=left;verticalAlign=middle;fontSize=9.5;fontColor=#64748b;" value="FUSED" vertex="1">
+          <mxGeometry height="22" width="102" x="979" y="26" as="geometry"/>
+        </mxCell>
+        <mxCell id="swa_lg1" parent="1" style="rounded=1;fillColor=#eff6ff;strokeColor=#2563eb;" value="" vertex="1">
+          <mxGeometry height="14" width="14" x="1084" y="30" as="geometry"/>
+        </mxCell>
+        <mxCell id="swa_lgt1" parent="1" style="text;html=1;align=left;verticalAlign=middle;fontSize=9.5;fontColor=#64748b;" value="MERGED GEMM" vertex="1">
+          <mxGeometry height="22" width="102" x="1103" y="26" as="geometry"/>
+        </mxCell>
+        <mxCell id="swa_lg2" parent="1" style="rounded=1;fillColor=#f0fdfa;strokeColor=#0d9488;" value="" vertex="1">
+          <mxGeometry height="14" width="14" x="1208" y="30" as="geometry"/>
+        </mxCell>
+        <mxCell id="swa_lgt2" parent="1" style="text;html=1;align=left;verticalAlign=middle;fontSize=9.5;fontColor=#64748b;" value="TILELANG" vertex="1">
+          <mxGeometry height="22" width="102" x="1227" y="26" as="geometry"/>
+        </mxCell>
+        <mxCell id="swa_lg3" parent="1" style="rounded=1;fillColor=#f5f3ff;strokeColor=#7c3aed;" value="" vertex="1">
+          <mxGeometry height="14" width="14" x="1332" y="30" as="geometry"/>
+        </mxCell>
+        <mxCell id="swa_lgt3" parent="1" style="text;html=1;align=left;verticalAlign=middle;fontSize=9.5;fontColor=#64748b;" value="VENDOR" vertex="1">
+          <mxGeometry height="22" width="102" x="1351" y="26" as="geometry"/>
+        </mxCell>
+        <mxCell id="swa_lg4" parent="1" style="rounded=1;fillColor=#f8fafc;strokeColor=#94a3b8;" value="" vertex="1">
+          <mxGeometry height="14" width="14" x="1456" y="30" as="geometry"/>
+        </mxCell>
+        <mxCell id="swa_lgt4" parent="1" style="text;html=1;align=left;verticalAlign=middle;fontSize=9.5;fontColor=#64748b;" value="CACHE" vertex="1">
+          <mxGeometry height="22" width="102" x="1475" y="26" as="geometry"/>
+        </mxCell>
+        <mxCell id="s_in" parent="1" style="rounded=1;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacingLeft=12;spacingTop=8;arcSize=10;fontSize=12;fillColor=#ffffff;strokeColor=#94a3b8;strokeWidth=1.2;fontColor=#0f172a;" value="&lt;b&gt;hidden / shared_hidden&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot;&gt;bf16 或 (fp8, sf)&lt;/font&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot;&gt;YOCO 可选&lt;/font&gt;&lt;br&gt;&lt;font style=&quot;font-size:9px&quot; color=&quot;#64748b&quot;&gt;in [T|B, H]&lt;/font&gt;" vertex="1">
+          <mxGeometry height="90" width="200" x="40" y="190" as="geometry"/>
+        </mxCell>
+        <mxCell id="s_merge" parent="1" style="rounded=1;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacingLeft=12;spacingTop=8;arcSize=10;fontSize=12;fillColor=#eff6ff;strokeColor=#2563eb;strokeWidth=1.2;fontColor=#1e3a8a;" value="&lt;b&gt;GEMM · q_a_kv_swa_proj&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot;&gt;[Wq.A ∥ Wkv.A]&lt;/font&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot;&gt;→ q_a / kv_swa&lt;/font&gt;&lt;br&gt;&lt;font style=&quot;font-size:9px&quot; color=&quot;#64748b&quot;&gt;out q_a [T|B, Rq]&lt;/font&gt;&lt;br&gt;&lt;font style=&quot;font-size:9px&quot; color=&quot;#64748b&quot;&gt;out kv_swa [T|B, 512]&lt;/font&gt;" vertex="1">
+          <mxGeometry height="90" width="250" x="280" y="190" as="geometry"/>
+        </mxCell>
+        <mxCell id="s_qproj" parent="1" style="rounded=1;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacingLeft=12;spacingTop=8;arcSize=10;fontSize=12;fillColor=#eff6ff;strokeColor=#2563eb;strokeWidth=1.2;fontColor=#1e3a8a;" value="&lt;b&gt;GEMM · q_b_proj&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot;&gt;q_a_norm + [Wq.B ∥ index q_B]&lt;/font&gt;&lt;br&gt;&lt;font style=&quot;font-size:9px&quot; color=&quot;#64748b&quot;&gt;out q_raw [T|B, N_h·512]&lt;/font&gt;&lt;br&gt;&lt;font style=&quot;font-size:9px&quot; color=&quot;#64748b&quot;&gt;out index_q_b [T|B, N_i·128]&lt;/font&gt;" vertex="1">
+          <mxGeometry height="80" width="230" x="570" y="150" as="geometry"/>
+        </mxCell>
+        <mxCell id="s_qraw" parent="1" style="rounded=1;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacingLeft=12;spacingTop=8;arcSize=10;fontSize=12;fillColor=#ffffff;strokeColor=#94a3b8;strokeWidth=1.2;fontColor=#0f172a;" value="&lt;b&gt;q_raw / index_q_b&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot;&gt;未 norm/rope → 注意力&lt;/font&gt;&lt;br&gt;&lt;font style=&quot;font-size:9px&quot; color=&quot;#64748b&quot;&gt;q_raw [T|B, N_h·512]&lt;/font&gt;" vertex="1">
+          <mxGeometry height="80" width="200" x="840" y="150" as="geometry"/>
+        </mxCell>
+        <mxCell id="s_kvfused" parent="1" style="rounded=1;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacingLeft=12;spacingTop=8;arcSize=10;fontSize=12;fillColor=#fff7ed;strokeColor=#ea580c;strokeWidth=2;fontColor=#7c2d12;" value="&lt;b&gt;FUSED · KV_SWA 融合写&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot;&gt;fused_norm_rope_hadamard_cast_store_kvcache&lt;/font&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot;&gt;RMSNorm + RoPE(64) + FP8 + store&lt;/font&gt;&lt;br&gt;&lt;font style=&quot;font-size:9px&quot; color=&quot;#64748b&quot;&gt;in [T|B,512] → out kv_swa [T|B,512]&lt;/font&gt;" vertex="1">
+          <mxGeometry height="100" width="310" x="570" y="260" as="geometry"/>
+        </mxCell>
+        <mxCell id="s_swacache" parent="1" style="rounded=1;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacingLeft=12;spacingTop=8;arcSize=10;fontSize=12;fillColor=#f8fafc;strokeColor=#94a3b8;strokeWidth=1.2;fontColor=#0f172a;" value="&lt;b&gt;CACHE · swa_cache&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot;&gt;MXFP8 · 528 B/token&lt;/font&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot;&gt;ring buffer&lt;/font&gt;&lt;br&gt;&lt;font style=&quot;font-size:9px&quot; color=&quot;#64748b&quot;&gt;[blocks, W_s, 512]&lt;/font&gt;" vertex="1">
+          <mxGeometry height="80" width="200" x="1103" y="270" as="geometry"/>
+        </mxCell>
+        <mxCell id="s_pload" parent="1" style="rounded=1;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacingLeft=12;spacingTop=8;arcSize=10;fontSize=12;fillColor=#f0fdfa;strokeColor=#0d9488;strokeWidth=1.2;fontColor=#134e4a;" value="&lt;b&gt;TILELANG · load_paged_kv_cache&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot;&gt;swa_cache 历史 → 连续 bf16&lt;/font&gt;&lt;br&gt;&lt;font style=&quot;font-size:9px&quot; color=&quot;#64748b&quot;&gt;out kv [K_v, 512] bf16&lt;/font&gt;" vertex="1">
+          <mxGeometry height="90" width="250" x="40" y="440" as="geometry"/>
+        </mxCell>
+        <mxCell id="s_pcat" parent="1" style="rounded=1;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacingLeft=12;spacingTop=8;arcSize=10;fontSize=12;fillColor=#f0fdfa;strokeColor=#0d9488;strokeWidth=1.2;fontColor=#134e4a;" value="&lt;b&gt;TILELANG · expand + cat&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot;&gt;expand_swa_index + kv_index_cat&lt;/font&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot;&gt;SWA idx ⧺ topk idx&lt;/font&gt;&lt;br&gt;&lt;font style=&quot;font-size:9px&quot; color=&quot;#64748b&quot;&gt;out kv_index [T, W+K] int32&lt;/font&gt;" vertex="1">
+          <mxGeometry height="90" width="270" x="330" y="440" as="geometry"/>
+        </mxCell>
+        <mxCell id="s_pattn" parent="1" style="rounded=1;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacingLeft=12;spacingTop=8;arcSize=10;fontSize=12;fillColor=#fff7ed;strokeColor=#ea580c;strokeWidth=2;fontColor=#7c2d12;" value="&lt;b&gt;FUSED · prefill attention&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot;&gt;fused_norm_rope_attn_rope_cast.prefill&lt;/font&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot;&gt;Q norm/rope + sparse MLA&lt;/font&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot;&gt;out rope + FP8 cast&lt;/font&gt;&lt;br&gt;&lt;font style=&quot;font-size:9px&quot; color=&quot;#64748b&quot;&gt;q [T,N_h·512] + kv → out [T,N_h,512]&lt;/font&gt;" vertex="1">
+          <mxGeometry height="110" width="320" x="650" y="430" as="geometry"/>
+        </mxCell>
+        <mxCell id="s_pctx" parent="1" style="rounded=1;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacingLeft=12;spacingTop=8;arcSize=10;fontSize=12;fillColor=#ecfdf5;strokeColor=#059669;strokeWidth=1.2;fontColor=#064e3b;" value="&lt;b&gt;context (fp8, sf)&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot;&gt;→ WV / out_proj&lt;/font&gt;&lt;br&gt;&lt;font style=&quot;font-size:9px&quot; color=&quot;#64748b&quot;&gt;[T, N_h, 512] (fp8, sf)&lt;/font&gt;" vertex="1">
+          <mxGeometry height="90" width="220" x="1020" y="440" as="geometry"/>
+        </mxCell>
+        <mxCell id="s_dindex" parent="1" style="rounded=1;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacingLeft=12;spacingTop=8;arcSize=10;fontSize=12;fillColor=#f0fdfa;strokeColor=#0d9488;strokeWidth=1.2;fontColor=#134e4a;" value="&lt;b&gt;TILELANG · decode ring index&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot;&gt;get_kv_swa_index_decode&lt;/font&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot;&gt;[B,2] → ring slot [B,W]&lt;/font&gt;&lt;br&gt;&lt;font style=&quot;font-size:9px&quot; color=&quot;#64748b&quot;&gt;out [B, W] int32&lt;/font&gt;" vertex="1">
+          <mxGeometry height="90" width="270" x="330" y="640" as="geometry"/>
+        </mxCell>
+        <mxCell id="s_dcache" parent="1" style="rounded=1;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacingLeft=12;spacingTop=8;arcSize=10;fontSize=12;fillColor=#f8fafc;strokeColor=#94a3b8;strokeWidth=1.2;fontColor=#0f172a;" value="&lt;b&gt;CACHE · SWA + CA cache&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot;&gt;swa_cache + ca_cache&lt;/font&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot;&gt;kv_ca_index ← Indexer&lt;/font&gt;&lt;br&gt;&lt;font style=&quot;font-size:9px&quot; color=&quot;#64748b&quot;&gt;[B, W] + [B, K]&lt;/font&gt;" vertex="1">
+          <mxGeometry height="90" width="260" x="335" y="740" as="geometry"/>
+        </mxCell>
+        <mxCell id="s_dattn" parent="1" style="rounded=1;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacingLeft=12;spacingTop=8;arcSize=10;fontSize=12;fillColor=#fff7ed;strokeColor=#ea580c;strokeWidth=2;fontColor=#7c2d12;" value="&lt;b&gt;FUSED · decode attention&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot;&gt;fused_norm_rope_attn_rope_cast.decode&lt;/font&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot;&gt;双缓存 sparse MLA + sink&lt;/font&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot;&gt;out rope + FP8 cast&lt;/font&gt;&lt;br&gt;&lt;font style=&quot;font-size:9px&quot; color=&quot;#64748b&quot;&gt;q [B,N_h·512] + 双缓存 → out [B,N_h,512]&lt;/font&gt;" vertex="1">
+          <mxGeometry height="110" width="320" x="650" y="665" as="geometry"/>
+        </mxCell>
+        <mxCell id="s_dctx" parent="1" style="rounded=1;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacingLeft=12;spacingTop=8;arcSize=10;fontSize=12;fillColor=#ecfdf5;strokeColor=#059669;strokeWidth=1.2;fontColor=#064e3b;" value="&lt;b&gt;context (fp8, sf)&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot;&gt;→ WV / out_proj&lt;/font&gt;&lt;br&gt;&lt;font style=&quot;font-size:9px&quot; color=&quot;#64748b&quot;&gt;[B, N_h, 512] (fp8, sf)&lt;/font&gt;" vertex="1">
+          <mxGeometry height="90" width="220" x="1030" y="675" as="geometry"/>
+        </mxCell>
+        <mxCell id="swa_e0" edge="1" parent="1" source="s_in" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeWidth=1.5;fontSize=10;fontColor=#64748b;labelBackgroundColor=#ffffff;strokeColor=#94a3b8;" target="s_merge" value="">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="swa_e1" edge="1" parent="1" source="s_merge" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeWidth=1.5;fontSize=10;fontColor=#64748b;labelBackgroundColor=#ffffff;strokeColor=#94a3b8;" target="s_qproj" value="q_a">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="swa_e2" edge="1" parent="1" source="s_merge" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeWidth=1.5;fontSize=10;fontColor=#64748b;labelBackgroundColor=#ffffff;strokeColor=#94a3b8;" target="s_kvfused" value="kv_swa">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="swa_e3" edge="1" parent="1" source="s_qproj" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeWidth=1.5;fontSize=10;fontColor=#64748b;labelBackgroundColor=#ffffff;strokeColor=#94a3b8;" target="s_qraw" value="">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="swa_e4" edge="1" parent="1" source="s_kvfused" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeWidth=1.5;fontSize=10;fontColor=#64748b;labelBackgroundColor=#ffffff;strokeColor=#94a3b8;" target="s_swacache" value="store">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="swa_e5" edge="1" parent="1" source="s_pload" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeWidth=1.5;fontSize=10;fontColor=#64748b;labelBackgroundColor=#ffffff;strokeColor=#94a3b8;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=1;entryDx=0;entryDy=0;" target="s_pattn" value="kv (bf16)">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="165" y="570"/>
+              <mxPoint x="810" y="570"/>
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="swa_e6" edge="1" parent="1" source="s_pcat" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeWidth=1.5;fontSize=10;fontColor=#64748b;labelBackgroundColor=#ffffff;strokeColor=#94a3b8;" target="s_pattn" value="">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="swa_e7" edge="1" parent="1" source="s_pattn" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeWidth=1.5;fontSize=10;fontColor=#64748b;labelBackgroundColor=#ffffff;strokeColor=#94a3b8;" target="s_pctx" value="">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="swa_e8" edge="1" parent="1" source="s_dindex" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeWidth=1.5;fontSize=10;fontColor=#64748b;labelBackgroundColor=#ffffff;strokeColor=#94a3b8;" target="s_dattn" value="">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="swa_e9" edge="1" parent="1" source="s_dcache" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeWidth=1.5;fontSize=10;fontColor=#64748b;labelBackgroundColor=#ffffff;strokeColor=#94a3b8;" target="s_dattn" value="">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="swa_e10" edge="1" parent="1" source="s_dattn" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeWidth=1.5;fontSize=10;fontColor=#64748b;labelBackgroundColor=#ffffff;strokeColor=#94a3b8;" target="s_dctx" value="">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="swa_e11" edge="1" parent="1" source="s_qraw" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeWidth=1.5;fontSize=10;fontColor=#64748b;labelBackgroundColor=#ffffff;strokeColor=#3b82f6;dashed=1;exitX=0.72;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" target="s_pattn" value="">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="985" y="410"/>
+              <mxPoint x="805" y="410"/>
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="swa_e12" edge="1" parent="1" source="s_qraw" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeWidth=1.5;fontSize=10;fontColor=#64748b;labelBackgroundColor=#ffffff;strokeColor=#3b82f6;dashed=1;exitX=0.72;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" target="s_dattn" value="">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="985" y="650"/>
+              <mxPoint x="805" y="650"/>
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="swa_foot" parent="1" style="text;html=1;align=left;verticalAlign=middle;fontSize=9;fontColor=#94a3b8;" value="源码：attn.py 402-451 / 589-670 · fused_transform.py:189 · attention_backend.py:29/74 · get_kv_index.py:97" vertex="1">
+          <mxGeometry height="18" width="1500" x="40" y="892" as="geometry"/>
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+  <diagram id="compressor" name="02 Compressor">
+    <mxGraphModel dx="1597" dy="937" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1600" pageHeight="920" math="0" shadow="0">
+      <root>
+        <mxCell id="0" value=""/>
+        <mxCell id="1" parent="0" value=""/>
+        <mxCell id="compressor_lane0" parent="1" style="rounded=1;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacingLeft=16;spacingTop=8;fillColor=#fbfdff;strokeColor=#e2e8f0;dashed=1;fontSize=11;fontStyle=1;fontColor=#64748b;" value="STAGE 1 · 投影 + C2 压缩" vertex="1">
+          <mxGeometry height="250" width="1540" x="30" y="130" as="geometry"/>
+        </mxCell>
+        <mxCell id="compressor_lane1" parent="1" style="rounded=1;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacingLeft=16;spacingTop=8;fillColor=#fbfdff;strokeColor=#e2e8f0;dashed=1;fontSize=11;fontStyle=1;fontColor=#64748b;" value="STAGE 2 · 主 KV 写 + 下游" vertex="1">
+          <mxGeometry height="280" width="1540" x="30" y="400" as="geometry"/>
+        </mxCell>
+        <mxCell id="compressor_lane2" parent="1" style="rounded=1;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacingLeft=16;spacingTop=8;fillColor=#fbfdff;strokeColor=#e2e8f0;dashed=1;fontSize=11;fontStyle=1;fontColor=#64748b;" value="BOUNDARY · C1 / CP / 共享" vertex="1">
+          <mxGeometry height="180" width="1540" x="30" y="700" as="geometry"/>
+        </mxCell>
+        <mxCell id="compressor_title" parent="1" style="text;html=1;align=left;verticalAlign=middle;fontSize=26;fontStyle=1;fontColor=#0f172a;" value="Compressor · 压缩 KV" vertex="1">
+          <mxGeometry height="34" width="820" x="40" y="22" as="geometry"/>
+        </mxCell>
+        <mxCell id="compressor_shape_legend" value="shape：T=prefill token · B=decode token · T|B=共用 · H=hidden · Rq=q_lora_rank · N_h/N_i=heads · N=compress ratio&lt;br&gt;W=window · W_s=SWA block size · K=topk · C=compressed cache len · L_c=compressed KV len · K_v=gathered KV len · K_b=candidate blocks · S=state ring size" style="text;html=1;align=left;verticalAlign=top;fontSize=9;fontColor=#94a3b8;whiteSpace=wrap;" vertex="1" parent="1"><mxGeometry x="40" y="94" width="1520" height="30" as="geometry"/></mxCell><mxCell id="compressor_sub" parent="1" style="text;html=1;align=left;verticalAlign=middle;fontSize=12;fontColor=#475569;" value="C2：state 更新 + 逐维 softmax + 加权和 → norm + RoPE + cast + store；pre-RoPE KV 作为副产物给 Indexer。" vertex="1">
+          <mxGeometry height="24" width="900" x="40" y="60" as="geometry"/>
+        </mxCell>
+        <mxCell id="compressor_lg0" parent="1" style="rounded=1;fillColor=#fff7ed;strokeColor=#ea580c;" value="" vertex="1">
+          <mxGeometry height="14" width="14" x="960" y="30" as="geometry"/>
+        </mxCell>
+        <mxCell id="compressor_lgt0" parent="1" style="text;html=1;align=left;verticalAlign=middle;fontSize=9.5;fontColor=#64748b;" value="FUSED" vertex="1">
+          <mxGeometry height="22" width="102" x="979" y="26" as="geometry"/>
+        </mxCell>
+        <mxCell id="compressor_lg1" parent="1" style="rounded=1;fillColor=#eff6ff;strokeColor=#2563eb;" value="" vertex="1">
+          <mxGeometry height="14" width="14" x="1084" y="30" as="geometry"/>
+        </mxCell>
+        <mxCell id="compressor_lgt1" parent="1" style="text;html=1;align=left;verticalAlign=middle;fontSize=9.5;fontColor=#64748b;" value="MERGED GEMM" vertex="1">
+          <mxGeometry height="22" width="102" x="1103" y="26" as="geometry"/>
+        </mxCell>
+        <mxCell id="compressor_lg2" parent="1" style="rounded=1;fillColor=#f0fdfa;strokeColor=#0d9488;" value="" vertex="1">
+          <mxGeometry height="14" width="14" x="1208" y="30" as="geometry"/>
+        </mxCell>
+        <mxCell id="compressor_lgt2" parent="1" style="text;html=1;align=left;verticalAlign=middle;fontSize=9.5;fontColor=#64748b;" value="TILELANG" vertex="1">
+          <mxGeometry height="22" width="102" x="1227" y="26" as="geometry"/>
+        </mxCell>
+        <mxCell id="compressor_lg3" parent="1" style="rounded=1;fillColor=#f5f3ff;strokeColor=#7c3aed;" value="" vertex="1">
+          <mxGeometry height="14" width="14" x="1332" y="30" as="geometry"/>
+        </mxCell>
+        <mxCell id="compressor_lgt3" parent="1" style="text;html=1;align=left;verticalAlign=middle;fontSize=9.5;fontColor=#64748b;" value="VENDOR" vertex="1">
+          <mxGeometry height="22" width="102" x="1351" y="26" as="geometry"/>
+        </mxCell>
+        <mxCell id="compressor_lg4" parent="1" style="rounded=1;fillColor=#f8fafc;strokeColor=#94a3b8;" value="" vertex="1">
+          <mxGeometry height="14" width="14" x="1456" y="30" as="geometry"/>
+        </mxCell>
+        <mxCell id="compressor_lgt4" parent="1" style="text;html=1;align=left;verticalAlign=middle;fontSize=9.5;fontColor=#64748b;" value="CACHE" vertex="1">
+          <mxGeometry height="22" width="102" x="1475" y="26" as="geometry"/>
+        </mxCell>
+        <mxCell id="c_in" parent="1" style="rounded=1;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacingLeft=12;spacingTop=8;arcSize=10;fontSize=12;fillColor=#ffffff;strokeColor=#94a3b8;strokeWidth=1.2;fontColor=#0f172a;" value="&lt;b&gt;hidden / shared_hidden&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot;&gt;bf16 或 (fp8, sf)&lt;/font&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot;&gt;YOCO 可选&lt;/font&gt;&lt;br&gt;&lt;font style=&quot;font-size:9px&quot; color=&quot;#64748b&quot;&gt;in [T|B, H]&lt;/font&gt;" vertex="1">
+          <mxGeometry height="90" width="200" x="40" y="190" as="geometry"/>
+        </mxCell>
+        <mxCell id="c_merge" parent="1" style="rounded=1;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacingLeft=12;spacingTop=8;arcSize=10;fontSize=12;fillColor=#eff6ff;strokeColor=#2563eb;strokeWidth=1.2;fontColor=#1e3a8a;" value="&lt;b&gt;GEMM · current_hidden_proj&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot;&gt;[Gate ∥ A ∥ weights]&lt;/font&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot;&gt;一次 bf16 GEMM&lt;/font&gt;&lt;br&gt;&lt;font style=&quot;font-size:9px&quot; color=&quot;#64748b&quot;&gt;in [T|B,H] → projected [T|B,2·512] fp32&lt;/font&gt;" vertex="1">
+          <mxGeometry height="90" width="270" x="280" y="190" as="geometry"/>
+        </mxCell>
+        <mxCell id="c_comp" parent="1" style="rounded=1;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacingLeft=12;spacingTop=8;arcSize=10;fontSize=12;fillColor=#fff7ed;strokeColor=#ea580c;strokeWidth=2;fontColor=#7c2d12;" value="&lt;b&gt;FUSED · C2 压缩&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot;&gt;compress_and_update_state_{prefill,decode}&lt;/font&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot;&gt;state + softmax + 加权和&lt;/font&gt;&lt;br&gt;&lt;font style=&quot;font-size:9px&quot; color=&quot;#64748b&quot;&gt;in [T|B,2·512] → kv_compressed [T/N|B,512] bf16&lt;/font&gt;" vertex="1">
+          <mxGeometry height="110" width="340" x="590" y="180" as="geometry"/>
+        </mxCell>
+        <mxCell id="c_state" parent="1" style="rounded=1;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacingLeft=12;spacingTop=8;arcSize=10;fontSize=12;fillColor=#f8fafc;strokeColor=#94a3b8;strokeWidth=1.2;fontColor=#0f172a;" value="&lt;b&gt;CACHE · state_cache&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot;&gt;[slots, S, 2, 512] fp32&lt;/font&gt;" vertex="1">
+          <mxGeometry height="90" width="230" x="970" y="190" as="geometry"/>
+        </mxCell>
+        <mxCell id="c_kvfused" parent="1" style="rounded=1;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacingLeft=12;spacingTop=8;arcSize=10;fontSize=12;fillColor=#fff7ed;strokeColor=#ea580c;strokeWidth=2;fontColor=#7c2d12;" value="&lt;b&gt;FUSED · 主 KV 写&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot;&gt;fused_norm_rope_hadamard_cast_store_kvcache&lt;/font&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot;&gt;RMSNorm + RoPE + cast + store&lt;/font&gt;&lt;br&gt;&lt;font style=&quot;font-size:9px&quot; color=&quot;#64748b&quot;&gt;in [T/N|B,512] → ca + pre_rope [T/N|B,512]&lt;/font&gt;" vertex="1">
+          <mxGeometry height="100" width="360" x="590" y="450" as="geometry"/>
+        </mxCell>
+        <mxCell id="c_ca" parent="1" style="rounded=1;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacingLeft=12;spacingTop=8;arcSize=10;fontSize=12;fillColor=#f8fafc;strokeColor=#94a3b8;strokeWidth=1.2;fontColor=#0f172a;" value="&lt;b&gt;CACHE · ca_cache&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot;&gt;FP4 288B / MXFP8 528B&lt;/font&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot;&gt;→ SWA+CA sparse MLA&lt;/font&gt;&lt;br&gt;&lt;font style=&quot;font-size:9px&quot; color=&quot;#64748b&quot;&gt;[blocks, C, 512]&lt;/font&gt;" vertex="1">
+          <mxGeometry height="80" width="220" x="1002" y="460" as="geometry"/>
+        </mxCell>
+        <mxCell id="c_pre" parent="1" style="rounded=1;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacingLeft=12;spacingTop=8;arcSize=10;fontSize=12;fillColor=#ecfdf5;strokeColor=#059669;strokeWidth=1.2;fontColor=#064e3b;" value="&lt;b&gt;pre_rope_kv [T/N|B,512]&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot;&gt;out_stage=norm · bf16&lt;/font&gt;" vertex="1">
+          <mxGeometry height="80" width="220" x="990" y="560" as="geometry"/>
+        </mxCell>
+        <mxCell id="c_indexer" parent="1" style="rounded=1;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacingLeft=12;spacingTop=8;arcSize=10;fontSize=12;fillColor=#ffffff;strokeColor=#94a3b8;strokeWidth=1.2;fontColor=#0f172a;" value="&lt;b&gt;→ Indexer KProject&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot;&gt;复用 pre_rope_kv&lt;/font&gt;&lt;br&gt;&lt;font style=&quot;font-size:9px&quot; color=&quot;#64748b&quot;&gt;[T/N|B, 512] bf16&lt;/font&gt;" vertex="1">
+          <mxGeometry height="80" width="250" x="1290" y="560" as="geometry"/>
+        </mxCell>
+        <mxCell id="c_note1" parent="1" style="rounded=1;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacingLeft=12;spacingTop=8;fillColor=#f8fafc;strokeColor=#e2e8f0;fontSize=10.5;fontColor=#334155;" value="&lt;b&gt;C1 / ratio=1&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot;&gt;无 Gate / state_cache，跳过两个 compress kernel；&lt;/font&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot;&gt;仍走 STAGE 2 的 norm+rope+cast+store。&lt;/font&gt;" vertex="1">
+          <mxGeometry height="100" width="480" x="40" y="750" as="geometry"/>
+        </mxCell>
+        <mxCell id="c_note2" parent="1" style="rounded=1;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacingLeft=12;spacingTop=8;fillColor=#f8fafc;strokeColor=#e2e8f0;fontSize=10.5;fontColor=#334155;" value="&lt;b&gt;CP 重叠&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot;&gt;projected_kv all_gather 先 launch，与 Q 投影重叠；&lt;/font&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot;&gt;prefill 压缩前按 mirror index gather 重排。&lt;/font&gt;" vertex="1">
+          <mxGeometry height="100" width="480" x="540" y="750" as="geometry"/>
+        </mxCell>
+        <mxCell id="c_note3" parent="1" style="rounded=1;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacingLeft=12;spacingTop=8;fillColor=#f8fafc;strokeColor=#e2e8f0;fontSize=10.5;fontColor=#334155;" value="&lt;b&gt;跨层共享&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot;&gt;kv source 写一次 ca_cache / pre_rope_kv；&lt;/font&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot;&gt;consumer 通过 SharedLayerTopology 复用。&lt;/font&gt;" vertex="1">
+          <mxGeometry height="100" width="500" x="1040" y="750" as="geometry"/>
+        </mxCell>
+        <mxCell id="compressor_e0" edge="1" parent="1" source="c_in" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeWidth=1.5;fontSize=10;fontColor=#64748b;labelBackgroundColor=#ffffff;strokeColor=#94a3b8;" target="c_merge" value="">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="compressor_e1" edge="1" parent="1" source="c_merge" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeWidth=1.5;fontSize=10;fontColor=#64748b;labelBackgroundColor=#ffffff;strokeColor=#94a3b8;" target="c_comp" value="projected_kv">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="compressor_e2" edge="1" parent="1" source="c_comp" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeWidth=1.5;fontSize=10;fontColor=#64748b;labelBackgroundColor=#ffffff;strokeColor=#0d9488;dashed=1;" target="c_state" value="state">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="compressor_e3" edge="1" parent="1" source="c_comp" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeWidth=1.5;fontSize=10;fontColor=#64748b;labelBackgroundColor=#ffffff;strokeColor=#94a3b8;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" target="c_kvfused" value="kv_compressed bf16">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="compressor_e4" edge="1" parent="1" source="c_kvfused" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeWidth=1.5;fontSize=10;fontColor=#64748b;labelBackgroundColor=#ffffff;strokeColor=#94a3b8;" target="c_ca" value="store">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="compressor_e5" edge="1" parent="1" source="c_kvfused" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeWidth=1.5;fontSize=10;fontColor=#64748b;labelBackgroundColor=#ffffff;strokeColor=#94a3b8;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" target="c_pre" value="">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="770" y="600"/>
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="compressor_e6" edge="1" parent="1" source="c_pre" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeWidth=1.5;fontSize=10;fontColor=#64748b;labelBackgroundColor=#ffffff;strokeColor=#94a3b8;" target="c_indexer" value="">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="compressor_foot" parent="1" style="text;html=1;align=left;verticalAlign=middle;fontSize=9;fontColor=#94a3b8;" value="源码：compress.py 82-167 · tilelang_ops/compress.py:20/74 · fused_transform.py:189 · attn.py:328-373" vertex="1">
+          <mxGeometry height="18" width="1500" x="40" y="892" as="geometry"/>
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+  <diagram id="indexer" name="03 Indexer">
+    <mxGraphModel dx="1597" dy="937" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1600" pageHeight="920" math="0" shadow="0">
+      <root>
+        <mxCell id="0" value=""/>
+        <mxCell id="1" parent="0" value=""/>
+        <mxCell id="indexer_lane0" parent="1" style="rounded=1;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacingLeft=16;spacingTop=8;fillColor=#fbfdff;strokeColor=#e2e8f0;dashed=1;fontSize=11;fontStyle=1;fontColor=#64748b;" value="STAGE 1 · Q/K 量化 + 写 ica_cache" vertex="1">
+          <mxGeometry height="260" width="1540" x="30" y="130" as="geometry"/>
+        </mxCell>
+        <mxCell id="indexer_lane1" parent="1" style="rounded=1;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacingLeft=16;spacingTop=8;fillColor=#fbfdff;strokeColor=#e2e8f0;dashed=1;fontSize=11;fontStyle=1;fontColor=#64748b;" value="STAGE 2 · LOGITS" vertex="1">
+          <mxGeometry height="220" width="1540" x="30" y="410" as="geometry"/>
+        </mxCell>
+        <mxCell id="indexer_lane2" parent="1" style="rounded=1;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacingLeft=16;spacingTop=8;fillColor=#fbfdff;strokeColor=#e2e8f0;dashed=1;fontSize=11;fontStyle=1;fontColor=#64748b;" value="STAGE 3 · TOP-K 索引链" vertex="1">
+          <mxGeometry height="220" width="1540" x="30" y="650" as="geometry"/>
+        </mxCell>
+        <mxCell id="indexer_title" parent="1" style="text;html=1;align=left;verticalAlign=middle;fontSize=26;fontStyle=1;fontColor=#0f172a;" value="Indexer · 稀疏索引器" vertex="1">
+          <mxGeometry height="34" width="820" x="40" y="22" as="geometry"/>
+        </mxCell>
+        <mxCell id="indexer_shape_legend" value="shape：T=prefill token · B=decode token · T|B=共用 · H=hidden · Rq=q_lora_rank · N_h/N_i=heads · N=compress ratio&lt;br&gt;W=window · W_s=SWA block size · K=topk · C=compressed cache len · L_c=compressed KV len · K_v=gathered KV len · K_b=candidate blocks · S=state ring size" style="text;html=1;align=left;verticalAlign=top;fontSize=9;fontColor=#94a3b8;whiteSpace=wrap;" vertex="1" parent="1"><mxGeometry x="40" y="94" width="1520" height="30" as="geometry"/></mxCell><mxCell id="indexer_sub" parent="1" style="text;html=1;align=left;verticalAlign=middle;fontSize=12;fontColor=#475569;" value="Q/K 的 RoPE+FP4（K 另带 norm+store）；logits 由 DeepGEMM 做 GEMM+ReLU+head 归约；之后是 top-k 索引链。" vertex="1">
+          <mxGeometry height="24" width="900" x="40" y="60" as="geometry"/>
+        </mxCell>
+        <mxCell id="indexer_lg0" parent="1" style="rounded=1;fillColor=#fff7ed;strokeColor=#ea580c;" value="" vertex="1">
+          <mxGeometry height="14" width="14" x="960" y="30" as="geometry"/>
+        </mxCell>
+        <mxCell id="indexer_lgt0" parent="1" style="text;html=1;align=left;verticalAlign=middle;fontSize=9.5;fontColor=#64748b;" value="FUSED" vertex="1">
+          <mxGeometry height="22" width="102" x="979" y="26" as="geometry"/>
+        </mxCell>
+        <mxCell id="indexer_lg1" parent="1" style="rounded=1;fillColor=#eff6ff;strokeColor=#2563eb;" value="" vertex="1">
+          <mxGeometry height="14" width="14" x="1084" y="30" as="geometry"/>
+        </mxCell>
+        <mxCell id="indexer_lgt1" parent="1" style="text;html=1;align=left;verticalAlign=middle;fontSize=9.5;fontColor=#64748b;" value="MERGED GEMM" vertex="1">
+          <mxGeometry height="22" width="102" x="1103" y="26" as="geometry"/>
+        </mxCell>
+        <mxCell id="indexer_lg2" parent="1" style="rounded=1;fillColor=#f0fdfa;strokeColor=#0d9488;" value="" vertex="1">
+          <mxGeometry height="14" width="14" x="1208" y="30" as="geometry"/>
+        </mxCell>
+        <mxCell id="indexer_lgt2" parent="1" style="text;html=1;align=left;verticalAlign=middle;fontSize=9.5;fontColor=#64748b;" value="TILELANG" vertex="1">
+          <mxGeometry height="22" width="102" x="1227" y="26" as="geometry"/>
+        </mxCell>
+        <mxCell id="indexer_lg3" parent="1" style="rounded=1;fillColor=#f5f3ff;strokeColor=#7c3aed;" value="" vertex="1">
+          <mxGeometry height="14" width="14" x="1332" y="30" as="geometry"/>
+        </mxCell>
+        <mxCell id="indexer_lgt3" parent="1" style="text;html=1;align=left;verticalAlign=middle;fontSize=9.5;fontColor=#64748b;" value="VENDOR" vertex="1">
+          <mxGeometry height="22" width="102" x="1351" y="26" as="geometry"/>
+        </mxCell>
+        <mxCell id="indexer_lg4" parent="1" style="rounded=1;fillColor=#f8fafc;strokeColor=#94a3b8;" value="" vertex="1">
+          <mxGeometry height="14" width="14" x="1456" y="30" as="geometry"/>
+        </mxCell>
+        <mxCell id="indexer_lgt4" parent="1" style="text;html=1;align=left;verticalAlign=middle;fontSize=9.5;fontColor=#64748b;" value="CACHE" vertex="1">
+          <mxGeometry height="22" width="102" x="1475" y="26" as="geometry"/>
+        </mxCell>
+        <mxCell id="i_in" parent="1" style="rounded=1;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacingLeft=12;spacingTop=8;arcSize=10;fontSize=12;fillColor=#ffffff;strokeColor=#94a3b8;strokeWidth=1.2;fontColor=#0f172a;" value="&lt;b&gt;inputs&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot;&gt;index_q_b [T|B, N_i·128]&lt;/font&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot;&gt;pre_rope_kv [T/N|B, 512]&lt;/font&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot;&gt;index_weights [T|B, N_i]&lt;/font&gt;" vertex="1">
+          <mxGeometry height="110" width="210" x="40" y="190" as="geometry"/>
+        </mxCell>
+        <mxCell id="i_qfused" parent="1" style="rounded=1;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacingLeft=12;spacingTop=8;arcSize=10;fontSize=12;fillColor=#fff7ed;strokeColor=#ea580c;strokeWidth=2;fontColor=#7c2d12;" value="&lt;b&gt;FUSED · Q 量化&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot;&gt;fused_norm_rope_... (RoPE only)&lt;/font&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot;&gt;RoPE + FP4 E2M1 cast&lt;/font&gt;&lt;br&gt;&lt;font style=&quot;font-size:9px&quot; color=&quot;#64748b&quot;&gt;in [T|B,N_i·128] → q_fp4 [T|B,N_i,128]&lt;/font&gt;" vertex="1">
+          <mxGeometry height="90" width="300" x="290" y="160" as="geometry"/>
+        </mxCell>
+        <mxCell id="i_qout" parent="1" style="rounded=1;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacingLeft=12;spacingTop=8;arcSize=10;fontSize=12;fillColor=#ecfdf5;strokeColor=#059669;strokeWidth=1.2;fontColor=#064e3b;" value="&lt;b&gt;(q_fp4, q_sf)&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot;&gt;不落 cache&lt;/font&gt;&lt;br&gt;&lt;font style=&quot;font-size:9px&quot; color=&quot;#64748b&quot;&gt;q_fp4 [T|B, N_i, 128]&lt;/font&gt;&lt;br&gt;&lt;font style=&quot;font-size:9px&quot; color=&quot;#64748b&quot;&gt;q_sf [T|B, N_i, 4]&lt;/font&gt;" vertex="1">
+          <mxGeometry height="90" width="200" x="630" y="160" as="geometry"/>
+        </mxCell>
+        <mxCell id="i_kproj" parent="1" style="rounded=1;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacingLeft=12;spacingTop=8;arcSize=10;fontSize=12;fillColor=#eff6ff;strokeColor=#2563eb;strokeWidth=1.2;fontColor=#1e3a8a;" value="&lt;b&gt;GEMM · KProject&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot;&gt;512 → 128&lt;/font&gt;&lt;br&gt;&lt;font style=&quot;font-size:9px&quot; color=&quot;#64748b&quot;&gt;in [T/N|B,512] → [T/N|B,128]&lt;/font&gt;" vertex="1">
+          <mxGeometry height="80" width="210" x="290" y="280" as="geometry"/>
+        </mxCell>
+        <mxCell id="i_kfused" parent="1" style="rounded=1;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacingLeft=12;spacingTop=8;arcSize=10;fontSize=12;fillColor=#fff7ed;strokeColor=#ea580c;strokeWidth=2;fontColor=#7c2d12;" value="&lt;b&gt;FUSED · K 量化写&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot;&gt;RMSNorm + RoPE + FP4 + store&lt;/font&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot;&gt;fused_norm_rope_..._kvcache&lt;/font&gt;&lt;br&gt;&lt;font style=&quot;font-size:9px&quot; color=&quot;#64748b&quot;&gt;in [T/N|B,128] → ica [T/N|B,128]&lt;/font&gt;" vertex="1">
+          <mxGeometry height="90" width="300" x="535" y="275" as="geometry"/>
+        </mxCell>
+        <mxCell id="i_ica" parent="1" style="rounded=1;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacingLeft=12;spacingTop=8;arcSize=10;fontSize=12;fillColor=#f8fafc;strokeColor=#94a3b8;strokeWidth=1.2;fontColor=#0f172a;" value="&lt;b&gt;CACHE · ica_cache&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot;&gt;FP4 · 68 B/token&lt;/font&gt;&lt;br&gt;&lt;font style=&quot;font-size:9px&quot; color=&quot;#64748b&quot;&gt;[blocks, C, 128]&lt;/font&gt;" vertex="1">
+          <mxGeometry height="80" width="200" x="881" y="280" as="geometry"/>
+        </mxCell>
+        <mxCell id="i_plog" parent="1" style="rounded=1;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacingLeft=12;spacingTop=8;arcSize=10;fontSize=12;fillColor=#f5f3ff;strokeColor=#7c3aed;strokeWidth=1.2;fontColor=#4c1d95;" value="&lt;b&gt;VENDOR · prefill logits&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot;&gt;fp8_fp4_mqa_logits&lt;/font&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot;&gt;dense / sparse + ReLU + weights&lt;/font&gt;&lt;br&gt;&lt;font style=&quot;font-size:9px&quot; color=&quot;#64748b&quot;&gt;p_sum [T, L_c]&lt;/font&gt;" vertex="1">
+          <mxGeometry height="100" width="360" x="400" y="410" as="geometry"/>
+        </mxCell>
+        <mxCell id="i_dlog" parent="1" style="rounded=1;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacingLeft=12;spacingTop=8;arcSize=10;fontSize=12;fillColor=#f5f3ff;strokeColor=#7c3aed;strokeWidth=1.2;fontColor=#4c1d95;" value="&lt;b&gt;VENDOR · decode logits&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot;&gt;fp8_fp4_paged_mqa_logits&lt;/font&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot;&gt;dense / sparse&lt;/font&gt;&lt;br&gt;&lt;font style=&quot;font-size:9px&quot; color=&quot;#64748b&quot;&gt;p_sum [B, L_c]&lt;/font&gt;" vertex="1">
+          <mxGeometry height="100" width="360" x="400" y="520" as="geometry"/>
+        </mxCell>
+        <mxCell id="i_psum" parent="1" style="rounded=1;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacingLeft=12;spacingTop=8;arcSize=10;fontSize=12;fillColor=#ecfdf5;strokeColor=#059669;strokeWidth=1.2;fontColor=#064e3b;" value="&lt;b&gt;p_sum [T|B, L_c]&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot;&gt;SM100 bf16 / SM90 fp32&lt;/font&gt;" vertex="1">
+          <mxGeometry height="90" width="220" x="830" y="470" as="geometry"/>
+        </mxCell>
+        <mxCell id="i_cand" parent="1" style="rounded=1;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacingLeft=12;spacingTop=8;arcSize=10;fontSize=12;fillColor=#f0fdfa;strokeColor=#0d9488;strokeWidth=1.2;fontColor=#134e4a;" value="&lt;b&gt;TILELANG · candidate&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot;&gt;candidate_block_max + compact&lt;/font&gt;&lt;br&gt;&lt;font style=&quot;font-size:9px&quot; color=&quot;#64748b&quot;&gt;cand [T|B, K_b] int32&lt;/font&gt;" vertex="1">
+          <mxGeometry height="90" width="320" x="40" y="710" as="geometry"/>
+        </mxCell>
+        <mxCell id="i_token" parent="1" style="rounded=1;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacingLeft=12;spacingTop=8;arcSize=10;fontSize=12;fillColor=#f5f3ff;strokeColor=#7c3aed;strokeWidth=1.2;fontColor=#4c1d95;" value="&lt;b&gt;VENDOR · topk&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot;&gt;deep_select.topk + restore&lt;/font&gt;&lt;br&gt;&lt;font style=&quot;font-size:9px&quot; color=&quot;#64748b&quot;&gt;topk [T|B, K] int32&lt;/font&gt;" vertex="1">
+          <mxGeometry height="90" width="320" x="400" y="710" as="geometry"/>
+        </mxCell>
+        <mxCell id="i_conv" parent="1" style="rounded=1;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacingLeft=12;spacingTop=8;arcSize=10;fontSize=12;fillColor=#f0fdfa;strokeColor=#0d9488;strokeWidth=1.2;fontColor=#134e4a;" value="&lt;b&gt;TILELANG · convert index&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot;&gt;convert_kv_index (decode)&lt;/font&gt;&lt;br&gt;&lt;font style=&quot;font-size:9px&quot; color=&quot;#64748b&quot;&gt;in/out [T|B, K] int32&lt;/font&gt;" vertex="1">
+          <mxGeometry height="90" width="330" x="760" y="710" as="geometry"/>
+        </mxCell>
+        <mxCell id="i_out" parent="1" style="rounded=1;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacingLeft=12;spacingTop=8;arcSize=10;fontSize=12;fillColor=#ecfdf5;strokeColor=#059669;strokeWidth=1.2;fontColor=#064e3b;" value="&lt;b&gt;topk_index → kv_ca_index&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot;&gt;prefill 全局索引 / decode slot&lt;/font&gt;&lt;br&gt;&lt;font style=&quot;font-size:9px&quot; color=&quot;#64748b&quot;&gt;topk_index [T|B, K] int32&lt;/font&gt;" vertex="1">
+          <mxGeometry height="90" width="300" x="1130" y="710" as="geometry"/>
+        </mxCell>
+        <mxCell id="indexer_e0" edge="1" parent="1" source="i_in" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeWidth=1.5;fontSize=10;fontColor=#64748b;labelBackgroundColor=#ffffff;strokeColor=#94a3b8;" target="i_qfused" value="">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="indexer_e1" edge="1" parent="1" source="i_in" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeWidth=1.5;fontSize=10;fontColor=#64748b;labelBackgroundColor=#ffffff;strokeColor=#94a3b8;" target="i_kproj" value="">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="indexer_e2" edge="1" parent="1" source="i_qfused" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeWidth=1.5;fontSize=10;fontColor=#64748b;labelBackgroundColor=#ffffff;strokeColor=#94a3b8;" target="i_qout" value="">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="indexer_e3" edge="1" parent="1" source="i_kproj" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeWidth=1.5;fontSize=10;fontColor=#64748b;labelBackgroundColor=#ffffff;strokeColor=#94a3b8;" target="i_kfused" value="">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="indexer_e4" edge="1" parent="1" source="i_kfused" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeWidth=1.5;fontSize=10;fontColor=#64748b;labelBackgroundColor=#ffffff;strokeColor=#94a3b8;" target="i_ica" value="store">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="indexer_e5" edge="1" parent="1" source="i_plog" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeWidth=1.5;fontSize=10;fontColor=#64748b;labelBackgroundColor=#ffffff;strokeColor=#94a3b8;" target="i_psum" value="">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="indexer_e6" edge="1" parent="1" source="i_dlog" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeWidth=1.5;fontSize=10;fontColor=#64748b;labelBackgroundColor=#ffffff;strokeColor=#94a3b8;" target="i_psum" value="">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="indexer_e7" edge="1" parent="1" source="i_psum" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeWidth=1.5;fontSize=10;fontColor=#64748b;labelBackgroundColor=#ffffff;strokeColor=#94a3b8;dashed=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" target="i_token" value="p_sum">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="940" y="690"/>
+              <mxPoint x="560" y="690"/>
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="indexer_e8" edge="1" parent="1" source="i_cand" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeWidth=1.5;fontSize=10;fontColor=#64748b;labelBackgroundColor=#ffffff;strokeColor=#94a3b8;" target="i_token" value="">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="indexer_e9" edge="1" parent="1" source="i_token" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeWidth=1.5;fontSize=10;fontColor=#64748b;labelBackgroundColor=#ffffff;strokeColor=#94a3b8;" target="i_conv" value="">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="indexer_e10" edge="1" parent="1" source="i_conv" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeWidth=1.5;fontSize=10;fontColor=#64748b;labelBackgroundColor=#ffffff;strokeColor=#94a3b8;" target="i_out" value="">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="indexer_foot" parent="1" style="text;html=1;align=left;verticalAlign=middle;fontSize=9;fontColor=#94a3b8;" value="源码：index_attn.py 133-179 / 284-454 · candidate_blocks.py:12/77/114 · flash_mla_utils.py:10" vertex="1">
+          <mxGeometry height="18" width="1500" x="40" y="892" as="geometry"/>
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

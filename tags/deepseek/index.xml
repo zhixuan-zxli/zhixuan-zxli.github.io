@@ -10,9 +10,16 @@
 		
 		
 		
-			<lastBuildDate>Wed, 28 Oct 2026 00:00:00 +0000</lastBuildDate>
+			<lastBuildDate>Thu, 29 Oct 2026 00:00:00 +0000</lastBuildDate>
 		
 			<atom:link href="https://zhixuan-zxli.github.io/tags/deepseek/index.xml" rel="self" type="application/rss+xml" />
+			<item>
+				<title>DeepSeek V4.1-Flash：SWA / Compressor / Indexer 融合算子</title>
+				<link>https://zhixuan-zxli.github.io/llm/dsv41-fused-operators/</link>
+				<pubDate>Thu, 29 Oct 2026 00:00:00 +0000</pubDate>
+				<guid>https://zhixuan-zxli.github.io/llm/dsv41-fused-operators/</guid>
+				<description>&lt;blockquote&gt;&#xA;&lt;p&gt;代码位置按当前 checkout 标注（DeepInfer @ &lt;code&gt;2c37138&lt;/code&gt;）；shape 使用 &lt;code&gt;T&lt;/code&gt; / &lt;code&gt;B&lt;/code&gt; 记号。&lt;/p&gt;&#xA;&lt;/blockquote&gt;&#xA;&lt;p&gt;本文按 &lt;strong&gt;SWA、Compressor、Indexer&lt;/strong&gt; 三条链路分类，说明模型脚本中实际使用的融合算子、合并 GEMM、TileLang 索引/搬运 kernel，以及它们在 prefill / decode 下的数据流和 tensor shape。&lt;/p&gt;&#xA;&lt;p&gt;文中三张架构图较宽，点击图片可查看原尺寸。&lt;/p&gt;&#xA;&lt;hr&gt;&#xA;&lt;h2 id=&#34;0-结论速览&#34;&gt;0. 结论速览&lt;/h2&gt;&#xA;&lt;p&gt;这三块一共用到 &lt;strong&gt;4 个融合 kernel 家族&lt;/strong&gt;：&lt;/p&gt;&#xA;&lt;table&gt;&#xA;&#x9;&lt;thead&gt;&#xA;&#x9;&#x9;&#x9;&lt;tr&gt;&#xA;&#x9;&#x9;&#x9;&#x9;&#x9;&lt;th&gt;融合 kernel 家族&lt;/th&gt;&#xA;&#x9;&#x9;&#x9;&#x9;&#x9;&lt;th&gt;融合内容&lt;/th&gt;&#xA;&#x9;&#x9;&#x9;&#x9;&#x9;&lt;th&gt;使用位置&lt;/th&gt;&#xA;&#x9;&#x9;&#x9;&lt;/tr&gt;&#xA;&#x9;&lt;/thead&gt;&#xA;&#x9;&lt;tbody&gt;&#xA;&#x9;&#x9;&#x9;&lt;tr&gt;&#xA;&#x9;&#x9;&#x9;&#x9;&#x9;&lt;td&gt;&lt;code&gt;fused_norm_rope_hadamard_cast_store_kvcache&lt;/code&gt;&lt;/td&gt;&#xA;&#x9;&#x9;&#x9;&#x9;&#x9;&lt;td&gt;RMSNorm + RoPE + cast + store；可选 &lt;code&gt;cast_back&lt;/code&gt;，也可输出 pre-RoPE 副产物&lt;/td&gt;&#xA;&#x9;&#x9;&#x9;&#x9;&#x9;&lt;td&gt;SWA KV、Compressor 主 KV、Indexer Q/K&lt;/td&gt;&#xA;&#x9;&#x9;&#x9;&lt;/tr&gt;&#xA;&#x9;&#x9;&#x9;&lt;tr&gt;&#xA;&#x9;&#x9;&#x9;&#x9;&#x9;&lt;td&gt;&lt;code&gt;fused_norm_rope_attn_rope_cast&lt;/code&gt;&lt;/td&gt;&#xA;&#x9;&#x9;&#x9;&#x9;&#x9;&lt;td&gt;Q RMSNorm + RoPE + sparse MLA + 输出反 RoPE + FP8 cast&lt;/td&gt;&#xA;&#x9;&#x9;&#x9;&#x9;&#x9;&lt;td&gt;SWA prefill / decode&lt;/td&gt;&#xA;&#x9;&#x9;&#x9;&lt;/tr&gt;&#xA;&#x9;&#x9;&#x9;&lt;tr&gt;&#xA;&#x9;&#x9;&#x9;&#x9;&#x9;&lt;td&gt;&lt;code&gt;compress_and_update_state_{prefill,decode}&lt;/code&gt;&lt;/td&gt;&#xA;&#x9;&#x9;&#x9;&#x9;&#x9;&lt;td&gt;state 读写 + 逐维 softmax + 加权和 + bf16&lt;/td&gt;&#xA;&#x9;&#x9;&#x9;&#x9;&#x9;&lt;td&gt;Compressor C2&lt;/td&gt;&#xA;&#x9;&#x9;&#x9;&lt;/tr&gt;&#xA;&#x9;&#x9;&#x9;&lt;tr&gt;&#xA;&#x9;&#x9;&#x9;&#x9;&#x9;&lt;td&gt;DeepGEMM &lt;code&gt;mqa_logits&lt;/code&gt; 系列&lt;/td&gt;&#xA;&#x9;&#x9;&#x9;&#x9;&#x9;&lt;td&gt;GEMM + ReLU + head 加权归约&lt;/td&gt;&#xA;&#x9;&#x9;&#x9;&#x9;&#x9;&lt;td&gt;Indexer logits&lt;/td&gt;&#xA;&#x9;&#x9;&#x9;&lt;/tr&gt;&#xA;&#x9;&lt;/tbody&gt;&#xA;&lt;/table&gt;&#xA;&lt;p&gt;这里的 4 个是底层 kernel 家族；同一个 &lt;code&gt;fused_norm_rope_hadamard_cast_store_kvcache&lt;/code&gt; 会在 SWA / Compressor / Indexer 重复出现，因此按子系统拆开会看到 6 个使用类别。&lt;/p&gt;</description>
+			</item>
 			<item>
 				<title>DeepInfer 调研</title>
 				<link>https://zhixuan-zxli.github.io/llm/deepinfer/</link>

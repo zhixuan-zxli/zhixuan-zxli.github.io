@@ -1,0 +1,94 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="920" viewBox="0 0 1600 920" font-family="Hiragino Sans GB, PingFang SC, Noto Sans CJK SC, Microsoft YaHei, sans-serif">
+<title>02 Compressor</title>
+<rect width="1600" height="920" fill="#ffffff"/>
+<rect x="30.0" y="130.0" width="1540.0" height="250.0" rx="12" fill="#fbfdff" stroke="#e2e8f0" stroke-dasharray="4 4"/>
+<text x="46.0" y="154.0" font-size="11" font-weight="800" fill="#64748b">STAGE 1 · 投影 + C2 压缩</text>
+<rect x="30.0" y="400.0" width="1540.0" height="280.0" rx="12" fill="#fbfdff" stroke="#e2e8f0" stroke-dasharray="4 4"/>
+<text x="46.0" y="424.0" font-size="11" font-weight="800" fill="#64748b">STAGE 2 · 主 KV 写 + 下游</text>
+<rect x="30.0" y="700.0" width="1540.0" height="180.0" rx="12" fill="#fbfdff" stroke="#e2e8f0" stroke-dasharray="4 4"/>
+<text x="46.0" y="724.0" font-size="11" font-weight="800" fill="#64748b">BOUNDARY · C1 / CP / 共享</text>
+<path d="M 240.0 235.0 L 280.0 235.0" fill="none" stroke="#94a3b8" stroke-width="1.6" stroke-linejoin="round"/>
+<path d="M 280.0 235.0 L 271.0 230.2 L 271.0 239.8 Z" fill="#94a3b8"/>
+<path d="M 550.0 235.0 L 590.0 235.0" fill="none" stroke="#94a3b8" stroke-width="1.6" stroke-linejoin="round"/>
+<path d="M 590.0 235.0 L 581.0 230.2 L 581.0 239.8 Z" fill="#94a3b8"/>
+<path d="M 930.0 235.0 L 970.0 235.0" fill="none" stroke="#0d9488" stroke-width="1.6" stroke-linejoin="round" stroke-dasharray="5 4"/>
+<path d="M 970.0 235.0 L 961.0 230.2 L 961.0 239.8 Z" fill="#0d9488"/>
+<path d="M 760.0 290.0 L 760.0 370.0 L 770.0 370.0 L 770.0 450.0" fill="none" stroke="#94a3b8" stroke-width="1.6" stroke-linejoin="round"/>
+<path d="M 770.0 450.0 L 774.8 441.0 L 765.2 441.0 Z" fill="#94a3b8"/>
+<path d="M 950.0 500.0 L 1002.0 500.0" fill="none" stroke="#94a3b8" stroke-width="1.6" stroke-linejoin="round"/>
+<path d="M 1002.0 500.0 L 993.0 495.2 L 993.0 504.8 Z" fill="#94a3b8"/>
+<path d="M 770.0 550.0 L 770.0 600.0 L 990.0 600.0" fill="none" stroke="#94a3b8" stroke-width="1.6" stroke-linejoin="round"/>
+<path d="M 990.0 600.0 L 981.0 595.2 L 981.0 604.8 Z" fill="#94a3b8"/>
+<path d="M 1210.0 600.0 L 1290.0 600.0" fill="none" stroke="#94a3b8" stroke-width="1.6" stroke-linejoin="round"/>
+<path d="M 1290.0 600.0 L 1281.0 595.2 L 1281.0 604.8 Z" fill="#94a3b8"/>
+<text x="40.0" y="47.8" font-size="26.0" font-weight="700" fill="#0f172a">Compressor · 压缩 KV</text>
+<text x="40.0" y="103.0" font-size="9.0" font-weight="400" fill="#94a3b8">shape：T=prefill token · B=decode token · T|B=共用 · H=hidden · Rq=q_lora_rank · N_h/N_i=heads · N=compress ratio</text>
+<text x="40.0" y="115.2" font-size="9.0" font-weight="400" fill="#94a3b8">W=window · W_s=SWA block size · K=topk · C=compressed cache len · L_c=compressed KV len · K_v=gathered KV len · K_b=candidate blocks · S=state ring size</text>
+<text x="40.0" y="76.1" font-size="12.0" font-weight="400" fill="#475569">C2：state 更新 + 逐维 softmax + 加权和 → norm + RoPE + cast + store；pre-RoPE KV 作为副产物给 Indexer。</text>
+<rect x="960.0" y="30.0" width="14.0" height="14.0" rx="3" fill="#fff7ed" stroke="#ea580c" stroke-width="1.2"/>
+<text x="979.0" y="40.2" font-size="9.5" font-weight="400" fill="#64748b">FUSED</text>
+<rect x="1084.0" y="30.0" width="14.0" height="14.0" rx="3" fill="#eff6ff" stroke="#2563eb" stroke-width="1.2"/>
+<text x="1103.0" y="40.2" font-size="9.5" font-weight="400" fill="#64748b">MERGED GEMM</text>
+<rect x="1208.0" y="30.0" width="14.0" height="14.0" rx="3" fill="#f0fdfa" stroke="#0d9488" stroke-width="1.2"/>
+<text x="1227.0" y="40.2" font-size="9.5" font-weight="400" fill="#64748b">TILELANG</text>
+<rect x="1332.0" y="30.0" width="14.0" height="14.0" rx="3" fill="#f5f3ff" stroke="#7c3aed" stroke-width="1.2"/>
+<text x="1351.0" y="40.2" font-size="9.5" font-weight="400" fill="#64748b">VENDOR</text>
+<rect x="1456.0" y="30.0" width="14.0" height="14.0" rx="3" fill="#f8fafc" stroke="#94a3b8" stroke-width="1.2"/>
+<text x="1475.0" y="40.2" font-size="9.5" font-weight="400" fill="#64748b">CACHE</text>
+<rect x="40.0" y="190.0" width="200.0" height="90.0" rx="9" fill="#ffffff" stroke="#94a3b8" stroke-width="1.2"/>
+<text x="52.0" y="210.0" font-size="12.0" font-weight="700" fill="#0f172a">hidden / shared_hidden</text>
+<text x="52.0" y="225.6" font-size="10.0" font-weight="400" fill="#475569">bf16 或 (fp8, sf)</text>
+<text x="52.0" y="238.6" font-size="10.0" font-weight="400" fill="#475569">YOCO 可选</text>
+<text x="52.0" y="251.6" font-size="9.0" font-weight="400" fill="#64748b">in [T|B, H]</text>
+<rect x="280.0" y="190.0" width="270.0" height="90.0" rx="9" fill="#eff6ff" stroke="#2563eb" stroke-width="1.2"/>
+<text x="292.0" y="210.0" font-size="12.0" font-weight="700" fill="#1e3a8a">GEMM · current_hidden_proj</text>
+<text x="292.0" y="225.6" font-size="10.0" font-weight="400" fill="#475569">[Gate ∥ A ∥ weights]</text>
+<text x="292.0" y="238.6" font-size="10.0" font-weight="400" fill="#475569">一次 bf16 GEMM</text>
+<text x="292.0" y="251.6" font-size="9.0" font-weight="400" fill="#64748b">in [T|B,H] → projected [T|B,2·512] fp32</text>
+<rect x="590.0" y="180.0" width="340.0" height="110.0" rx="9" fill="#fff7ed" stroke="#ea580c" stroke-width="2.0"/>
+<text x="602.0" y="200.0" font-size="12.0" font-weight="700" fill="#7c2d12">FUSED · C2 压缩</text>
+<text x="602.0" y="215.6" font-size="10.0" font-weight="400" fill="#475569">compress_and_update_state_{prefill,decode}</text>
+<text x="602.0" y="228.6" font-size="10.0" font-weight="400" fill="#475569">state + softmax + 加权和</text>
+<text x="602.0" y="241.6" font-size="9.0" font-weight="400" fill="#64748b">in [T|B,2·512] → kv_compressed [T/N|B,512] bf16</text>
+<rect x="970.0" y="190.0" width="230.0" height="90.0" rx="9" fill="#f8fafc" stroke="#94a3b8" stroke-width="1.2"/>
+<text x="982.0" y="210.0" font-size="12.0" font-weight="700" fill="#0f172a">CACHE · state_cache</text>
+<text x="982.0" y="225.6" font-size="10.0" font-weight="400" fill="#475569">[slots, S, 2, 512] fp32</text>
+<rect x="590.0" y="450.0" width="360.0" height="100.0" rx="9" fill="#fff7ed" stroke="#ea580c" stroke-width="2.0"/>
+<text x="602.0" y="470.0" font-size="12.0" font-weight="700" fill="#7c2d12">FUSED · 主 KV 写</text>
+<text x="602.0" y="485.6" font-size="10.0" font-weight="400" fill="#475569">fused_norm_rope_hadamard_cast_store_kvcache</text>
+<text x="602.0" y="498.6" font-size="10.0" font-weight="400" fill="#475569">RMSNorm + RoPE + cast + store</text>
+<text x="602.0" y="511.6" font-size="9.0" font-weight="400" fill="#64748b">in [T/N|B,512] → ca + pre_rope [T/N|B,512]</text>
+<rect x="1002.0" y="460.0" width="220.0" height="80.0" rx="9" fill="#f8fafc" stroke="#94a3b8" stroke-width="1.2"/>
+<text x="1014.0" y="480.0" font-size="12.0" font-weight="700" fill="#0f172a">CACHE · ca_cache</text>
+<text x="1014.0" y="495.6" font-size="10.0" font-weight="400" fill="#475569">FP4 288B / MXFP8 528B</text>
+<text x="1014.0" y="508.6" font-size="10.0" font-weight="400" fill="#475569">→ SWA+CA sparse MLA</text>
+<text x="1014.0" y="521.6" font-size="9.0" font-weight="400" fill="#64748b">[blocks, C, 512]</text>
+<rect x="990.0" y="560.0" width="220.0" height="80.0" rx="9" fill="#ecfdf5" stroke="#059669" stroke-width="1.2"/>
+<text x="1002.0" y="580.0" font-size="12.0" font-weight="700" fill="#064e3b">pre_rope_kv [T/N|B,512]</text>
+<text x="1002.0" y="595.6" font-size="10.0" font-weight="400" fill="#475569">out_stage=norm · bf16</text>
+<rect x="1290.0" y="560.0" width="250.0" height="80.0" rx="9" fill="#ffffff" stroke="#94a3b8" stroke-width="1.2"/>
+<text x="1302.0" y="580.0" font-size="12.0" font-weight="700" fill="#0f172a">→ Indexer KProject</text>
+<text x="1302.0" y="595.6" font-size="10.0" font-weight="400" fill="#475569">复用 pre_rope_kv</text>
+<text x="1302.0" y="608.6" font-size="9.0" font-weight="400" fill="#64748b">[T/N|B, 512] bf16</text>
+<rect x="40.0" y="750.0" width="480.0" height="100.0" rx="9" fill="#f8fafc" stroke="#e2e8f0" stroke-width="1.2"/>
+<text x="52.0" y="770.0" font-size="10.5" font-weight="700" fill="#334155">C1 / ratio=1</text>
+<text x="52.0" y="783.6" font-size="10.0" font-weight="400" fill="#475569">无 Gate / state_cache，跳过两个 compress kernel；</text>
+<text x="52.0" y="796.6" font-size="10.0" font-weight="400" fill="#475569">仍走 STAGE 2 的 norm+rope+cast+store。</text>
+<rect x="540.0" y="750.0" width="480.0" height="100.0" rx="9" fill="#f8fafc" stroke="#e2e8f0" stroke-width="1.2"/>
+<text x="552.0" y="770.0" font-size="10.5" font-weight="700" fill="#334155">CP 重叠</text>
+<text x="552.0" y="783.6" font-size="10.0" font-weight="400" fill="#475569">projected_kv all_gather 先 launch，与 Q 投影重叠；</text>
+<text x="552.0" y="796.6" font-size="10.0" font-weight="400" fill="#475569">prefill 压缩前按 mirror index gather 重排。</text>
+<rect x="1040.0" y="750.0" width="500.0" height="100.0" rx="9" fill="#f8fafc" stroke="#e2e8f0" stroke-width="1.2"/>
+<text x="1052.0" y="770.0" font-size="10.5" font-weight="700" fill="#334155">跨层共享</text>
+<text x="1052.0" y="783.6" font-size="10.0" font-weight="400" fill="#475569">kv source 写一次 ca_cache / pre_rope_kv；</text>
+<text x="1052.0" y="796.6" font-size="10.0" font-weight="400" fill="#475569">consumer 通过 SharedLayerTopology 复用。</text>
+<text x="40.0" y="904.1" font-size="9.0" font-weight="400" fill="#94a3b8">源码：compress.py 82-167 · tilelang_ops/compress.py:20/74 · fused_transform.py:189 · attn.py:328-373</text>
+<rect x="536.0" y="162.0" width="68.0" height="15" rx="3" fill="#ffffff" opacity="0.96"/>
+<text x="570.0" y="172.5" font-size="9" text-anchor="middle" fill="#64748b">projected_kv</text>
+<rect x="933.8" y="224.0" width="32.5" height="15" rx="3" fill="#ffffff" opacity="0.96"/>
+<text x="950.0" y="234.5" font-size="9" text-anchor="middle" fill="#64748b">state</text>
+<rect x="707.2" y="319.0" width="105.5" height="15" rx="3" fill="#ffffff" opacity="0.96"/>
+<text x="760.0" y="329.5" font-size="9" text-anchor="middle" fill="#64748b">kv_compressed bf16</text>
+<rect x="959.2" y="489.0" width="33.5" height="15" rx="3" fill="#ffffff" opacity="0.96"/>
+<text x="976.0" y="499.5" font-size="9" text-anchor="middle" fill="#64748b">store</text>
+</svg>
